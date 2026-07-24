@@ -62,7 +62,11 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
   if (!gpu) return unavailable("unsupported", "WebGPU is unavailable in this browser");
 
   try {
-    const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" });
+    // Chromium/Dawn ignores this hint on Windows and emits a misleading warning.
+    const adapterOptions = navigator.userAgent.includes("Windows")
+      ? undefined
+      : { powerPreference: "high-performance" };
+    const adapter = await gpu.requestAdapter(adapterOptions);
     if (!adapter) return unavailable("unsupported", "No WebGPU adapter was found");
     const device = await adapter.requestDevice();
     const textureUsage = (globalThis as any).GPUTextureUsage;
