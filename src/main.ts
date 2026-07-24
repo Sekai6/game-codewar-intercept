@@ -2480,6 +2480,7 @@ function updateWebGpuUltraStatus() {
   canvas.dataset.webGpuUltraVelocity = webGpuUltraStatus === "active" ? "OBJECT_PREVIOUS_MVP_RG16F" : "OFF";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
+  canvas.dataset.webGpuUltraFroxelSpace = webGpuUltraStatus === "active" ? "WORLD_INVERSE_VP_POINT_LIGHTS" : "OFF";
   canvas.dataset.webGpuUltraClustered = webGpuUltraStatus === "active" && clusteredLightingEnabled && webGpuUltraResult?.clusteredLighting ? "FORWARD_PLUS_32X18X24_64" : "OFF";
   canvas.dataset.webGpuUltraClusteredError = webGpuUltraResult?.clusteredLightingError ?? "";
   canvas.dataset.webGpuUltraAtmosphere = webGpuUltraStatus === "active" && brunetonAtmosphereEnabled ? webGpuUltraResult?.atmosphereBackend ?? "OFF" : "OFF";
