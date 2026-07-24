@@ -10,6 +10,7 @@ The first gate proves, on one `WebGPURenderer` and one depth buffer:
 - direct `PointsNodeMaterial` drawing from that storage attribute without CPU readback;
 - normal depth occlusion between storage particles and opaque geometry.
 - native TRAA with velocity MRT, camera jitter, history reprojection, 3x3 neighborhood clamping and luminance weighting;
+- native half-resolution 16-sample GTAO driven by a hull-only depth/normal pass, with bounded `[0.68, 1.0]` compositing so transparent spray and displaced ocean geometry cannot contaminate ambient occlusion;
 - a TSL ocean material sampling the 16-frame 64x64 Tessendorf FFT displacement/Jacobian atlas, plus a ship-aligned Kelvin/bow-wave local displacement and foam field;
 - a TSL afternoon sky sampling the transmittance, single-scattering and multiple-scattering Bruneton LUTs, with a bounded solar halo and disk.
 
@@ -18,6 +19,8 @@ Run `npm run verify:webgpu-migration-lab` in Chrome or Edge. The verifier limits
 Three.js r178 `TiledLightsNode.customCacheKey()` dereferences its compute node before first setup. The lab uses a narrow initialization guard and delegates to the original cache key after setup; this is isolated from production code.
 
 Three.js r178 `TRAAPassNode.updateBefore()` also expects its MRT before its lazy setup has run. The lab explicitly supplies the documented `mrt({ output, velocity })` configuration at construction; the resolve, jitter, history and velocity implementation remain the native Three.js TRAA path. This is not the legacy `TAARenderPass`, which has no reprojection.
+
+The r178 TRAA pass owns its scene render and does not accept an already shaded input. Sampling its copied/jittered depth from GTAO produced invalid all-white or all-black AO. The validated topology therefore uses a separate hull-only `pass()` for GTAO depth/normal and excludes the displaced ocean and transparent storage particles. This costs an additional geometry pass (the current lab rises from roughly 74 to 124 draw calls with GTAO enabled); merging GTAO into a unified temporal MRT remains a production optimization gate, not a completed claim.
 
 Migration order:
 

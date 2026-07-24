@@ -6,6 +6,7 @@ import {
   Clock,
   Color,
   DirectionalLight,
+  Layers,
   Mesh,
   MeshStandardNodeMaterial,
   PerspectiveCamera,
@@ -19,8 +20,9 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalWorld, normalize, output, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, time, uniform, vec2, vec3, velocity } from "three/tsl";
+import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, time, uniform, vec2, vec3, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
+import { ao } from "three/addons/tsl/display/GTAONode.js";
 import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
@@ -93,11 +95,13 @@ for (let index = 0; index < 24; index++) {
 
 const hullMaterial = new MeshStandardNodeMaterial({ color: 0x68777c, metalness: 0.35, roughness: 0.42 });
 const hull = new Mesh(new BoxGeometry(22, 3.5, 7), hullMaterial);
-hull.position.y = 4;
+hull.position.y = 1.8;
 hull.rotation.y = -0.18;
+hull.layers.enable(1);
 scene.add(hull);
 const deck = new Mesh(new BoxGeometry(9, 5, 5), new MeshStandardNodeMaterial({ color: 0x839094, metalness: 0.25, roughness: 0.5 }));
-deck.position.set(-2, 7, 0);
+deck.position.set(-2, 4.25, 0);
+deck.layers.enable(1);
 hull.add(deck);
 const seaMaterial = new MeshStandardNodeMaterial({ metalness: 0.38, roughness: 0.24 });
 const splashOrigin = vec2(18, -12);
@@ -237,8 +241,26 @@ scene.add(particles);
 await renderer.computeAsync(initializeParticles);
 const temporalPass = traaPass(scene, camera);
 temporalPass.setMRT(mrt({ output, velocity }));
+const gtaoMode = new URLSearchParams(location.search).get("gtao") ?? "on";
+const gtaoEnabled = gtaoMode !== "off";
+const geometryPass = pass(scene, camera);
+geometryPass.setMRT(mrt({ output, normal: normalView }));
+const gtaoLayers = new Layers();
+gtaoLayers.set(1);
+geometryPass.setLayers(gtaoLayers);
+const gtaoPass = ao(geometryPass.getTextureNode("depth"), geometryPass.getTextureNode("normal"), camera);
+gtaoPass.resolutionScale = 0.5;
+gtaoPass.samples.value = 16;
+gtaoPass.radius.value = 1.8;
+gtaoPass.thickness.value = 1.6;
+gtaoPass.distanceExponent.value = 1.5;
+gtaoPass.distanceFallOff.value = 0.92;
+gtaoPass.scale.value = 2.1;
 const postProcessing = new PostProcessing(renderer);
-postProcessing.outputNode = temporalPass;
+const boundedAo = gtaoPass.getTextureNode().mul(0.32).add(0.68);
+postProcessing.outputNode = gtaoMode === "debug"
+  ? gtaoPass.getTextureNode()
+  : gtaoEnabled ? temporalPass.mul(boundedAo) : temporalPass;
 
 canvas.dataset.backend = renderer.backend.constructor.name === "WebGPUBackend" ? "WEBGPU" : "FALLBACK";
 canvas.dataset.pbr = "MESH_STANDARD_NODE";
@@ -247,6 +269,8 @@ canvas.dataset.storageParticles = String(particleCount);
 canvas.dataset.storageParticleRole = "EVENT_SPLASH_WATER_COLUMN";
 canvas.dataset.storageParticlePath = "COMPUTE_TO_POINTS_ZERO_READBACK";
 canvas.dataset.temporalPipeline = "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP";
+canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
+canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
 canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";
