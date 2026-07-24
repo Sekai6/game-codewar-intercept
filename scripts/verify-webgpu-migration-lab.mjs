@@ -13,9 +13,10 @@ try {
   const base = process.env.APP_URL ?? "http://127.0.0.1:5173";
   const gtao = ["off", "debug"].includes(process.env.GTAO) ? process.env.GTAO : "on";
   const traa = process.env.TRAA === "off" ? "off" : "on";
+  const ssrTest = process.env.SSR_TEST === "on" ? "on" : "off";
   const ssr = ["on", "debug"].includes(process.env.SSR) ? process.env.SSR : "off";
   const hiz = ["on", "depth-debug", "range-debug"].includes(process.env.HIZ) ? process.env.HIZ : "off";
-  await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html?gtao=${gtao}&traa=${traa}&ssr=${ssr}&hiz=${hiz}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html?gtao=${gtao}&traa=${traa}&ssr=${ssr}&hiz=${hiz}&ssrTest=${ssrTest}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.waitForFunction(() => document.querySelector("#webgpu-lab")?.dataset.storageParticles === "32768", null, { timeout: 30_000 });
   await page.waitForFunction(() => Number(document.querySelector("#webgpu-lab")?.dataset.renderedFrames ?? 0) >= 20, null, { timeout: 45_000 });
   if (hiz !== "off") await page.waitForFunction(() => document.querySelector("#webgpu-lab")?.dataset.hizBaseCenter !== undefined, null, { timeout: 10_000 });

@@ -42,12 +42,17 @@ const canvas = document.querySelector("#webgpu-lab") as HTMLCanvasElement;
 const status = document.querySelector("#status") as HTMLElement;
 const query = new URLSearchParams(location.search);
 const temporalTest = query.get("temporalTest") === "on";
+const ssrTest = query.get("ssrTest") === "on";
 const simulationTime = uniform(temporalTest ? 3.25 : 0);
 const scene = new Scene();
 const sunDirection = uniform(new Vector3(-0.707, 0.469, -0.526).normalize());
 const camera = new PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 500);
 camera.position.set(28, 20, 34);
 camera.lookAt(0, 4, 0);
+if (ssrTest) {
+  camera.position.set(34, 8.5, 38);
+  camera.lookAt(0, 2.5, 0);
+}
 const renderer = new WebGPURenderer({ canvas, antialias: true });
 renderer.lighting = new StableTiledLighting();
 renderer.toneMapping = ACESFilmicToneMapping;
@@ -151,8 +156,8 @@ const wavePosition = Fn(() => {
   const splashRing = float(1).sub(smoothstep(0.12, 0.68, splashDistance.sub(splashRadius).abs())).mul(float(1).sub(splashAge)).mul(angularBreakup.mul(0.55).add(0.25)).mul(0.22);
   return vec3(x.add(displacement.x.mul(1.15)), z.add(displacement.y.mul(1.15)), residualHeight.add(displacement.z.mul(0.74)).add(wakeHeight).add(bowWave).add(splashRing));
 })();
-seaMaterial.positionNode = wavePosition;
-seaMaterial.normalNode = Fn(() => {
+seaMaterial.positionNode = ssrTest ? positionLocal : wavePosition;
+if (!ssrTest) seaMaterial.normalNode = Fn(() => {
   const p = positionLocal;
   const epsilon = float(2.4);
   const fftUv = fract(vec2(p.x, p.y).div(420).add(0.5));
@@ -162,7 +167,7 @@ seaMaterial.normalNode = Fn(() => {
   const dz = sampleHeight(float(0), epsilon).sub(sampleHeight(float(0), epsilon.negate())).div(epsilon.mul(2));
   return normalize(cross(vec3(1, 0, dx), vec3(0, 1, dz)));
 })();
-seaMaterial.colorNode = Fn(() => {
+seaMaterial.colorNode = ssrTest ? color(0x123c4a) : Fn(() => {
   const distance = cameraPosition.distance(positionWorld);
   const viewDirection = normalize(cameraPosition.sub(positionWorld));
   const facing = dot(normalWorld, viewDirection).max(0);
@@ -194,6 +199,12 @@ seaMaterial.colorNode = Fn(() => {
   const aerial = smoothstep(55, 170, distance);
   return mix(water.add(environmentReflection).add(crest), color(0x6f8997), aerial.mul(0.2));
 })();
+if (ssrTest) {
+  seaMaterial.metalness = 0.92;
+  seaMaterial.roughness = 0.06;
+  hullMaterial.metalness = 0;
+  (deck.material as MeshStandardNodeMaterial).metalness = 0;
+}
 seaMaterial.emissiveNode = mul(seaMaterial.colorNode, 0.26);
 const sea = new Mesh(new PlaneGeometry(420, 420, 256, 256), seaMaterial);
 sea.rotation.x = -Math.PI / 2;
@@ -313,6 +324,7 @@ canvas.dataset.storageParticleRole = "EVENT_SPLASH_WATER_COLUMN";
 canvas.dataset.storageParticlePath = "COMPUTE_TO_POINTS_ZERO_READBACK";
 canvas.dataset.temporalPipeline = traaEnabled ? "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP" : "OFF_AB_BASELINE";
 canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "OFF";
+canvas.dataset.ssrTest = ssrTest ? "CONTROLLED_FLAT_SEA_LOW_ANGLE" : "FFT_DYNAMIC_SCENE";
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
@@ -340,7 +352,7 @@ async function frame() {
     const base = index % 5 < 2 ? 2.1 : 1.05;
     light.intensity = temporalTest ? base : base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
   });
-  if (!temporalTest) renderer.compute(updateParticles);
+  if (!temporalTest && !ssrTest) renderer.compute(updateParticles);
   await postProcessing.renderAsync();
   if (hizRuntime) {
     const sourceDepth = (renderer.backend as any).get(geometryPass.getTexture("depth")).texture;
