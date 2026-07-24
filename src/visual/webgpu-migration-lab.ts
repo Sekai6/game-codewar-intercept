@@ -20,9 +20,10 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
+import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, metalness, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
+import { ssr } from "three/addons/tsl/display/SSRNode.js";
 import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
@@ -252,6 +253,7 @@ const temporalPass = traaPass(scene, camera);
 temporalPass.setMRT(mrt({ output, velocity }));
 const traaEnabled = query.get("traa") !== "off";
 const baselinePass = pass(scene, camera);
+baselinePass.setMRT(mrt({ output, normal: normalView, metalness }));
 const gtaoMode = query.get("gtao") ?? "on";
 const gtaoEnabled = gtaoMode !== "off";
 const geometryPass = pass(scene, camera);
@@ -270,9 +272,25 @@ gtaoPass.scale.value = 2.1;
 const postProcessing = new PostProcessing(renderer);
 const boundedAo = gtaoPass.getTextureNode().mul(0.32).add(0.68);
 const colorPass = traaEnabled ? temporalPass : baselinePass;
-postProcessing.outputNode = gtaoMode === "debug"
+const ssrMode = query.get("ssr") ?? "off";
+const ssrPass = ssr(
+  baselinePass.getTextureNode("output"),
+  baselinePass.getTextureNode("depth"),
+  baselinePass.getTextureNode("normal"),
+  baselinePass.getTextureNode("metalness"),
+  camera,
+);
+ssrPass.resolutionScale = 0.5;
+ssrPass.maxDistance.value = 36;
+ssrPass.thickness.value = 0.45;
+ssrPass.opacity.value = 0.72;
+const ssrTexture = ssrPass.getTextureNode();
+const baseComposite = gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
+postProcessing.outputNode = ssrMode === "debug"
+  ? ssrTexture
+  : gtaoMode === "debug"
   ? gtaoPass.getTextureNode()
-  : gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
+  : ssrMode === "on" ? mix(baseComposite, ssrTexture, ssrTexture.a.mul(0.48)) : baseComposite;
 
 canvas.dataset.backend = renderer.backend.constructor.name === "WebGPUBackend" ? "WEBGPU" : "FALLBACK";
 canvas.dataset.pbr = "MESH_STANDARD_NODE";
@@ -284,6 +302,8 @@ canvas.dataset.temporalPipeline = traaEnabled ? "NATIVE_TRAA_VELOCITY_MRT_NEIGHB
 canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "OFF";
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
+canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
+canvas.dataset.hiz = "NOT_YET_CONSUMED";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
 canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";

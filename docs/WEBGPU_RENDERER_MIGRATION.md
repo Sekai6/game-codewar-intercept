@@ -24,6 +24,8 @@ Three.js r178 `TRAAPassNode.updateBefore()` also expects its MRT before its lazy
 
 The r178 TRAA pass owns its scene render and does not accept an already shaded input. Sampling its copied/jittered depth from GTAO produced invalid all-white or all-black AO. The validated topology therefore uses a separate hull-only `pass()` for GTAO depth/normal and excludes the displaced ocean and transparent storage particles. This costs an additional geometry pass (the current lab rises from roughly 74 to 124 draw calls with GTAO enabled); merging GTAO into a unified temporal MRT remains a production optimization gate, not a completed claim.
 
+Three.js r178's native `SSRNode` is a fixed one-pixel screen-space loop; source inspection confirms that it does not build or sample a mipmapped depth hierarchy. The lab exposes it only as `ssr=on|debug` with diagnostics `FIXED_STEP_BASELINE_HALF_RES` and `hiz=NOT_YET_CONSUMED`. Debug capture proves ray hits but also shows broken hull slices, screen-edge truncation and transparent spray contamination. The bounded composite adds roughly 55 draw calls with no material visual improvement, so SSR remains off by default and is retained solely as an A/B baseline. It must not be described as Hi-Z SSR; acceptance requires a real min-depth pyramid and hierarchical traversal.
+
 Migration order:
 
 1. replace the procedural ocean, sky and cloud `ShaderMaterial` implementations with TSL node materials;

@@ -13,7 +13,8 @@ try {
   const base = process.env.APP_URL ?? "http://127.0.0.1:5173";
   const gtao = ["off", "debug"].includes(process.env.GTAO) ? process.env.GTAO : "on";
   const traa = process.env.TRAA === "off" ? "off" : "on";
-  await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html?gtao=${gtao}&traa=${traa}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  const ssr = ["on", "debug"].includes(process.env.SSR) ? process.env.SSR : "off";
+  await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html?gtao=${gtao}&traa=${traa}&ssr=${ssr}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.waitForFunction(() => document.querySelector("#webgpu-lab")?.dataset.storageParticles === "32768", null, { timeout: 30_000 });
   await page.waitForFunction(() => Number(document.querySelector("#webgpu-lab")?.dataset.renderedFrames ?? 0) >= 20, null, { timeout: 45_000 });
   const result = await page.locator("#webgpu-lab").evaluate(canvas => ({ ...canvas.dataset }));
@@ -21,8 +22,9 @@ try {
   console.log(JSON.stringify(result, null, 2));
   const expectedGtao = gtao === "off" ? "OFF_AB_BASELINE" : gtao === "debug" ? "DEBUG_AO_OUTPUT" : "NATIVE_HALF_RES_16_SAMPLE";
   const expectedTraa = traa === "off" ? "OFF_AB_BASELINE" : "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP";
-  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.storageParticleRole !== "EVENT_SPLASH_WATER_COLUMN" || result.storageParticlePath !== "COMPUTE_TO_POINTS_ZERO_READBACK" || result.temporalPipeline !== expectedTraa || result.gtao !== expectedGtao || result.gtaoLayers !== "OPAQUE_HULL_ONLY" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING" || result.splashInput !== "LOCAL_EVENT_DISPLACEMENT_FOAM" || result.fftOceanResource !== "GPU_COMPUTE_READBACK_UPLOAD_16X64" || result.tslSky !== "BRUNETON_3_LUT_AFTERNOON" || result.brunetonResource !== "COMPUTE_BRUNETON_3_LUT_READBACK_UPLOAD" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
-  await page.locator("#webgpu-lab").screenshot({ path: `verification-webgpu-migration-lab-gtao-${gtao}.png` });
+  const expectedSsr = ssr === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssr === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
+  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.storageParticleRole !== "EVENT_SPLASH_WATER_COLUMN" || result.storageParticlePath !== "COMPUTE_TO_POINTS_ZERO_READBACK" || result.temporalPipeline !== expectedTraa || result.gtao !== expectedGtao || result.gtaoLayers !== "OPAQUE_HULL_ONLY" || result.ssr !== expectedSsr || result.hiz !== "NOT_YET_CONSUMED" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING" || result.splashInput !== "LOCAL_EVENT_DISPLACEMENT_FOAM" || result.fftOceanResource !== "GPU_COMPUTE_READBACK_UPLOAD_16X64" || result.tslSky !== "BRUNETON_3_LUT_AFTERNOON" || result.brunetonResource !== "COMPUTE_BRUNETON_3_LUT_READBACK_UPLOAD" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
+  await page.locator("#webgpu-lab").screenshot({ path: `verification-webgpu-migration-lab-gtao-${gtao}-ssr-${ssr}.png` });
 } catch (error) {
   const diagnostic = await page.locator("#webgpu-lab").evaluate(canvas => ({ ...canvas.dataset })).catch(() => ({}));
   console.error(JSON.stringify({ error: error.stack ?? error.message, diagnostic, browserErrors: errors }, null, 2));
