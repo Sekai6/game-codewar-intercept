@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { createLoftedHullGeometry, createSheerDeckGeometry, createWaterlineBandGeometry, type HullStation } from "../../models/hull-geometry";
-import { addModelStrut as addStrut, createSlopedBoxGeometry as slopedBox } from "../../models/model-primitives";
+import { addModelStrut as addStrut, createChamferedSlopedBoxGeometry, createSlopedBoxGeometry as slopedBox } from "../../models/model-primitives";
 import { applySurfaceDetail } from "../../visual/material-textures";
 import { addPointDefenseMount, addSensorAnchor, addWeaponHardpoint, createPlatformModelSlots } from "../model-slots";
 import type { EnemyPlatformDefinition } from "../types";
@@ -32,21 +32,44 @@ function createMoskvaModel() {
   const waterline = new THREE.Mesh(createWaterlineBandGeometry(MOSKVA_HULL), new THREE.MeshStandardMaterial({ color: 0x1a2021, roughness: 0.82 }));
   ship.add(hull, deck, waterline);
 
-  const forwardHouse = new THREE.Mesh(slopedBox(23, 7.4, 7.2, 3.4, 1.2), superMaterial);
+  const forwardHouse = new THREE.Mesh(createChamferedSlopedBoxGeometry(23, 7.4, 7.2, 0.48, 3.4, 1.2), superMaterial);
   forwardHouse.position.set(8, 9.65, 0);
-  const bridge = new THREE.Mesh(slopedBox(11.5, 4, 6.7, 2.1, 0.7), superMaterial);
+  const bridge = new THREE.Mesh(createChamferedSlopedBoxGeometry(11.5, 4, 6.7, 0.42, 2.1, 0.7), superMaterial);
   bridge.position.set(14, 15.2, 0);
-  const aftHouse = new THREE.Mesh(slopedBox(20, 6.2, 7.25, 1, 2.3), superMaterial);
+  const aftHouse = new THREE.Mesh(createChamferedSlopedBoxGeometry(20, 6.2, 7.25, 0.48, 1, 2.3), superMaterial);
   aftHouse.position.set(-13, 9.2, 0);
   ship.add(forwardHouse, bridge, aftHouse);
 
-  const windowMaterial = new THREE.MeshStandardMaterial({ color: 0x3f8e91, emissive: 0x12393b, emissiveIntensity: 1.1 });
+  const windowMaterial = new THREE.MeshStandardMaterial({ color: 0x172f35, emissive: 0x071a1d, emissiveIntensity: 0.38, metalness: 0.2, roughness: 0.3 });
   for (const side of [-1, 1])
     for (let x = 10; x <= 18; x += 1) {
       const window = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.42, 0.1), windowMaterial);
       window.position.set(x, 15.65, side * 3.4);
       ship.add(window);
     }
+  const windowBrows = new THREE.InstancedMesh(new THREE.BoxGeometry(0.82, 0.09, 0.18), darkMaterial, 18);
+  const windowBrowMatrix = new THREE.Matrix4();
+  let windowBrowIndex = 0;
+  for (const side of [-1, 1])
+    for (let x = 10; x <= 18; x += 1) {
+      windowBrowMatrix.makeTranslation(x, 15.96, side * 3.43);
+      windowBrows.setMatrixAt(windowBrowIndex++, windowBrowMatrix);
+    }
+  windowBrows.instanceMatrix.needsUpdate = true;
+  windowBrows.name = "Bridge window brows";
+  ship.add(windowBrows);
+
+  for (const [x, height] of [[-2.5, 6.4], [-8.2, 6.1]] as const) {
+    const funnel = new THREE.Group();
+    funnel.position.set(x, 14.1, 0);
+    const casing = new THREE.Mesh(createChamferedSlopedBoxGeometry(4.25, height, 4.7, 0.34, 0.6, 1.1), superMaterial);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.35, 4.15), darkMaterial);
+    cap.position.y = height * 0.5 + 0.08;
+    const uptake = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.42, 3.3), darkMaterial);
+    uptake.position.y = height * 0.5 + 0.42;
+    funnel.add(casing, cap, uptake);
+    ship.add(funnel);
+  }
 
   const gunBase = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.15, 0.72, 14), darkMaterial);
   gunBase.position.set(33.5, 6.85, 0);
@@ -77,7 +100,14 @@ function createMoskvaModel() {
         cover.position.x = 3.12;
         const hardpoint = new THREE.Object3D();
         hardpoint.position.x = 3.34;
-        launcher.add(tube, rear, cover, hardpoint);
+        const saddle = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.3, 1.48), darkMaterial);
+        saddle.position.set(-0.35, -0.72, 0);
+        const forwardClamp = new THREE.Mesh(new THREE.TorusGeometry(0.67, 0.075, 6, 18), darkMaterial);
+        const aftClamp = forwardClamp.clone();
+        forwardClamp.rotation.y = aftClamp.rotation.y = Math.PI / 2;
+        forwardClamp.position.x = 1.9;
+        aftClamp.position.x = -1.9;
+        launcher.add(saddle, tube, rear, cover, forwardClamp, aftClamp, hardpoint);
         ship.add(launcher);
         const index = (side > 0 ? 8 : 0) + bank * 2 + tier;
         addWeaponHardpoint(slots, hardpoint, `bazalt-${String(index + 1).padStart(2, "0")}`, "bazalt-canisters", new THREE.Vector3(1, 0, 0), cover, "blow-off", side < 0 ? "port" : "starboard");
@@ -93,8 +123,37 @@ function createMoskvaModel() {
     const panel = new THREE.Mesh(new THREE.BoxGeometry(5.4, 2.5, 0.16), radarMaterial);
     panel.position.z = side * 0.18;
     panel.rotation.y = side > 0 ? 0 : Math.PI;
-    topPair.add(panel);
+    const frame = new THREE.Group();
+    frame.position.z = side * 0.29;
+    frame.rotation.y = side > 0 ? 0 : Math.PI;
+    for (const y of [-1.22, 1.22]) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(5.7, 0.12, 0.1), darkMaterial);
+      beam.position.y = y;
+      frame.add(beam);
+    }
+    for (const x of [-2.72, 2.72]) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.5, 0.1), darkMaterial);
+      beam.position.x = x;
+      frame.add(beam);
+    }
+    const emitters = new THREE.InstancedMesh(
+      new THREE.CircleGeometry(0.045, 6),
+      radarMaterial,
+      45,
+    );
+    let emitterIndex = 0;
+    const emitterMatrix = new THREE.Matrix4();
+    for (let row = -2; row <= 2; row++)
+      for (let column = -4; column <= 4; column++) {
+        emitterMatrix.makeTranslation(column * 0.52, row * 0.42, 0.06);
+        emitters.setMatrixAt(emitterIndex++, emitterMatrix);
+      }
+    emitters.instanceMatrix.needsUpdate = true;
+    emitters.name = "MR-800 array modules";
+    frame.add(emitters);
+    topPair.add(panel, frame);
   }
+  topPair.userData.moduleCount = 90;
   forwardMast.add(topPair);
   ship.add(forwardMast);
   addSensorAnchor(slots, "top-pair", topPair, true);
@@ -102,8 +161,22 @@ function createMoskvaModel() {
   const aftMast = new THREE.Group();
   aftMast.position.set(-10.5, 14.2, 0);
   for (const side of [-1, 1]) addStrut(aftMast, new THREE.Vector3(-1.5, 0, side * 1.8), new THREE.Vector3(0, 9.5, side * 0.42), 0.13, darkMaterial);
-  const topSteer = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.18, 0.18), radarMaterial);
+  const topSteer = new THREE.Group();
   topSteer.position.y = 9.8;
+  const topSteerSpine = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.16, 0.18), darkMaterial);
+  topSteer.add(topSteerSpine);
+  const topSteerElements = new THREE.InstancedMesh(new THREE.BoxGeometry(0.09, 1.1, 0.08), radarMaterial, 26);
+  const topSteerMatrix = new THREE.Matrix4();
+  let topSteerIndex = 0;
+  for (const side of [-1, 1])
+    for (let column = -6; column <= 6; column++) {
+      topSteerMatrix.makeTranslation(column * 0.49, 0, side * 0.13);
+      topSteerElements.setMatrixAt(topSteerIndex++, topSteerMatrix);
+    }
+  topSteerElements.instanceMatrix.needsUpdate = true;
+  topSteerElements.name = "MR-700 array elements";
+  topSteer.userData.moduleCount = 26;
+  topSteer.add(topSteerElements);
   aftMast.add(topSteer);
   ship.add(aftMast);
   addSensorAnchor(slots, "top-steer", topSteer, true);
@@ -137,6 +210,32 @@ function createMoskvaModel() {
     rail.position.set(-1, 6.62, side * 4.48);
     ship.add(rail);
   }
+
+  const plating = new THREE.InstancedMesh(new THREE.BoxGeometry(0.045, 3.2, 0.055), darkMaterial, 20);
+  const platingMatrix = new THREE.Matrix4();
+  let platingIndex = 0;
+  for (const side of [-1, 1])
+    for (let x = -34; x <= 38; x += 8) {
+      const station = MOSKVA_HULL.reduce((nearest, candidate) => Math.abs(candidate.x - x) < Math.abs(nearest.x - x) ? candidate : nearest);
+      platingMatrix.makeTranslation(x, 3.65, side * (station.shoulderHalf + 0.035));
+      plating.setMatrixAt(platingIndex++, platingMatrix);
+    }
+  plating.instanceMatrix.needsUpdate = true;
+  plating.name = "Hull plating seams";
+  ship.add(plating);
+
+  const scuppers = new THREE.InstancedMesh(new THREE.BoxGeometry(0.42, 0.12, 0.06), darkMaterial, 30);
+  const scupperMatrix = new THREE.Matrix4();
+  let scupperIndex = 0;
+  for (const side of [-1, 1])
+    for (let x = -28; x <= 28; x += 4) {
+      const station = MOSKVA_HULL.reduce((nearest, candidate) => Math.abs(candidate.x - x) < Math.abs(nearest.x - x) ? candidate : nearest);
+      scupperMatrix.makeTranslation(x, 5.75, side * (station.deckHalf + 0.04));
+      scuppers.setMatrixAt(scupperIndex++, scupperMatrix);
+    }
+  scuppers.instanceMatrix.needsUpdate = true;
+  scuppers.name = "Hull scuppers";
+  ship.add(scuppers);
 
   for (const side of [-1, 1])
     for (const [index, x] of [-7, -14, -21].entries()) {
