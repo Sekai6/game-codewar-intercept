@@ -12,6 +12,10 @@
 > [!IMPORTANT]
 > This project uses real ship, radar, weapon, and missile names to establish its period and system relationships. All performance figures are game-scaled. This is not a weapon-performance database, an engineering analysis tool, or a training system, and it must not be interpreted as a statement of real equipment capability.
 
+### Ultra Aurora Easter Egg
+
+The scenario menu exposes a separate `✦ BEAUTIFUL AURORA / ULTRA EASTER EGG` checkbox. Ultra alone keeps the normal afternoon environment; the additional checkbox is required to enter the animated aurora night, with layered moving curtains, stars, high-latitude lighting, and wave-distorted ocean reflections. The feature is isolated in `src/visual/aurora-runtime.ts` and `src/visual/aurora-environment.ts` rather than embedding its state or shader parameters in `main.ts`.
+
 ![NTU Intercept combat view](verification-combat.png)
 
 <a id="table-of-contents"></a>

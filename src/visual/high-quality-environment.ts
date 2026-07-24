@@ -8,6 +8,7 @@ export interface HighQualityEnvironment {
   setEnabled(enabled: boolean): void;
   setUltraDetail(texture: THREE.Texture | null, volumeTexture?: THREE.Data3DTexture | null): void;
   setAtmosphereLuts(transmittance: THREE.Texture | null, singleScattering: THREE.Texture | null, multipleScattering: THREE.Texture | null): void;
+  setAuroraMode(enabled: boolean): void;
   update(time: number, cameraPosition: THREE.Vector3): void;
   dispose(): void;
 }
@@ -34,10 +35,11 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
       atmosphereSingleScattering: { value: null },
       atmosphereMultipleScattering: { value: null },
       atmosphereLutMix: { value: 0 },
+      auroraMode: { value: 0 },
     },
     vertexShader: `varying vec3 vDirection; void main(){vDirection=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader: `
-      varying vec3 vDirection;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 sunColor;uniform vec3 sunDirection;uniform sampler2D atmosphereTransmittance;uniform sampler2D atmosphereSingleScattering;uniform sampler2D atmosphereMultipleScattering;uniform float atmosphereLutMix;
+      varying vec3 vDirection;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 sunColor;uniform vec3 sunDirection;uniform sampler2D atmosphereTransmittance;uniform sampler2D atmosphereSingleScattering;uniform sampler2D atmosphereMultipleScattering;uniform float atmosphereLutMix;uniform float auroraMode;
       void main(){
         vec3 viewDir=normalize(vDirection);float mu=max(dot(viewDir,sunDirection),0.0);
         float altitude=clamp(viewDir.y*.5+.5,0.0,1.0);
@@ -58,7 +60,7 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
         vec3 physicalGradient=mix(vec3(.54,.61,.62),vec3(.035,.16,.38),smoothstep(-.015,.72,viewMu));
         vec3 physicalSky=physicalGradient*(.58+transmittance*.31)+radiance*.72+sunColor*(disk*4.9+halo*.22);
         float sunsetBand=exp(-abs(viewMu)*7.)*smoothstep(-.14,.28,sunMu);physicalSky+=vec3(.34,.16,.055)*sunsetBand*.22;
-        color=mix(color,physicalSky,atmosphereLutMix);
+        color=mix(color,physicalSky,atmosphereLutMix);vec3 night=mix(vec3(.008,.014,.045),vec3(.025,.075,.105),pow(1.-abs(viewDir.y),3.));float star=step(.9945,fract(sin(dot(floor(viewDir.xz*1800.),vec2(12.9898,78.233)))*43758.5453))*smoothstep(.035,.3,viewDir.y);night+=vec3(.62,.78,1.)*star*(.65+fract(viewDir.x*913.)*1.1);color=mix(color,night,auroraMode);
         gl_FragColor=vec4(color,1.0);
       }`,
   });
@@ -134,6 +136,10 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
       skyMaterial.uniforms.atmosphereSingleScattering.value = singleScattering;
       skyMaterial.uniforms.atmosphereMultipleScattering.value = multipleScattering;
       skyMaterial.uniforms.atmosphereLutMix.value = transmittance && singleScattering && multipleScattering ? 1 : 0;
+    },
+    setAuroraMode: (enabled) => {
+      skyMaterial.uniforms.auroraMode.value = enabled ? 1 : 0;
+      cloudVolumes.forEach((cloud) => { cloud.visible = !enabled; });
     },
     update: (time, cameraPosition) => {
       if (!object.visible) return;

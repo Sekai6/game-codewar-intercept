@@ -45,6 +45,7 @@ import {
 import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
 import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
+import { createAuroraRuntime } from "./visual/aurora-runtime";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
 import { TemporalReconstructionPass } from "./visual/temporal-reconstruction-pass";
@@ -2461,6 +2462,19 @@ ultraQualityField.innerHTML =
 sandbox.insertBefore(ultraQualityField, sandbox.querySelector("#sbStart"));
 const webGpuUltraInput = ultraQualityField.querySelector("input") as HTMLInputElement;
 const webGpuUltraStatusElement = ultraQualityField.querySelector("span") as HTMLSpanElement;
+const auroraRuntime = createAuroraRuntime({
+  scene,
+  renderer,
+  highQualityEnvironment,
+  ocean,
+  ambientSky,
+  sun,
+  atmosphericFill,
+  ultraInput: webGpuUltraInput,
+  menu: sandbox,
+  insertBefore: sandbox.querySelector("#sbStart")!,
+  requestUltra: () => configureWebGpuUltra(true),
+});
 
 function updateWebGpuUltraStatus() {
   webGpuUltraStatusElement.textContent = webGpuUltraStatus === "failed" ? "FAILED / CLICK TO RETRY" : webGpuUltraStatus.toUpperCase();
@@ -2520,6 +2534,7 @@ async function configureWebGpuUltra(requested: boolean) {
     clusteredOccupiedCount = 0;
     retainedFroxelLights = [];
     webGpuUltraStatus = "idle";
+    auroraRuntime.handleUltraDisabled();
     updateWebGpuUltraStatus();
     return;
   }
@@ -3109,7 +3124,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   gtaoPass.enabled = highQualityEnvironmentEnabled;
   scene.environment = highQualityEnvironmentEnabled ? bouncedLightEnvironment : null;
   scene.environmentIntensity = highQualityEnvironmentEnabled ? 0.28 : 1;
-  renderer.toneMappingExposure = highQualityEnvironmentEnabled ? 1.08 : 1.08;
+  renderer.toneMappingExposure = 1.08;
   bloomPass.strength = highQualityEnvironmentEnabled ? 0.48 : 0.42;
   bloomPass.radius = highQualityEnvironmentEnabled ? 0.42 : 0.38;
   bloomPass.threshold = highQualityEnvironmentEnabled ? 1.08 : 0.78;
@@ -3124,6 +3139,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     ? new THREE.FogExp2(0x8298a4, 0.00072)
     : new THREE.Fog(0x06111b, 180, 900);
   scene.background = highQualityEnvironmentEnabled ? null : new THREE.Color(0x06111b);
+  auroraRuntime.activate(webGpuUltraStatus === "active");
   missiles.forEach((m) => {
     scene.remove(m.mesh, m.path);
     m.path.geometry.dispose();
@@ -7813,6 +7829,7 @@ function tick(now: number) {
   const airVisuals = airCombat.visualDiagnostics();
   canvas.dataset.airCombatEnabled = String(airCombat.enabled);
   canvas.dataset.highQualityEnvironment = String(highQualityEnvironmentEnabled);
+  auroraRuntime.writeDiagnostics(canvas);
   canvas.dataset.environmentCloudCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.cloudCount : 0);
   canvas.dataset.environmentFogVolumeCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.fogVolumeCount : 0);
   canvas.dataset.environmentSunIntensity = sun.intensity.toFixed(2);
@@ -8111,6 +8128,7 @@ function tick(now: number) {
   } else canvas.dataset.webGpuParticles = "OFF";
   ocean.update(elapsed, camera.position);
   highQualityEnvironment.update(elapsed, camera.position);
+  auroraRuntime.update(elapsed, camera.position);
   const ewPulse = defender.userData.ewPulse as THREE.Group | undefined,
     ewThreat = missiles.some((m) => m.mesh.visible && m.phase === "terminal"),
     ecmHealth = subsystemHealth("ecm");
@@ -8214,7 +8232,7 @@ function tick(now: number) {
   const sunVisible = sunScreen.z > -1 && sunScreen.z < 1 &&
     sunScreen.x > -1.25 && sunScreen.x < 1.25 && sunScreen.y > -1.25 && sunScreen.y < 1.25;
   cinematicAtmospherePass.uniforms.godRayStrength.value =
-    highQualityEnvironmentEnabled && sunVisible ? 0.72 : 0;
+    highQualityEnvironmentEnabled && !auroraRuntime.active && sunVisible ? 0.72 : 0;
   canvas.dataset.environmentSunScreen = `${sunScreen.x.toFixed(3)},${sunScreen.y.toFixed(3)},${sunScreen.z.toFixed(3)}`;
   canvas.dataset.environmentGodRayStrength = cinematicAtmospherePass.uniforms.godRayStrength.value.toFixed(2);
   canvas.dataset.environmentSunVisible = String(sunVisible);

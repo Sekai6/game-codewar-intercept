@@ -9,6 +9,7 @@ export interface OceanSurface {
   setHighQuality(enabled: boolean): void;
   setUltraCloudVolume(texture: THREE.Data3DTexture | null, detailTexture?: THREE.Texture | null): void;
   setUltraSpectrum(texture: THREE.Texture | null, frameCount?: number): void;
+  setAuroraMode(enabled: boolean): void;
   setVesselWake(position: THREE.Vector3, heading: number, speedRatio: number): void;
   addSplash(position: THREE.Vector3, energy: number): void;
   update(time: number, cameraPosition?: THREE.Vector3): void;
@@ -48,6 +49,7 @@ class WebglOcean implements OceanSurface {
         ultraCloudMix: { value: 0 },
         ultraSpectrum: { value: this.neutralCloudDetail },
         ultraSpectrumMix: { value: 0 },
+        auroraMix: { value: 0 },
         spectrumFrames: { value: 1 },
         wakePosition: { value: new THREE.Vector2() },
         wakeDirection: { value: new THREE.Vector2(1, 0) },
@@ -79,7 +81,7 @@ class WebglOcean implements OceanSurface {
       `,
       fragmentShader: `
         precision highp float; in vec3 vWorldPosition;in vec3 vWorldNormal;in float vCrest;in float vJacobianFoam;in float vWakeFoam;out vec4 outColor;
-        uniform float time;uniform vec3 sunDirection;uniform vec3 sunColor;uniform vec3 deepColor;uniform vec3 shallowColor;uniform vec3 skyColor;uniform vec3 fogColor;uniform float fogDensity;uniform sampler3D ultraCloudVolume;uniform sampler2D ultraCloudDetail;uniform float ultraCloudMix;uniform vec2 wakePosition;uniform vec2 wakeDirection;uniform float wakeStrength;uniform vec4 splashes[8];
+        uniform float time;uniform vec3 sunDirection;uniform vec3 sunColor;uniform vec3 deepColor;uniform vec3 shallowColor;uniform vec3 skyColor;uniform vec3 fogColor;uniform float fogDensity;uniform sampler3D ultraCloudVolume;uniform sampler2D ultraCloudDetail;uniform float ultraCloudMix;uniform float auroraMix;uniform vec2 wakePosition;uniform vec2 wakeDirection;uniform float wakeStrength;uniform vec4 splashes[8];
         float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}
         void main(){vec3 viewDir=normalize(cameraPosition-vWorldPosition);vec3 n=normalize(vWorldNormal);
@@ -92,6 +94,7 @@ class WebglOcean implements OceanSurface {
           vec3 water=mix(deepColor,shallowColor,depthFacing*.32+microA*.035);vec3 reflected=skyColor*(.32+.24*max(n.y,0.));vec2 wakeRelative=vWorldPosition.xz-wakePosition;float wakeLong=dot(wakeRelative,wakeDirection);float wakeLat=dot(wakeRelative,vec2(-wakeDirection.y,wakeDirection.x));float wakeTrail=step(wakeLong,0.)*exp(wakeLong*.009);float wakeArm=max(3.,-wakeLong*.22);float wakePixel=wakeTrail*smoothstep(1.7,0.,abs(abs(wakeLat)-wakeArm))*.42;wakePixel+=wakeTrail*exp(-abs(wakeLat)/max(1.6,-wakeLong*.018))*.1;float splashPixel=0.;for(int i=0;i<8;i++){float age=time-splashes[i].z;float radius=age*(5.+splashes[i].w*2.);float d=length(vWorldPosition.xz-splashes[i].xy);float alive=step(0.,age)*step(age,5.);splashPixel+=exp(-pow((d-radius)/max(.7,.8+age*.28),2.))*alive*splashes[i].w*exp(-age*.42)*.68;}
           glitter*=mix(1.,.46,coverage*ultraCloudMix);float foam=max(smoothstep(.88,1.0,vCrest)*smoothstep(.72,.94,microA*.55+microB*.45),max(vJacobianFoam,max(wakePixel*wakeStrength,splashPixel)));vec3 color=mix(water,reflected,fresnel*.64)+sunColor*(glitter+broad)+vec3(.72,.84,.86)*foam*.5;
           color*=mix(1.,cloudShadow,ultraCloudMix*.62);color+=skyColor*(1.-cloudShadow)*.022*ultraCloudMix;
+          float auroraWarp=sin(vWorldPosition.z*.006+time*.018)*1.7+noise(vWorldPosition.xz*.006+vec2(time*.006,0.))*2.2;float auroraBandA=pow(.5+.5*sin(vWorldPosition.x*.019+auroraWarp),9.);float auroraBandB=pow(.5+.5*sin(vWorldPosition.x*.011-auroraWarp*.7+2.4),13.);float auroraRipple=.48+.52*noise(vWorldPosition.xz*.055+vec2(time*.014,-time*.009));vec3 auroraColor=mix(vec3(.025,.46,.22),vec3(.045,.24,.62),auroraBandB);float auroraReflection=(auroraBandA*.54+auroraBandB*.31)*auroraRipple*(.07+fresnel*.46)*auroraMix;color=mix(color,water*.5,auroraMix*.34)+auroraColor*auroraReflection*.48;
           float distanceToCamera=length(cameraPosition-vWorldPosition);float fogFactor=1.-exp(-fogDensity*fogDensity*distanceToCamera*distanceToCamera);
           outColor=vec4(mix(color,fogColor,clamp(fogFactor,0.,1.)),1.);}
       `,
@@ -113,6 +116,7 @@ class WebglOcean implements OceanSurface {
     this.highQualityMaterial.uniforms.ultraSpectrumMix.value = texture ? 1 : 0;
     this.highQualityMaterial.uniforms.spectrumFrames.value = Math.max(1, frameCount);
   }
+  setAuroraMode(enabled: boolean) { this.highQualityMaterial.uniforms.auroraMix.value = enabled ? 1 : 0; }
   setVesselWake(position: THREE.Vector3, heading: number, speedRatio: number) {
     this.highQualityMaterial.uniforms.wakePosition.value.set(position.x, position.z);
     this.highQualityMaterial.uniforms.wakeDirection.value.set(Math.cos(heading), -Math.sin(heading)).normalize();

@@ -45,6 +45,7 @@
     "verify:high-quality-environment": "node scripts/verify-high-quality-environment.mjs",
     "verify:webgpu-ultra": "node scripts/verify-webgpu-ultra.mjs",
     "verify:webgpu-ultra-active": "node scripts/verify-webgpu-ultra-active.mjs",
+    "verify:ultra-aurora": "node scripts/verify-ultra-aurora.mjs",
     "capture:webgpu-ultra-clouds": "node scripts/capture-webgpu-ultra-clouds.mjs",
     "capture:webgpu-froxel-launch": "node scripts/capture-webgpu-froxel-launch.mjs",
     "capture:webgpu-taa": "node scripts/capture-webgpu-taa.mjs",
