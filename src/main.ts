@@ -220,6 +220,7 @@ const ultraOceanWakeEnabled = visualValidationParams.get("oceanWake") !== "off";
 const oceanValidationMode = visualValidationParams.get("oceanValidation") ?? "";
 const particleValidationMode = visualValidationParams.get("particleValidation") ?? "";
 const gpuParticlesEnabled = visualValidationParams.get("gpuParticles") !== "off";
+const brunetonAtmosphereEnabled = visualValidationParams.get("bruneton") !== "off";
 let oceanValidationSplashTriggered = false;
 let particleValidationTriggered = false;
 const oceanValidationSplashPosition = new THREE.Vector3();
@@ -2473,11 +2474,14 @@ function updateWebGpuUltraStatus() {
   canvas.dataset.webGpuUltraVelocity = webGpuUltraStatus === "active" ? "OBJECT_PREVIOUS_MVP_RG16F" : "OFF";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
+  canvas.dataset.webGpuUltraAtmosphere = webGpuUltraStatus === "active" && brunetonAtmosphereEnabled ? webGpuUltraResult?.atmosphereBackend ?? "OFF" : "OFF";
+  canvas.dataset.webGpuUltraAtmosphereRanges = webGpuUltraResult?.atmosphereRanges ?? "";
 }
 
 async function configureWebGpuUltra(requested: boolean) {
   if (!requested) {
     highQualityEnvironment.setUltraDetail(null);
+    highQualityEnvironment.setAtmosphereLuts(null, null, null);
     ocean.setUltraCloudVolume(null);
     ocean.setUltraSpectrum(null);
     temporalReconstructionPass.setRequested(false);
@@ -2492,6 +2496,9 @@ async function configureWebGpuUltra(requested: boolean) {
     webGpuUltraResult?.volumeTexture?.dispose();
     webGpuUltraResult?.froxelTexture?.dispose();
     webGpuUltraResult?.oceanSpectrumTexture?.dispose();
+    webGpuUltraResult?.atmosphereTransmittance?.dispose();
+    webGpuUltraResult?.atmosphereSingleScattering?.dispose();
+    webGpuUltraResult?.atmosphereMultipleScattering?.dispose();
     setCinematicUltraScatter(cinematicAtmospherePass, null);
     setCinematicFroxel(cinematicAtmospherePass, null);
     webGpuUltraResult = null;
@@ -2512,6 +2519,11 @@ async function configureWebGpuUltra(requested: boolean) {
     webGpuUltraResult = await initializeWebGpuUltra();
     webGpuUltraStatus = webGpuUltraResult.status;
     highQualityEnvironment.setUltraDetail(webGpuUltraResult.detailTexture, webGpuUltraResult.volumeTexture);
+    highQualityEnvironment.setAtmosphereLuts(
+      brunetonAtmosphereEnabled ? webGpuUltraResult.atmosphereTransmittance : null,
+      brunetonAtmosphereEnabled ? webGpuUltraResult.atmosphereSingleScattering : null,
+      brunetonAtmosphereEnabled ? webGpuUltraResult.atmosphereMultipleScattering : null,
+    );
     ocean.setUltraCloudVolume(webGpuUltraResult.volumeTexture, webGpuUltraResult.detailTexture);
     ocean.setUltraSpectrum(ultraOceanFftEnabled ? webGpuUltraResult.oceanSpectrumTexture : null, webGpuUltraResult.oceanSpectrumFrames);
     if (gpuParticlesEnabled && webGpuUltraResult.particles) scene.add(webGpuUltraResult.particles.object);
@@ -7797,6 +7809,8 @@ function tick(now: number) {
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
+  canvas.dataset.webGpuUltraAtmosphere = webGpuUltraStatus === "active" && brunetonAtmosphereEnabled ? webGpuUltraResult?.atmosphereBackend ?? "OFF" : "OFF";
+  canvas.dataset.webGpuUltraAtmosphereRanges = webGpuUltraResult?.atmosphereRanges ?? "";
   canvas.dataset.webGpuUltraFroxelUpdates = String(froxelUpdateCount);
   canvas.dataset.webGpuUltraFroxelLights = String(froxelLightCount);
   canvas.dataset.webGpuUltraFroxelDominant = froxelDominantLight;

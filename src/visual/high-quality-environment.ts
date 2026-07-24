@@ -7,6 +7,7 @@ export interface HighQualityEnvironment {
   readonly fogVolumeCount: number;
   setEnabled(enabled: boolean): void;
   setUltraDetail(texture: THREE.Texture | null, volumeTexture?: THREE.Data3DTexture | null): void;
+  setAtmosphereLuts(transmittance: THREE.Texture | null, singleScattering: THREE.Texture | null, multipleScattering: THREE.Texture | null): void;
   update(time: number, cameraPosition: THREE.Vector3): void;
   dispose(): void;
 }
@@ -29,10 +30,14 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
       horizonColor: { value: new THREE.Color(0x7899ac) },
       sunColor: { value: new THREE.Color(0xffd6a0) },
       sunDirection: { value: atmosphericSunDirection },
+      atmosphereTransmittance: { value: null },
+      atmosphereSingleScattering: { value: null },
+      atmosphereMultipleScattering: { value: null },
+      atmosphereLutMix: { value: 0 },
     },
     vertexShader: `varying vec3 vDirection; void main(){vDirection=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader: `
-      varying vec3 vDirection;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 sunColor;uniform vec3 sunDirection;
+      varying vec3 vDirection;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 sunColor;uniform vec3 sunDirection;uniform sampler2D atmosphereTransmittance;uniform sampler2D atmosphereSingleScattering;uniform sampler2D atmosphereMultipleScattering;uniform float atmosphereLutMix;
       void main(){
         vec3 viewDir=normalize(vDirection);float mu=max(dot(viewDir,sunDirection),0.0);
         float altitude=clamp(viewDir.y*.5+.5,0.0,1.0);
@@ -45,6 +50,15 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
         float disk=smoothstep(.99972,.99991,mu),halo=pow(mu,72.0)*.72;
         vec3 color=zenith+rayleigh*.72+mie*.62+sunColor*(disk*4.8+halo*.7);
         color+=vec3(.22,.3,.36)*pow(1.0-altitude,5.0);
+        float viewMu=clamp(viewDir.y,-.08,1.0);float sunMu=clamp(sunDirection.y,-.18,1.0);vec2 scatterUv=vec2((sunMu+.18)/1.18,(viewMu+.08)/1.08);
+        vec3 transmittance=texture2D(atmosphereTransmittance,vec2(clamp((viewMu+.12)/1.12,0.,1.),.045)).rgb;
+        vec3 singleScatter=texture2D(atmosphereSingleScattering,scatterUv).rgb;vec3 multipleScatter=texture2D(atmosphereMultipleScattering,scatterUv).rgb;
+        vec3 radiance=singleScatter*.36+multipleScatter*.28;
+        radiance=vec3(1.)-exp(-radiance*vec3(.88,.96,1.08));
+        vec3 physicalGradient=mix(vec3(.54,.61,.62),vec3(.035,.16,.38),smoothstep(-.015,.72,viewMu));
+        vec3 physicalSky=physicalGradient*(.58+transmittance*.31)+radiance*.72+sunColor*(disk*4.9+halo*.22);
+        float sunsetBand=exp(-abs(viewMu)*7.)*smoothstep(-.14,.28,sunMu);physicalSky+=vec3(.34,.16,.055)*sunsetBand*.22;
+        color=mix(color,physicalSky,atmosphereLutMix);
         gl_FragColor=vec4(color,1.0);
       }`,
   });
@@ -114,6 +128,12 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
         material.uniforms.ultraVolume.value = volumeTexture ?? neutralVolume;
         material.uniforms.ultraMix.value = texture && volumeTexture ? 1 : 0;
       });
+    },
+    setAtmosphereLuts: (transmittance, singleScattering, multipleScattering) => {
+      skyMaterial.uniforms.atmosphereTransmittance.value = transmittance;
+      skyMaterial.uniforms.atmosphereSingleScattering.value = singleScattering;
+      skyMaterial.uniforms.atmosphereMultipleScattering.value = multipleScattering;
+      skyMaterial.uniforms.atmosphereLutMix.value = transmittance && singleScattering && multipleScattering ? 1 : 0;
     },
     update: (time, cameraPosition) => {
       if (!object.visible) return;

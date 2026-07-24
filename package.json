@@ -54,6 +54,7 @@
     "capture:webgpu-ocean": "node scripts/capture-webgpu-ocean.mjs",
     "verify:webgpu-particles": "node scripts/verify-webgpu-particles.mjs",
     "capture:webgpu-particles": "node scripts/capture-webgpu-particles.mjs",
+    "capture:webgpu-bruneton": "node scripts/capture-webgpu-bruneton.mjs",
     "verify:ocean-spectrum": "tsc src/visual/ocean-spectrum.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-ocean-spectrum.mjs",
     "verify:webgpu-ultra-reprojection": "node scripts/verify-webgpu-ultra-reprojection.mjs",
     "verify:mig29-combat": "node scripts/verify-mig29-combat.mjs",
