@@ -8186,7 +8186,7 @@ function tick(now: number) {
     froxelDominantLight = dominant
       ? `${dominant.color.getHexString()}:${dominant.intensity.toFixed(2)}:${dominant.radius.toFixed(3)}:${dominant.screenX.toFixed(3)},${dominant.screenY.toFixed(3)},${dominant.depth.toFixed(3)}`
       : "none";
-    void webGpuUltraResult.updateFroxel(samples).then((updated) => {
+    void webGpuUltraResult.updateFroxel(samples, camera).then((updated) => {
       if (updated) froxelUpdateCount++;
     });
     const clustered = webGpuUltraResult.clusteredLighting;

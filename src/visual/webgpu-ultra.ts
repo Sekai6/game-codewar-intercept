@@ -26,7 +26,7 @@ export interface WebGpuUltraResult {
   atmosphereRanges: string;
   clusteredLighting: WebGpuClusteredLighting | null;
   clusteredLightingError: string;
-  updateFroxel: ((lights: readonly FroxelLightInput[]) => Promise<boolean>) | null;
+  updateFroxel: ((lights: readonly FroxelLightInput[], camera: THREE.PerspectiveCamera) => Promise<boolean>) | null;
   disposeCompute: (() => void) | null;
   adapterName: string;
   error: string;
@@ -39,6 +39,9 @@ export interface FroxelLightInput {
   radius: number;
   color: THREE.Color;
   intensity: number;
+  worldX: number;
+  worldY: number;
+  worldZ: number;
 }
 
 const TEXTURE_SIZE = 128;
@@ -142,11 +145,16 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
       code: `
         @group(0) @binding(0) var froxelAtlas: texture_storage_2d<rgba8unorm, write>;
         @group(0) @binding(1) var<storage,read> lights: array<vec4<f32>,16>;
+        struct Camera { inverseViewProjection: mat4x4<f32>, position: vec4<f32> };
+        @group(0) @binding(2) var<uniform> camera: Camera;
         fn hash21(p: vec2<f32>) -> f32 { return fract(sin(dot(p,vec2<f32>(127.1,311.7)))*43758.5453); }
         @compute @workgroup_size(8,5,1) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
           if(id.x>=${FROXEL_WIDTH}u||id.y>=${FROXEL_HEIGHT}u||id.z>=${FROXEL_DEPTH}u){return;}
           let screen=(vec2<f32>(id.xy)+0.5)/vec2<f32>(${FROXEL_WIDTH}.0,${FROXEL_HEIGHT}.0);
           let z=(f32(id.z)+0.5)/${FROXEL_DEPTH}.0;
+          let farPoint=camera.inverseViewProjection*vec4<f32>(screen*2.0-1.0,1.0,1.0);
+          let ray=normalize(farPoint.xyz/max(farPoint.w,0.0001)-camera.position.xyz);
+          let worldPosition=camera.position.xyz+ray*(z*z*900.0);
           let viewY=mix(-0.55,0.85,screen.y);
           let distance=z*z*900.0;
           let worldHeight=max(0.0,viewY*distance+18.0);
@@ -159,8 +167,8 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
           var scatter=vec3<f32>(0.43,0.56,0.68)*extinction*(0.32+horizon*0.16)+vec3<f32>(1.0,0.68,0.36)*extinction*forwardPhase*0.14;
           for(var lightIndex=0u;lightIndex<8u;lightIndex++){
             let shape=lights[lightIndex*2u];let emission=lights[lightIndex*2u+1u];
-            let delta=vec3<f32>((screen-shape.xy)/max(shape.w,0.001),(z-shape.z)*2.4/max(shape.w,0.001));
-            let influence=exp(-dot(delta,delta)*2.1)*emission.w;
+            let delta=worldPosition-shape.xyz;
+            let influence=exp(-dot(delta,delta)/max(shape.w*shape.w,0.0001))*emission.w;
             scatter+=emission.rgb*influence*(0.92+extinction*4.0);
           }
           let tile=vec2<u32>(id.z%${FROXEL_COLUMNS}u,id.z/${FROXEL_COLUMNS}u);
@@ -170,8 +178,9 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
     });
     const froxelPipeline = device.createComputePipeline({ layout: "auto", compute: { module: froxelShader, entryPoint: "main" } });
     const froxelLightBuffer = device.createBuffer({ size: 256, usage: bufferUsage.STORAGE | bufferUsage.COPY_DST });
+    const froxelCameraBuffer = device.createBuffer({ size: 80, usage: bufferUsage.UNIFORM | bufferUsage.COPY_DST });
     device.queue.writeBuffer(froxelLightBuffer, 0, new Float32Array(64));
-    const froxelBindGroup = device.createBindGroup({ layout: froxelPipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: froxelTextureGpu.createView() }, { binding: 1, resource: { buffer: froxelLightBuffer } }] });
+    const froxelBindGroup = device.createBindGroup({ layout: froxelPipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: froxelTextureGpu.createView() }, { binding: 1, resource: { buffer: froxelLightBuffer } }, { binding: 2, resource: { buffer: froxelCameraBuffer } }] });
     const bytesPerRow = TEXTURE_SIZE * 4;
     const readback = device.createBuffer({
       size: bytesPerRow * TEXTURE_SIZE,
@@ -282,15 +291,20 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
     }
     let froxelUpdatePending = false;
     let computeDisposed = false;
-    const updateFroxel = async (lights: readonly FroxelLightInput[]) => {
+    const updateFroxel = async (lights: readonly FroxelLightInput[], camera: THREE.PerspectiveCamera) => {
       if (froxelUpdatePending || computeDisposed) return false;
       froxelUpdatePending = true;
       const packed = new Float32Array(64);
       lights.slice(0, 8).forEach((light, index) => {
         const offset = index * 8;
-        packed.set([light.screenX, light.screenY, light.depth, light.radius, light.color.r, light.color.g, light.color.b, light.intensity], offset);
+        packed.set([light.worldX, light.worldY, light.worldZ, light.radius * 120, light.color.r, light.color.g, light.color.b, light.intensity], offset);
       });
       device.queue.writeBuffer(froxelLightBuffer, 0, packed);
+      const inverseViewProjection = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).invert();
+      const cameraData = new Float32Array(20);
+      inverseViewProjection.toArray(cameraData, 0);
+      camera.getWorldPosition(new THREE.Vector3()).toArray(cameraData, 16);
+      device.queue.writeBuffer(froxelCameraBuffer, 0, cameraData);
       const dynamicReadback = device.createBuffer({ size: froxelBytesPerRow * FROXEL_ATLAS_HEIGHT, usage: bufferUsage.COPY_DST | bufferUsage.MAP_READ });
       const dynamicEncoder = device.createCommandEncoder();
       const dynamicPass = dynamicEncoder.beginComputePass();
@@ -317,6 +331,7 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
       particles.dispose();
       clusteredLighting?.dispose();
       froxelLightBuffer.destroy();
+      froxelCameraBuffer.destroy();
       froxelTextureGpu.destroy();
     };
     const info = typeof adapter.info === "object" ? adapter.info : {};

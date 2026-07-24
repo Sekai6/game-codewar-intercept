@@ -16,7 +16,7 @@ export function collectVolumetricLightSamples(scene: THREE.Scene, camera: THREE.
     const radius = THREE.MathUtils.clamp((object.distance || 35) / Math.max(distance, 8) * 0.42, 0.018, 0.22);
     const intensity = THREE.MathUtils.clamp(object.intensity / 14, 0, 1.8);
     const warmTransientBias = object.color.r > object.color.b * 1.25 ? 1.75 : 1;
-    candidates.push({ screenX: projected.x * 0.5 + 0.5, screenY: projected.y * 0.5 + 0.5, depth: THREE.MathUtils.clamp(Math.sqrt(distance / 900), 0, 1), radius, color: object.color.clone(), intensity, score: intensity * radius * warmTransientBias * Math.sqrt(Math.max(object.distance, 1) / 24) });
+    candidates.push({ screenX: projected.x * 0.5 + 0.5, screenY: projected.y * 0.5 + 0.5, depth: THREE.MathUtils.clamp(Math.sqrt(distance / 900), 0, 1), radius, color: object.color.clone(), intensity, worldX: worldPosition.x, worldY: worldPosition.y, worldZ: worldPosition.z, score: intensity * radius * warmTransientBias * Math.sqrt(Math.max(object.distance, 1) / 24) });
   });
   return candidates.sort((a, b) => b.score - a.score).slice(0, limit).map(({ score: _score, ...sample }) => sample);
 }
