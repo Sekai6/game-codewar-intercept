@@ -98,6 +98,7 @@ const deck = new Mesh(new BoxGeometry(9, 5, 5), new MeshStandardNodeMaterial({ c
 deck.position.set(-2, 7, 0);
 hull.add(deck);
 const seaMaterial = new MeshStandardNodeMaterial({ metalness: 0.38, roughness: 0.24 });
+const splashOrigin = vec2(18, -12);
 const wavePosition = Fn(() => {
   const p = positionLocal.toVar();
   const x = p.x;
@@ -125,7 +126,13 @@ const wavePosition = Fn(() => {
   const wakeHeight = z.mul(1.8).add(aftDistance.mul(0.72)).add(time.mul(4.1)).sin().mul(wakeCenter.mul(0.18).add(kelvinArms.mul(0.27)));
   const bowEnvelope = float(1).sub(smoothstep(0, 8, shipX.add(11).abs())).mul(float(1).sub(smoothstep(1.2, 6, shipZ.abs())));
   const bowWave = shipZ.abs().mul(1.25).sub(shipX.add(11).mul(0.45)).add(time.mul(2.2)).sin().mul(bowEnvelope).mul(0.11);
-  return vec3(x.add(displacement.x.mul(1.15)), z.add(displacement.y.mul(1.15)), residualHeight.add(displacement.z.mul(0.74)).add(wakeHeight).add(bowWave));
+  const splashAge = fract(time.div(7.5));
+  const splashRadius = splashAge.mul(22).add(0.8);
+  const splashDelta = vec2(x, z).sub(splashOrigin);
+  const splashDistance = splashDelta.length();
+  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(time.mul(0.8)).sin().mul(0.5).add(0.5);
+  const splashRing = float(1).sub(smoothstep(0.12, 0.68, splashDistance.sub(splashRadius).abs())).mul(float(1).sub(splashAge)).mul(angularBreakup.mul(0.55).add(0.25)).mul(0.22);
+  return vec3(x.add(displacement.x.mul(1.15)), z.add(displacement.y.mul(1.15)), residualHeight.add(displacement.z.mul(0.74)).add(wakeHeight).add(bowWave).add(splashRing));
 })();
 seaMaterial.positionNode = wavePosition;
 seaMaterial.normalNode = Fn(() => {
@@ -157,7 +164,15 @@ seaMaterial.colorNode = Fn(() => {
   const kelvinArms = float(1).sub(smoothstep(0.1, 0.58, kelvinArmDistance)).mul(wakeEnvelope);
   const bowFoam = float(1).sub(smoothstep(0, 6.5, shipX.add(11).abs())).mul(float(1).sub(smoothstep(0.8, 5.2, shipZ.abs())));
   const breakup = positionLocal.x.mul(1.37).add(positionLocal.y.mul(2.11)).add(time.mul(1.8)).sin().mul(0.5).add(0.5);
-  const foam = smoothstep(0.14, 0.48, jacobianFoam).mul(0.28).add(wakeCenter.mul(0.14)).add(kelvinArms.mul(0.2).mul(breakup.mul(0.45).add(0.55))).add(bowFoam.mul(0.16));
+  const splashAge = fract(time.div(7.5));
+  const splashRadius = splashAge.mul(22).add(0.8);
+  const splashDelta = vec2(positionLocal.x, positionLocal.y).sub(splashOrigin);
+  const splashDistance = splashDelta.length();
+  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(time.mul(0.8)).sin().mul(0.5).add(0.5);
+  const primaryRing = float(1).sub(smoothstep(0.12, 0.72, splashDistance.sub(splashRadius).abs()));
+  const secondaryRing = float(1).sub(smoothstep(0.2, 0.9, splashDistance.sub(splashRadius.mul(0.72)).abs())).mul(0.32);
+  const splashFoam = primaryRing.add(secondaryRing).mul(float(1).sub(splashAge)).mul(angularBreakup.mul(0.7).add(0.12)).mul(0.14);
+  const foam = smoothstep(0.14, 0.48, jacobianFoam).mul(0.28).add(wakeCenter.mul(0.14)).add(kelvinArms.mul(0.2).mul(breakup.mul(0.45).add(0.55))).add(bowFoam.mul(0.16)).add(splashFoam);
   const crest = foam.clamp(0, 0.42).mul(color(0xb7d6dc));
   const aerial = smoothstep(55, 170, distance);
   return mix(water.add(environmentReflection).add(crest), color(0x6f8997), aerial.mul(0.2));
@@ -205,7 +220,8 @@ canvas.dataset.pbr = "MESH_STANDARD_NODE";
 canvas.dataset.tiledLights = "24";
 canvas.dataset.storageParticles = String(particleCount);
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
-canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_BOW_WAKE";
+canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
+canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";
 canvas.dataset.fftOceanResource = `GPU_COMPUTE_READBACK_UPLOAD_${fftSpectrum.frames}X${fftSpectrum.resolution}`;
 canvas.dataset.tslSky = "BRUNETON_3_LUT_AFTERNOON";
 canvas.dataset.brunetonResource = `${atmosphereLuts.backend}_READBACK_UPLOAD`;
