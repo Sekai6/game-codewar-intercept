@@ -20,7 +20,7 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, metalness, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
+import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, metalness, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, screenUV, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
 import { ssr } from "three/addons/tsl/display/SSRNode.js";
@@ -275,8 +275,9 @@ const boundedAo = gtaoPass.getTextureNode().mul(0.32).add(0.68);
 const colorPass = traaEnabled ? temporalPass : baselinePass;
 const ssrMode = query.get("ssr") ?? "off";
 const hizMode = query.get("hiz") ?? "off";
-const hizEnabled = hizMode === "on";
-const hizRuntime = hizEnabled ? createWebGpuHiZRuntime(device, canvas.width, canvas.height) : null;
+const hizEnabled = hizMode === "on" || hizMode === "depth-debug";
+const hizRuntime = hizEnabled ? await createWebGpuHiZRuntime(renderer, canvas.width, canvas.height) : null;
+const hizTexture = hizRuntime ? texture(hizRuntime.texture) : null;
 const ssrPass = ssr(
   baselinePass.getTextureNode("output"),
   baselinePass.getTextureNode("depth"),
@@ -290,13 +291,15 @@ ssrPass.thickness.value = 0.45;
 ssrPass.opacity.value = 0.72;
 const ssrTexture = ssrPass.getTextureNode();
 const baseComposite = gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
+const compositeWithHiZSource = baseComposite;
 postProcessing.outputNode = hizMode === "depth-debug"
-  ? vec3(baselinePass.getTextureNode("depth").r)
+  ? vec3(float(1).sub(texture(hizRuntime!.texture, screenUV).level(float(0)).r).mul(180).clamp(0, 1))
+      .add(vec3(geometryPass.getTextureNode("depth").r).mul(0.000001))
   : ssrMode === "debug"
   ? ssrTexture
   : gtaoMode === "debug"
   ? gtaoPass.getTextureNode()
-  : ssrMode === "on" ? mix(baseComposite, ssrTexture, ssrTexture.a.mul(0.48)) : baseComposite;
+  : ssrMode === "on" ? mix(compositeWithHiZSource, ssrTexture, ssrTexture.a.mul(0.48)) : compositeWithHiZSource;
 
 canvas.dataset.backend = renderer.backend.constructor.name === "WebGPUBackend" ? "WEBGPU" : "FALLBACK";
 canvas.dataset.pbr = "MESH_STANDARD_NODE";
@@ -310,7 +313,7 @@ canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
 canvas.dataset.hiz = hizRuntime ? `MIN_DEPTH_COMPUTE_${hizRuntime.levels}_LEVEL` : "OFF";
-canvas.dataset.hizConsumer = "NONE_BUILD_ONLY";
+canvas.dataset.hizConsumer = hizTexture ? "TSL_ZERO_READBACK_MIP_SAMPLING" : "NONE";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
 canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";
@@ -335,10 +338,10 @@ async function frame() {
   if (!temporalTest) renderer.compute(updateParticles);
   await postProcessing.renderAsync();
   if (hizRuntime) {
-    const sourceDepth = (renderer.backend as any).get(baselinePass.getTexture("depth")).texture;
+    const sourceDepth = (renderer.backend as any).get(geometryPass.getTexture("depth")).texture;
     if (sourceDepth) {
       canvas.dataset.hizSource = `${sourceDepth.format}_${sourceDepth.width}X${sourceDepth.height}_S${sourceDepth.sampleCount}`;
-      hizRuntime.update(sourceDepth);
+      hizRuntime.update(sourceDepth, sourceDepth.sampleCount);
       hizUpdates++;
       canvas.dataset.hizUpdates = String(hizUpdates);
       if (hizUpdates === 2 && !hizReadbackPending) {

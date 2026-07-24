@@ -1,22 +1,39 @@
+import {
+  FloatType,
+  NearestFilter,
+  NearestMipmapNearestFilter,
+  RedFormat,
+  StorageTexture,
+} from "three/webgpu";
+
 export interface WebGpuHiZRuntime {
   readonly levels: number;
   readonly width: number;
   readonly height: number;
-  update(sourceDepth: any): void;
+  readonly texture: StorageTexture;
+  update(sourceDepth: any, sampleCount?: number): void;
   readLastMinimum(): Promise<number>;
   readBaseCenter(): Promise<number>;
   dispose(): void;
 }
 
-export function createWebGpuHiZRuntime(device: any, width: number, height: number): WebGpuHiZRuntime {
+export async function createWebGpuHiZRuntime(renderer: any, width: number, height: number): Promise<WebGpuHiZRuntime> {
+  const device = renderer.backend.device;
   const levels = Math.floor(Math.log2(Math.max(width, height))) + 1;
-  const usage = (globalThis as any).GPUTextureUsage;
-  const texture = device.createTexture({
-    size: [width, height],
-    mipLevelCount: levels,
-    format: "r32float",
-    usage: usage.STORAGE_BINDING | usage.TEXTURE_BINDING | usage.COPY_SRC,
-  });
+  const storageTexture = new StorageTexture(width, height);
+  storageTexture.format = RedFormat;
+  storageTexture.type = FloatType;
+  storageTexture.magFilter = NearestFilter;
+  storageTexture.minFilter = NearestMipmapNearestFilter;
+  storageTexture.generateMipmaps = true;
+  await renderer.initTextureAsync(storageTexture);
+  const texture = renderer.backend.get(storageTexture).texture;
+  if (!texture || texture.mipLevelCount !== levels) {
+    storageTexture.dispose();
+    throw new Error(`Hi-Z storage texture initialization failed: expected ${levels} mip levels`);
+  }
+  // Allocation needs the full chain, but only the min-reduction compute pass may populate it.
+  storageTexture.generateMipmaps = false;
   const module = device.createShaderModule({ code: `
     @group(0) @binding(0) var sourceDepth: texture_depth_multisampled_2d;
     @group(0) @binding(1) var destinationDepth: texture_storage_2d<r32float, write>;
@@ -30,6 +47,16 @@ export function createWebGpuHiZRuntime(device: any, width: number, height: numbe
       let d2 = textureLoad(sourceDepth, coordinate, 2);
       let d3 = textureLoad(sourceDepth, coordinate, 3);
       textureStore(destinationDepth, coordinate, vec4<f32>(min(min(d0, d1), min(d2, d3)), 0.0, 0.0, 1.0));
+    }
+    @group(2) @binding(0) var sourceDepthSingle: texture_depth_2d;
+    @group(2) @binding(1) var destinationDepthSingle: texture_storage_2d<r32float, write>;
+    @compute @workgroup_size(8, 8)
+    fn copyDepthSingle(@builtin(global_invocation_id) id: vec3<u32>) {
+      let size = textureDimensions(destinationDepthSingle);
+      if (id.x >= size.x || id.y >= size.y) { return; }
+      let coordinate = vec2<i32>(id.xy);
+      let depth = textureLoad(sourceDepthSingle, coordinate, 0);
+      textureStore(destinationDepthSingle, coordinate, vec4<f32>(depth, 0.0, 0.0, 1.0));
     }
     @group(1) @binding(0) var sourceMin: texture_2d<f32>;
     @group(1) @binding(1) var destinationMin: texture_storage_2d<r32float, write>;
@@ -48,22 +75,26 @@ export function createWebGpuHiZRuntime(device: any, width: number, height: numbe
     }`,
   });
   const copyPipeline = device.createComputePipeline({ layout: "auto", compute: { module, entryPoint: "copyDepth" } });
+  const copySinglePipeline = device.createComputePipeline({ layout: "auto", compute: { module, entryPoint: "copyDepthSingle" } });
   const reducePipeline = device.createComputePipeline({ layout: "auto", compute: { module, entryPoint: "reduceMin" } });
 
   return {
     levels,
     width,
     height,
-    update(sourceDepth) {
+    texture: storageTexture,
+    update(sourceDepth, sampleCount = 4) {
       const encoder = device.createCommandEncoder();
       let pass = encoder.beginComputePass();
       const mip0 = texture.createView({ baseMipLevel: 0, mipLevelCount: 1 });
-      const copyGroup = device.createBindGroup({ layout: copyPipeline.getBindGroupLayout(0), entries: [
+      const activeCopyPipeline = sampleCount > 1 ? copyPipeline : copySinglePipeline;
+      const copyGroupIndex = sampleCount > 1 ? 0 : 2;
+      const copyGroup = device.createBindGroup({ layout: activeCopyPipeline.getBindGroupLayout(copyGroupIndex), entries: [
         { binding: 0, resource: sourceDepth.createView() },
         { binding: 1, resource: mip0 },
       ] });
-      pass.setPipeline(copyPipeline);
-      pass.setBindGroup(0, copyGroup);
+      pass.setPipeline(activeCopyPipeline);
+      pass.setBindGroup(copyGroupIndex, copyGroup);
       pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
       pass.end();
       for (let level = 1; level < levels; level++) {
@@ -118,7 +149,7 @@ export function createWebGpuHiZRuntime(device: any, width: number, height: numbe
       return value;
     },
     dispose() {
-      texture.destroy();
+      storageTexture.dispose();
     },
   };
 }
