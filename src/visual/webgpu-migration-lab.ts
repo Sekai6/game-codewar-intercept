@@ -323,6 +323,7 @@ canvas.dataset.storageParticles = String(particleCount);
 canvas.dataset.storageParticleRole = "EVENT_SPLASH_WATER_COLUMN";
 canvas.dataset.storageParticlePath = "COMPUTE_TO_POINTS_ZERO_READBACK";
 canvas.dataset.temporalPipeline = traaEnabled ? "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP" : "OFF_AB_BASELINE";
+canvas.dataset.temporalResolution = "1.0_TO_1.0";
 canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "OFF";
 canvas.dataset.ssrTest = ssrTest ? "CONTROLLED_FLAT_SEA_LOW_ANGLE" : "FFT_DYNAMIC_SCENE";
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
