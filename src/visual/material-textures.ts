@@ -22,7 +22,7 @@ const settings: Record<SurfaceFinish, FinishSettings> = {
 
 const mapCache = new Map<
   SurfaceFinish,
-  { roughnessMap: THREE.DataTexture; normalMap: THREE.DataTexture }
+  { colorMap: THREE.DataTexture; roughnessMap: THREE.DataTexture; normalMap: THREE.DataTexture }
 >();
 
 function hash(x: number, y: number, seed: number) {
@@ -42,7 +42,8 @@ function heightAt(x: number, y: number, finish: FinishSettings, size: number) {
 
 function buildMaps(finishName: SurfaceFinish) {
   const finish = settings[finishName],
-    size = 64,
+    size = 128,
+    color = new Uint8Array(size * size * 4),
     roughness = new Uint8Array(size * size * 4),
     normal = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) {
@@ -58,6 +59,11 @@ function buildMaps(finishName: SurfaceFinish) {
             heightAt(x, y - 1, finish, size)) *
           finish.normalStrength,
         vector = new THREE.Vector3(-dx, -dy, 1).normalize(),
+        broadTone = hash(Math.floor(x / 4), Math.floor(y / 4), finish.seed + 7),
+        streak = hash(Math.floor(x / 3), 0, finish.seed + 91) * Math.exp(-((y % 64) / 20)),
+        salt = hash(Math.floor(x / 8), Math.floor(y / 6), finish.seed + 133),
+        finishTint = finishName === "weather-deck" ? 0.88 : finishName === "dark-metal" ? 0.91 : 0.95,
+        colorValue = THREE.MathUtils.clamp(finishTint + (broadTone - 0.5) * 0.075 - streak * 0.035 + (salt > 0.91 ? 0.035 : 0), 0.78, 1),
         roughnessValue = THREE.MathUtils.clamp(
           0.72 + height * 1.35 + (finishName === "weather-deck" ? 0.12 : 0),
           0.28,
@@ -66,13 +72,18 @@ function buildMaps(finishName: SurfaceFinish) {
       roughness[offset] = roughness[offset + 1] = roughness[offset + 2] =
         Math.round(roughnessValue * 255);
       roughness[offset + 3] = 255;
+      color[offset] = Math.round(colorValue * 255);
+      color[offset + 1] = Math.round(colorValue * (finishName === "weather-deck" ? 0.985 : 1) * 255);
+      color[offset + 2] = Math.round(colorValue * (finishName === "painted-metal" ? 0.975 : 1) * 255);
+      color[offset + 3] = 255;
       normal[offset] = Math.round((vector.x * 0.5 + 0.5) * 255);
       normal[offset + 1] = Math.round((vector.y * 0.5 + 0.5) * 255);
       normal[offset + 2] = Math.round((vector.z * 0.5 + 0.5) * 255);
       normal[offset + 3] = 255;
     }
   }
-  const roughnessMap = new THREE.DataTexture(
+  const colorMap = new THREE.DataTexture(color, size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
+    roughnessMap = new THREE.DataTexture(
       roughness,
       size,
       size,
@@ -86,7 +97,7 @@ function buildMaps(finishName: SurfaceFinish) {
       THREE.RGBAFormat,
       THREE.UnsignedByteType,
     );
-  for (const texture of [roughnessMap, normalMap]) {
+  for (const texture of [colorMap, roughnessMap, normalMap]) {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
@@ -94,9 +105,12 @@ function buildMaps(finishName: SurfaceFinish) {
     texture.colorSpace = THREE.NoColorSpace;
     texture.needsUpdate = true;
   }
+  colorMap.colorSpace = THREE.SRGBColorSpace;
+  colorMap.anisotropy = 8;
+  colorMap.name = `${finishName}-color`;
   roughnessMap.name = `${finishName}-roughness`;
   normalMap.name = `${finishName}-normal`;
-  return { roughnessMap, normalMap };
+  return { colorMap, roughnessMap, normalMap };
 }
 
 export function applySurfaceDetail(
@@ -109,6 +123,7 @@ export function applySurfaceDetail(
     maps = buildMaps(finish);
     mapCache.set(finish, maps);
   }
+  material.map = maps.colorMap;
   material.roughnessMap = maps.roughnessMap;
   material.normalMap = maps.normalMap;
   material.normalScale.setScalar(normalScale);

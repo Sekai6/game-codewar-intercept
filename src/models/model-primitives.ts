@@ -20,6 +20,36 @@ export function createSlopedBoxGeometry(
   return geometry;
 }
 
+export function createChamferedBoxGeometry(
+  length: number,
+  height: number,
+  depth: number,
+  chamfer: number,
+) {
+  const halfDepth = depth * 0.5;
+  const halfHeight = height * 0.5;
+  const cut = Math.min(chamfer, halfDepth * 0.45, halfHeight * 0.45);
+  const shape = new THREE.Shape();
+  shape.moveTo(-halfDepth + cut, -halfHeight);
+  shape.lineTo(halfDepth - cut, -halfHeight);
+  shape.lineTo(halfDepth, -halfHeight + cut);
+  shape.lineTo(halfDepth, halfHeight - cut);
+  shape.lineTo(halfDepth - cut, halfHeight);
+  shape.lineTo(-halfDepth + cut, halfHeight);
+  shape.lineTo(-halfDepth, halfHeight - cut);
+  shape.lineTo(-halfDepth, -halfHeight + cut);
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: length,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  geometry.translate(0, 0, -length * 0.5);
+  geometry.rotateY(Math.PI * 0.5);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export function addModelStrut(
   group: THREE.Group,
   from: THREE.Vector3,

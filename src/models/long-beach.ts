@@ -8,6 +8,7 @@ import {
 } from "./hull-geometry";
 import {
   addModelStrut as addStrut,
+  createChamferedBoxGeometry,
   createGuardRailBeam,
   createHawsePipe,
   createMk141Launcher,
@@ -225,7 +226,7 @@ function createMk10Launcher(deckMat: THREE.Material, darkMat: THREE.Material) {
   launcher.add(loaderDoor);
   return launcher;
 }
-export function buildLongBeach(color = 0x687574, scale = 1) {
+export function buildLongBeach(color = 0x7a8583, scale = 1) {
   const g = new THREE.Group();
   g.scale.setScalar(scale);
   const hullMat = new THREE.MeshStandardMaterial({
@@ -265,13 +266,13 @@ export function buildLongBeach(color = 0x687574, scale = 1) {
   aftDeck.position.set(-10, 6, 0);
   g.add(aftDeck);
   const bridge = new THREE.Mesh(
-    createSlopedBoxGeometry(11, 5.5, 6.5, 1.35),
+    createChamferedBoxGeometry(11, 5.5, 6.5, 0.46),
     deckMat,
   );
   bridge.position.set(5, 8, 0);
   g.add(bridge);
   const bridgeRoof = new THREE.Mesh(
-    new THREE.BoxGeometry(13, 0.8, 7.2),
+    createChamferedBoxGeometry(13, 0.8, 7.2, 0.32),
     darkMat,
   );
   bridgeRoof.position.set(5, 11, 0);
@@ -957,6 +958,23 @@ export function buildLongBeach(color = 0x687574, scale = 1) {
     );
     vent.position.set(x, 6.55, -2.4);
     highDetail.add(vent);
+  }
+  const platingMat = new THREE.MeshStandardMaterial({
+    color: 0x3f4d4e,
+    metalness: 0.08,
+    roughness: 0.74,
+  });
+  for (const side of [-1, 1]) {
+    for (const x of [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.045, 2.7, 0.025), platingMat);
+      seam.position.set(x, 4.28, side * 3.72);
+      highDetail.add(seam);
+    }
+    for (const x of [-23, -17, -11, -5, 1, 7, 13, 19]) {
+      const scupper = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.045), darkMat);
+      scupper.position.set(x, 5.52, side * 3.77);
+      highDetail.add(scupper);
+    }
   }
   const smokePuffs: THREE.Mesh[] = [];
   for (let i = 0; i < 9; i++) {

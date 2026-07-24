@@ -52,6 +52,7 @@
     "capture:webgpu-atmosphere-isolation": "node scripts/capture-webgpu-atmosphere-isolation.mjs",
     "capture:webgpu-hiz": "node scripts/capture-webgpu-hiz.mjs",
     "capture:webgpu-ocean": "node scripts/capture-webgpu-ocean.mjs",
+    "capture:ship-asset-ultra": "node scripts/capture-ship-asset-ultra.mjs",
     "verify:webgpu-particles": "node scripts/verify-webgpu-particles.mjs",
     "capture:webgpu-particles": "node scripts/capture-webgpu-particles.mjs",
     "capture:webgpu-bruneton": "node scripts/capture-webgpu-bruneton.mjs",
