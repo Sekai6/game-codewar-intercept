@@ -254,7 +254,7 @@ const indirectSun = new THREE.Mesh(
 );
 indirectSun.position.set(-45, 80, 32);
 indirectEnvironmentScene.add(indirectSun);
-const bouncedLightEnvironment = pmremGenerator.fromScene(indirectEnvironmentScene, 0.025).texture;
+const bouncedLightEnvironment = pmremGenerator.fromScene(indirectEnvironmentScene, 0.005).texture;
 indirectSea.geometry.dispose(); (indirectSea.material as THREE.Material).dispose();
 indirectSun.geometry.dispose(); (indirectSun.material as THREE.Material).dispose();
 pmremGenerator.dispose();

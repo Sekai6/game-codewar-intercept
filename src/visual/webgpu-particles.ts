@@ -53,26 +53,28 @@ export async function createWebGpuParticleRuntime(device: any, capacity = 131072
       var p = particles[id.x];
       if (p.lifecycle.y <= 0.0 || p.lifecycle.x >= p.lifecycle.y) { return; }
       let kind = u32(p.lifecycle.z + 0.5);
+      var velocity = p.velocity;
       let turbulence = vec3<f32>(hash31(p.position.xyz + vec3<f32>(params.elapsed, f32(id.x), 0.0)) - 0.5, 0.0,
         hash31(p.position.zyx + vec3<f32>(0.0, params.elapsed, f32(id.x))) - 0.5);
       if (kind == 0u) {
-        p.velocity.y -= 9.81 * params.dt;
-        p.velocity = vec4<f32>(p.velocity.xyz + turbulence * 1.4 * params.dt, p.velocity.w);
-        if (p.position.y <= 0.12 && p.velocity.y < 0.0) { p.velocity = vec4<f32>(p.velocity.x * 0.62, p.velocity.y * -0.18, p.velocity.z * 0.62, p.velocity.w); }
+        velocity.y -= 9.81 * params.dt;
+        velocity = vec4<f32>(velocity.xyz + turbulence * 1.4 * params.dt, velocity.w);
+        if (p.position.y <= 0.12 && velocity.y < 0.0) { velocity = vec4<f32>(velocity.x * 0.62, velocity.y * -0.18, velocity.z * 0.62, velocity.w); }
       } else if (kind == 1u) {
-        p.velocity.y -= 7.2 * params.dt;
-        p.velocity = vec4<f32>(p.velocity.xyz + turbulence * 0.55 * params.dt, p.velocity.w);
-        if (p.position.y <= 0.16 && p.velocity.y < 0.0) { p.velocity = vec4<f32>(p.velocity.x * 0.72, p.velocity.y * -0.32, p.velocity.z * 0.72, p.velocity.w); }
+        velocity.y -= 7.2 * params.dt;
+        velocity = vec4<f32>(velocity.xyz + turbulence * 0.55 * params.dt, velocity.w);
+        if (p.position.y <= 0.16 && velocity.y < 0.0) { velocity = vec4<f32>(velocity.x * 0.72, velocity.y * -0.32, velocity.z * 0.72, velocity.w); }
       } else if (kind == 2u) {
-        p.velocity.y += (-0.34 - p.velocity.y) * min(1.0, params.dt * 1.7);
-        p.velocity = vec4<f32>(p.velocity.x + turbulence.x * 1.8 * params.dt, p.velocity.y, p.velocity.z + turbulence.z * 1.8 * params.dt, p.velocity.w);
-        p.velocity = vec4<f32>(p.velocity.xyz * (1.0 - min(0.22, params.dt * 0.08)), p.velocity.w);
+        velocity.y += (-0.34 - velocity.y) * min(1.0, params.dt * 1.7);
+        velocity = vec4<f32>(velocity.x + turbulence.x * 1.8 * params.dt, velocity.y, velocity.z + turbulence.z * 1.8 * params.dt, velocity.w);
+        velocity = vec4<f32>(velocity.xyz * (1.0 - min(0.22, params.dt * 0.08)), velocity.w);
       } else {
-        p.velocity.y -= 2.8 * params.dt;
-        p.velocity = vec4<f32>(p.velocity.x + turbulence.x * 0.7 * params.dt, p.velocity.y, p.velocity.z + turbulence.z * 0.7 * params.dt, p.velocity.w);
-        p.velocity = vec4<f32>(p.velocity.xyz * (1.0 - min(0.18, params.dt * 0.11)), p.velocity.w);
+        velocity.y -= 2.8 * params.dt;
+        velocity = vec4<f32>(velocity.x + turbulence.x * 0.7 * params.dt, velocity.y, velocity.z + turbulence.z * 0.7 * params.dt, velocity.w);
+        velocity = vec4<f32>(velocity.xyz * (1.0 - min(0.18, params.dt * 0.11)), velocity.w);
       }
-      p.position = vec4<f32>(p.position.xyz + p.velocity.xyz * params.dt, p.position.w);
+      p.velocity = velocity;
+      p.position = vec4<f32>(p.position.xyz + velocity.xyz * params.dt, p.position.w);
       p.lifecycle.x += params.dt;
       particles[id.x] = p;
     }` });
