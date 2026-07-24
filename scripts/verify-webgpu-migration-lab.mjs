@@ -17,6 +17,6 @@ try {
   const result = await page.locator("#webgpu-lab").evaluate(canvas => ({ ...canvas.dataset }));
   result.errors = errors;
   console.log(JSON.stringify(result, null, 2));
-  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
+  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "GERSTNER_ANALYTIC_NORMAL_3_WAVE" || result.tslSky !== "PHYSICAL_AFTERNOON_SCATTER" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
   await page.locator("#webgpu-lab").screenshot({ path: "verification-webgpu-migration-lab.png" });
 } finally { await browser.close(); }
