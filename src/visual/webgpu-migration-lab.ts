@@ -27,6 +27,7 @@ import { ssr } from "three/addons/tsl/display/SSRNode.js";
 import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
+import { createWebGpuHiZRuntime } from "./webgpu-hiz";
 
 class StableTiledLighting extends TiledLighting {
   createNode(lights: any[] = []) {
@@ -273,6 +274,9 @@ const postProcessing = new PostProcessing(renderer);
 const boundedAo = gtaoPass.getTextureNode().mul(0.32).add(0.68);
 const colorPass = traaEnabled ? temporalPass : baselinePass;
 const ssrMode = query.get("ssr") ?? "off";
+const hizMode = query.get("hiz") ?? "off";
+const hizEnabled = hizMode === "on";
+const hizRuntime = hizEnabled ? createWebGpuHiZRuntime(device, canvas.width, canvas.height) : null;
 const ssrPass = ssr(
   baselinePass.getTextureNode("output"),
   baselinePass.getTextureNode("depth"),
@@ -286,7 +290,9 @@ ssrPass.thickness.value = 0.45;
 ssrPass.opacity.value = 0.72;
 const ssrTexture = ssrPass.getTextureNode();
 const baseComposite = gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
-postProcessing.outputNode = ssrMode === "debug"
+postProcessing.outputNode = hizMode === "depth-debug"
+  ? vec3(baselinePass.getTextureNode("depth").r)
+  : ssrMode === "debug"
   ? ssrTexture
   : gtaoMode === "debug"
   ? gtaoPass.getTextureNode()
@@ -303,7 +309,8 @@ canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
-canvas.dataset.hiz = "NOT_YET_CONSUMED";
+canvas.dataset.hiz = hizRuntime ? `MIN_DEPTH_COMPUTE_${hizRuntime.levels}_LEVEL` : "OFF";
+canvas.dataset.hizConsumer = "NONE_BUILD_ONLY";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
 canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";
@@ -314,6 +321,8 @@ status.textContent = `WEBGPU NATIVE\nFFT OCEAN + BRUNETON SKY\nSTORAGE PARTICLES
 const clock = new Clock();
 let renderedFrames = 0;
 let elapsed = 0;
+let hizUpdates = 0;
+let hizReadbackPending = false;
 async function frame() {
   deltaTime.value = Math.min(clock.getDelta(), 0.05);
   elapsed += deltaTime.value;
@@ -324,7 +333,23 @@ async function frame() {
     light.intensity = temporalTest ? base : base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
   });
   if (!temporalTest) renderer.compute(updateParticles);
-  postProcessing.render();
+  await postProcessing.renderAsync();
+  if (hizRuntime) {
+    const sourceDepth = (renderer.backend as any).get(baselinePass.getTexture("depth")).texture;
+    if (sourceDepth) {
+      canvas.dataset.hizSource = `${sourceDepth.format}_${sourceDepth.width}X${sourceDepth.height}_S${sourceDepth.sampleCount}`;
+      hizRuntime.update(sourceDepth);
+      hizUpdates++;
+      canvas.dataset.hizUpdates = String(hizUpdates);
+      if (hizUpdates === 2 && !hizReadbackPending) {
+        hizReadbackPending = true;
+        void Promise.all([hizRuntime.readLastMinimum(), hizRuntime.readBaseCenter()]).then(([minimum, center]) => {
+          canvas.dataset.hizLastMinimum = String(minimum);
+          canvas.dataset.hizBaseCenter = String(center);
+        });
+      }
+    }
+  }
   renderedFrames++;
   const targetScreen = temporalTarget.getWorldPosition(new Vector3()).project(camera);
   canvas.dataset.temporalTargetX = String((targetScreen.x * 0.5 + 0.5) * canvas.clientWidth);
