@@ -44,7 +44,7 @@ import {
 } from "./visual/threat-particles";
 import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
-import { createCinematicAtmospherePass, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
+import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
 import { TemporalReconstructionPass } from "./visual/temporal-reconstruction-pass";
@@ -221,8 +221,11 @@ const oceanValidationMode = visualValidationParams.get("oceanValidation") ?? "";
 const particleValidationMode = visualValidationParams.get("particleValidation") ?? "";
 const gpuParticlesEnabled = visualValidationParams.get("gpuParticles") !== "off";
 const brunetonAtmosphereEnabled = visualValidationParams.get("bruneton") !== "off";
+const clusteredLightingEnabled = visualValidationParams.get("clusteredLighting") !== "off";
+const clusteredLightingValidation = visualValidationParams.get("clusteredValidation") === "explosion";
 let oceanValidationSplashTriggered = false;
 let particleValidationTriggered = false;
+let clusteredValidationTriggered = false;
 const oceanValidationSplashPosition = new THREE.Vector3();
 const hizVisualComparison = visualValidationParams.has("hizEffects");
 hizScreenSpacePass.setEffectsEnabled(visualValidationParams.get("hizEffects") !== "off");
@@ -284,6 +287,9 @@ let lastFroxelUpdateAt = -Infinity;
 let froxelUpdateCount = 0;
 let froxelLightCount = 0;
 let froxelDominantLight = "none";
+let clusteredUpdateCount = 0;
+let clusteredLightCount = 0;
+let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
 const airCombat = new AirCombatSystem(scene);
 function addOceanSplash(position: THREE.Vector3, energy: number) {
@@ -2474,6 +2480,8 @@ function updateWebGpuUltraStatus() {
   canvas.dataset.webGpuUltraVelocity = webGpuUltraStatus === "active" ? "OBJECT_PREVIOUS_MVP_RG16F" : "OFF";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
+  canvas.dataset.webGpuUltraClustered = webGpuUltraStatus === "active" && clusteredLightingEnabled && webGpuUltraResult?.clusteredLighting ? "FORWARD_PLUS_32X18X24_64" : "OFF";
+  canvas.dataset.webGpuUltraClusteredError = webGpuUltraResult?.clusteredLightingError ?? "";
   canvas.dataset.webGpuUltraAtmosphere = webGpuUltraStatus === "active" && brunetonAtmosphereEnabled ? webGpuUltraResult?.atmosphereBackend ?? "OFF" : "OFF";
   canvas.dataset.webGpuUltraAtmosphereRanges = webGpuUltraResult?.atmosphereRanges ?? "";
 }
@@ -2501,10 +2509,14 @@ async function configureWebGpuUltra(requested: boolean) {
     webGpuUltraResult?.atmosphereMultipleScattering?.dispose();
     setCinematicUltraScatter(cinematicAtmospherePass, null);
     setCinematicFroxel(cinematicAtmospherePass, null);
+    setCinematicClusteredLighting(cinematicAtmospherePass, null);
     webGpuUltraResult = null;
     froxelUpdateCount = 0;
     froxelLightCount = 0;
     froxelDominantLight = "none";
+    clusteredUpdateCount = 0;
+    clusteredLightCount = 0;
+    clusteredOccupiedCount = 0;
     retainedFroxelLights = [];
     webGpuUltraStatus = "idle";
     updateWebGpuUltraStatus();
@@ -2545,6 +2557,7 @@ async function configureWebGpuUltra(requested: boolean) {
     temporalReconstructionPass.setOutputSize(Math.round(innerWidth * displayPixelRatio), Math.round(innerHeight * displayPixelRatio));
     setCinematicUltraScatter(cinematicAtmospherePass, ultraAtmosphereMode === "none" || ultraAtmosphereMode === "froxel" ? null : webGpuUltraResult.scatterTexture);
     setCinematicFroxel(cinematicAtmospherePass, ultraAtmosphereMode === "none" || ultraAtmosphereMode === "scatter" ? null : webGpuUltraResult.froxelTexture);
+    setCinematicClusteredLighting(cinematicAtmospherePass, clusteredLightingEnabled ? webGpuUltraResult.clusteredLighting?.texture ?? null : null);
     updateWebGpuUltraStatus();
     webGpuUltraInitialization = null;
   })();
@@ -7822,6 +7835,11 @@ function tick(now: number) {
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
+  canvas.dataset.webGpuUltraClustered = webGpuUltraStatus === "active" && clusteredLightingEnabled && webGpuUltraResult?.clusteredLighting ? "FORWARD_PLUS_32X18X24_64" : "OFF";
+  canvas.dataset.webGpuUltraClusteredError = webGpuUltraResult?.clusteredLightingError ?? "";
+  canvas.dataset.webGpuUltraClusteredUpdates = String(clusteredUpdateCount);
+  canvas.dataset.webGpuUltraClusteredLights = String(clusteredLightCount);
+  canvas.dataset.webGpuUltraClusteredOccupied = String(clusteredOccupiedCount);
   canvas.dataset.webGpuUltraAtmosphere = webGpuUltraStatus === "active" && brunetonAtmosphereEnabled ? webGpuUltraResult?.atmosphereBackend ?? "OFF" : "OFF";
   canvas.dataset.webGpuUltraAtmosphereRanges = webGpuUltraResult?.atmosphereRanges ?? "";
   canvas.dataset.webGpuUltraFroxelUpdates = String(froxelUpdateCount);
@@ -8075,6 +8093,11 @@ function tick(now: number) {
     particleValidationTriggered = true;
     canvas.dataset.particleValidation = particleValidationMode;
   }
+  if (clusteredLightingValidation && !clusteredValidationTriggered && elapsed >= 4) {
+    createExplosion(defender.localToWorld(new THREE.Vector3(-5, 10, 6)));
+    clusteredValidationTriggered = true;
+    canvas.dataset.clusteredValidation = "explosion";
+  }
   const gpuParticleRuntime = webGpuUltraResult?.particles;
   if (webGpuUltraStatus === "active" && gpuParticlesEnabled && gpuParticleRuntime) {
     void gpuParticleRuntime.update(realDt, elapsed);
@@ -8166,6 +8189,16 @@ function tick(now: number) {
     void webGpuUltraResult.updateFroxel(samples).then((updated) => {
       if (updated) froxelUpdateCount++;
     });
+    const clustered = webGpuUltraResult.clusteredLighting;
+    if (clusteredLightingEnabled && clustered) {
+      void clustered.update([...currentSamples, ...retainedFroxelLights.map((entry) => entry.sample)]).then((updated) => {
+        if (!updated) return;
+        const diagnostics = clustered.diagnostics();
+        clusteredUpdateCount = diagnostics.updates;
+        clusteredLightCount = diagnostics.lights;
+        clusteredOccupiedCount = diagnostics.occupied;
+      });
+    }
   }
   // Directional lights have no emitter position, so project a distant point
   // along the same afternoon direction used by clouds, ocean and shadows.

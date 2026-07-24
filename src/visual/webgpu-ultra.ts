@@ -3,6 +3,7 @@ import { createTessendorfOceanSpectrum } from "./ocean-spectrum";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuParticleRuntime, type WebGpuParticleRuntime } from "./webgpu-particles";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
+import { createWebGpuClusteredLighting, type WebGpuClusteredLighting } from "./webgpu-clustered-lighting";
 
 export type WebGpuUltraStatus = "idle" | "initializing" | "active" | "unsupported" | "failed";
 
@@ -23,6 +24,8 @@ export interface WebGpuUltraResult {
   atmosphereMultipleScattering: THREE.DataTexture | null;
   atmosphereBackend: "COMPUTE_BRUNETON_3_LUT" | "OFF";
   atmosphereRanges: string;
+  clusteredLighting: WebGpuClusteredLighting | null;
+  clusteredLightingError: string;
   updateFroxel: ((lights: readonly FroxelLightInput[]) => Promise<boolean>) | null;
   disposeCompute: (() => void) | null;
   adapterName: string;
@@ -41,7 +44,7 @@ export interface FroxelLightInput {
 const TEXTURE_SIZE = 128;
 
 function unavailable(status: "unsupported" | "failed", error: string): WebGpuUltraResult {
-  return { status, backend: "WEBGL2", detailTexture: null, scatterTexture: null, volumeTexture: null, froxelTexture: null, oceanSpectrumTexture: null, oceanSpectrumFrames: 0, oceanSpectrumBackend: "OFF", oceanSpectrumError: "", particles: null, atmosphereTransmittance: null, atmosphereSingleScattering: null, atmosphereMultipleScattering: null, atmosphereBackend: "OFF", atmosphereRanges: "", updateFroxel: null, disposeCompute: null, adapterName: "", error };
+  return { status, backend: "WEBGL2", detailTexture: null, scatterTexture: null, volumeTexture: null, froxelTexture: null, oceanSpectrumTexture: null, oceanSpectrumFrames: 0, oceanSpectrumBackend: "OFF", oceanSpectrumError: "", particles: null, atmosphereTransmittance: null, atmosphereSingleScattering: null, atmosphereMultipleScattering: null, atmosphereBackend: "OFF", atmosphereRanges: "", clusteredLighting: null, clusteredLightingError: "", updateFroxel: null, disposeCompute: null, adapterName: "", error };
 }
 
 const VOLUME_WIDTH = 64;
@@ -262,6 +265,13 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
     froxelTexture.colorSpace = THREE.NoColorSpace;
     froxelTexture.needsUpdate = true;
     const atmosphere = await createWebGpuAtmosphereLuts(device);
+    let clusteredLighting: WebGpuClusteredLighting | null = null;
+    let clusteredLightingError = "";
+    try {
+      clusteredLighting = await createWebGpuClusteredLighting(device);
+    } catch (error) {
+      clusteredLightingError = error instanceof Error ? error.message : String(error);
+    }
     let oceanSpectrum, oceanSpectrumBackend: WebGpuUltraResult["oceanSpectrumBackend"] = "COMPUTE_RADIX2", oceanSpectrumError = "";
     try {
       oceanSpectrum = await createWebGpuOceanSpectrum(device);
@@ -305,6 +315,7 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
     const disposeCompute = () => {
       computeDisposed = true;
       particles.dispose();
+      clusteredLighting?.dispose();
       froxelLightBuffer.destroy();
       froxelTextureGpu.destroy();
     };
@@ -327,6 +338,8 @@ export async function initializeWebGpuUltra(): Promise<WebGpuUltraResult> {
       atmosphereMultipleScattering: atmosphere.multipleScattering,
       atmosphereBackend: atmosphere.backend,
       atmosphereRanges: atmosphere.ranges,
+      clusteredLighting,
+      clusteredLightingError,
       updateFroxel,
       disposeCompute,
       adapterName: info.description || info.device || info.vendor || "WebGPU adapter",
