@@ -20,7 +20,7 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, metalness, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, screenUV, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
+import { Fn, If, Loop, cameraPosition, color, cross, dot, exp, float, fract, instanceIndex, int, metalness, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, perspectiveDepthToViewZ, positionLocal, positionWorld, positionWorldDirection, pow, screenUV, smoothstep, storage, texture, texture3D, uniform, uv, vec2, vec3, vec4, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
 import { ssr } from "three/addons/tsl/display/SSRNode.js";
@@ -28,6 +28,7 @@ import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
 import { createWebGpuHiZRuntime } from "./webgpu-hiz";
+import { createWebGpuFroxelVolume } from "./webgpu-froxel-volume";
 
 class StableTiledLighting extends TiledLighting {
   createNode(lights: any[] = []) {
@@ -43,6 +44,9 @@ const status = document.querySelector("#status") as HTMLElement;
 const query = new URLSearchParams(location.search);
 const temporalTest = query.get("temporalTest") === "on";
 const ssrTest = query.get("ssrTest") === "on";
+const froxelTest = query.get("froxelTest") === "on";
+const froxelMode = query.get("froxel") ?? "off";
+const froxelEnabled = froxelMode === "on" || froxelMode === "debug";
 const simulationTime = uniform(temporalTest ? 3.25 : 0);
 const scene = new Scene();
 const sunDirection = uniform(new Vector3(-0.707, 0.469, -0.526).normalize());
@@ -101,6 +105,19 @@ for (let index = 0; index < 24; index++) {
   light.position.set(Math.sin(index * 2.17) * (9 + index % 7), 4.5 + (index % 5) * 2.3, Math.cos(index * 1.73) * (8 + index % 9));
   localLights.push(light);
   scene.add(light);
+}
+if (froxelTest) {
+  localLights[0].position.set(10, 7.5, 12);
+  localLights[0].intensity = 18;
+  localLights[0].distance = 24;
+  localLights[0].visible = false;
+}
+const froxelVolume = froxelEnabled ? await createWebGpuFroxelVolume(renderer) : null;
+froxelVolume?.update(camera, localLights, 0);
+if (froxelVolume) {
+  void froxelVolume.readCenter().then((value) => {
+    canvas.dataset.froxelCenter = Array.from(value).map((channel) => channel.toFixed(6)).join(",");
+  });
 }
 
 const hullMaterial = new MeshStandardNodeMaterial({ color: 0x68777c, metalness: 0.35, roughness: 0.42 });
@@ -302,9 +319,43 @@ ssrPass.thickness.value = 0.45;
 ssrPass.opacity.value = 0.72;
 const ssrTexture = ssrPass.getTextureNode();
 const baseComposite = gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
-const compositeWithHiZSource = baseComposite;
+const froxelComposite = froxelVolume ? Fn(() => {
+  const coordinates = uv();
+  const sceneDepth = baselinePass.getTextureNode("depth").sample(coordinates).r;
+  const sceneDistance = mul(
+    perspectiveDepthToViewZ(sceneDepth, float(camera.near), float(camera.far)),
+    float(-1),
+  ).clamp(camera.near, camera.far);
+  const accumulated = vec4(0).toVar();
+  Loop({ start: int(0), end: int(froxelVolume.slices), type: "int", condition: "<" }, ({ i }) => {
+    const slice = float(i).add(0.5).div(froxelVolume.slices);
+    const nextSlice = float(i).add(1).div(froxelVolume.slices);
+    const distance = float(camera.near).mul(pow(camera.far / camera.near, slice));
+    const nextDistance = float(camera.near).mul(pow(camera.far / camera.near, nextSlice));
+    const stepLength = nextDistance.sub(distance);
+    const sample = texture3D(froxelVolume.texture, vec3(coordinates, slice));
+    const coverage = sceneDistance.sub(distance).div(stepLength).clamp(0, 1);
+    const opticalDepth = sample.a.mul(stepLength).mul(coverage).clamp(0, 0.22);
+    const transmittance = exp(accumulated.a.mul(-1));
+    accumulated.rgb.addAssign(sample.rgb.mul(stepLength).mul(transmittance).mul(coverage));
+    accumulated.a.addAssign(opticalDepth);
+  });
+  return accumulated;
+})() : vec4(0);
+const compositeWithHiZSource = froxelEnabled
+  ? vec4(
+      mix(
+        baseComposite.rgb,
+        froxelComposite.rgb.mul(1.6),
+        0.22,
+      ),
+      baseComposite.a,
+    )
+  : baseComposite;
 const debugRange = hizRuntime ? texture(hizRuntime.texture, screenUV).level(float(4)) : null;
-postProcessing.outputNode = hizMode === "range-debug"
+postProcessing.outputNode = froxelMode === "debug"
+  ? vec4(froxelComposite.rgb.mul(1.6), 1)
+  : hizMode === "range-debug"
   ? vec3(float(1).sub(debugRange!.r.div(camera.far)), debugRange!.g.sub(debugRange!.r).div(80), float(1).sub(debugRange!.g.div(camera.far))).clamp(0, 1)
       .add(vec3(geometryPass.getTextureNode("depth").r).mul(0.000001))
   : hizMode === "depth-debug"
@@ -326,6 +377,9 @@ canvas.dataset.temporalPipeline = traaEnabled ? "NATIVE_TRAA_VELOCITY_MRT_NEIGHB
 canvas.dataset.temporalResolution = "1.0_TO_1.0";
 canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "OFF";
 canvas.dataset.ssrTest = ssrTest ? "CONTROLLED_FLAT_SEA_LOW_ANGLE" : "FFT_DYNAMIC_SCENE";
+canvas.dataset.froxelTest = froxelTest ? "CONTROLLED_WORLD_EXPLOSION_LIGHT" : "DYNAMIC_SCENE_LIGHTS";
+canvas.dataset.froxel = froxelVolume ? `WORLD_LOG_STORAGE3D_${froxelVolume.width}X${froxelVolume.height}X${froxelVolume.depth}_24_LIGHT` : "OFF";
+canvas.dataset.froxelPath = froxelVolume ? "WORLD_RECONSTRUCT_COMPUTE_TO_TSL_ZERO_READBACK" : "OFF";
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
@@ -350,10 +404,11 @@ async function frame() {
   if (!temporalTest) simulationTime.value += deltaTime.value;
   temporalTarget.position.x = temporalTest ? -18 + (renderedFrames * 0.72) % 36 : -18;
   localLights.forEach((light, index) => {
-    const base = index % 5 < 2 ? 2.1 : 1.05;
-    light.intensity = temporalTest ? base : base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
+    const base = froxelTest && index === 0 ? 18 : index % 5 < 2 ? 2.1 : 1.05;
+    light.intensity = temporalTest || froxelTest ? base : base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
   });
-  if (!temporalTest && !ssrTest) renderer.compute(updateParticles);
+  froxelVolume?.update(camera, localLights, elapsed);
+  if (!temporalTest && !ssrTest && !froxelTest) renderer.compute(updateParticles);
   await postProcessing.renderAsync();
   if (hizRuntime) {
     const sourceDepth = (renderer.backend as any).get(geometryPass.getTexture("depth")).texture;
