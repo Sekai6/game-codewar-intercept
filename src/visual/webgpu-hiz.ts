@@ -2,7 +2,7 @@ import {
   FloatType,
   NearestFilter,
   NearestMipmapNearestFilter,
-  RedFormat,
+  RGFormat,
   StorageTexture,
 } from "three/webgpu";
 
@@ -13,6 +13,7 @@ export interface WebGpuHiZRuntime {
   readonly texture: StorageTexture;
   update(sourceDepth: any, sampleCount?: number): void;
   readLastMinimum(): Promise<number>;
+  readLastRange(): Promise<{ minimum: number; maximum: number }>;
   readBaseCenter(): Promise<number>;
   dispose(): void;
 }
@@ -21,7 +22,7 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
   const device = renderer.backend.device;
   const levels = Math.floor(Math.log2(Math.max(width, height))) + 1;
   const storageTexture = new StorageTexture(width, height);
-  storageTexture.format = RedFormat;
+  storageTexture.format = RGFormat;
   storageTexture.type = FloatType;
   storageTexture.magFilter = NearestFilter;
   storageTexture.minFilter = NearestMipmapNearestFilter;
@@ -36,7 +37,7 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
   storageTexture.generateMipmaps = false;
   const module = device.createShaderModule({ code: `
     @group(0) @binding(0) var sourceDepth: texture_depth_multisampled_2d;
-    @group(0) @binding(1) var destinationDepth: texture_storage_2d<r32float, write>;
+    @group(0) @binding(1) var destinationDepth: texture_storage_2d<rg32float, write>;
     @compute @workgroup_size(8, 8)
     fn copyDepth(@builtin(global_invocation_id) id: vec3<u32>) {
       let size = textureDimensions(destinationDepth);
@@ -46,20 +47,22 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
       let d1 = textureLoad(sourceDepth, coordinate, 1);
       let d2 = textureLoad(sourceDepth, coordinate, 2);
       let d3 = textureLoad(sourceDepth, coordinate, 3);
-      textureStore(destinationDepth, coordinate, vec4<f32>(min(min(d0, d1), min(d2, d3)), 0.0, 0.0, 1.0));
+      let minimumDepth = min(min(d0, d1), min(d2, d3));
+      let maximumDepth = max(max(d0, d1), max(d2, d3));
+      textureStore(destinationDepth, coordinate, vec4<f32>(minimumDepth, maximumDepth, 0.0, 1.0));
     }
     @group(2) @binding(0) var sourceDepthSingle: texture_depth_2d;
-    @group(2) @binding(1) var destinationDepthSingle: texture_storage_2d<r32float, write>;
+    @group(2) @binding(1) var destinationDepthSingle: texture_storage_2d<rg32float, write>;
     @compute @workgroup_size(8, 8)
     fn copyDepthSingle(@builtin(global_invocation_id) id: vec3<u32>) {
       let size = textureDimensions(destinationDepthSingle);
       if (id.x >= size.x || id.y >= size.y) { return; }
       let coordinate = vec2<i32>(id.xy);
       let depth = textureLoad(sourceDepthSingle, coordinate, 0);
-      textureStore(destinationDepthSingle, coordinate, vec4<f32>(depth, 0.0, 0.0, 1.0));
+      textureStore(destinationDepthSingle, coordinate, vec4<f32>(depth, depth, 0.0, 1.0));
     }
     @group(1) @binding(0) var sourceMin: texture_2d<f32>;
-    @group(1) @binding(1) var destinationMin: texture_storage_2d<r32float, write>;
+    @group(1) @binding(1) var destinationMin: texture_storage_2d<rg32float, write>;
     @compute @workgroup_size(8, 8)
     fn reduceMin(@builtin(global_invocation_id) id: vec3<u32>) {
       let destinationSize = textureDimensions(destinationMin);
@@ -67,11 +70,13 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
       let sourceSize = textureDimensions(sourceMin);
       let base = vec2<i32>(id.xy * 2u);
       let maximum = vec2<i32>(sourceSize) - vec2<i32>(1);
-      let d0 = textureLoad(sourceMin, min(base, maximum), 0).r;
-      let d1 = textureLoad(sourceMin, min(base + vec2<i32>(1, 0), maximum), 0).r;
-      let d2 = textureLoad(sourceMin, min(base + vec2<i32>(0, 1), maximum), 0).r;
-      let d3 = textureLoad(sourceMin, min(base + vec2<i32>(1, 1), maximum), 0).r;
-      textureStore(destinationMin, vec2<i32>(id.xy), vec4<f32>(min(min(d0, d1), min(d2, d3)), 0.0, 0.0, 1.0));
+      let d0 = textureLoad(sourceMin, min(base, maximum), 0).rg;
+      let d1 = textureLoad(sourceMin, min(base + vec2<i32>(1, 0), maximum), 0).rg;
+      let d2 = textureLoad(sourceMin, min(base + vec2<i32>(0, 1), maximum), 0).rg;
+      let d3 = textureLoad(sourceMin, min(base + vec2<i32>(1, 1), maximum), 0).rg;
+      let minimumDepth = min(min(d0.x, d1.x), min(d2.x, d3.x));
+      let maximumDepth = max(max(d0.y, d1.y), max(d2.y, d3.y));
+      textureStore(destinationMin, vec2<i32>(id.xy), vec4<f32>(minimumDepth, maximumDepth, 0.0, 1.0));
     }`,
   });
   const copyPipeline = device.createComputePipeline({ layout: "auto", compute: { module, entryPoint: "copyDepth" } });
@@ -130,6 +135,24 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
       buffer.unmap();
       buffer.destroy();
       return value;
+    },
+    async readLastRange() {
+      const bufferUsage = (globalThis as any).GPUBufferUsage;
+      const mapMode = (globalThis as any).GPUMapMode;
+      const buffer = device.createBuffer({ size: 256, usage: bufferUsage.COPY_DST | bufferUsage.MAP_READ });
+      const encoder = device.createCommandEncoder();
+      encoder.copyTextureToBuffer(
+        { texture, mipLevel: levels - 1 },
+        { buffer, bytesPerRow: 256, rowsPerImage: 1 },
+        [1, 1, 1],
+      );
+      device.queue.submit([encoder.finish()]);
+      await buffer.mapAsync(mapMode.READ);
+      const range = new Float32Array(buffer.getMappedRange(), 0, 2);
+      const result = { minimum: range[0], maximum: range[1] };
+      buffer.unmap();
+      buffer.destroy();
+      return result;
     },
     async readBaseCenter() {
       const bufferUsage = (globalThis as any).GPUBufferUsage;

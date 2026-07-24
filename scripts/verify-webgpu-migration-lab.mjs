@@ -14,7 +14,7 @@ try {
   const gtao = ["off", "debug"].includes(process.env.GTAO) ? process.env.GTAO : "on";
   const traa = process.env.TRAA === "off" ? "off" : "on";
   const ssr = ["on", "debug"].includes(process.env.SSR) ? process.env.SSR : "off";
-  const hiz = ["on", "depth-debug"].includes(process.env.HIZ) ? process.env.HIZ : "off";
+  const hiz = ["on", "depth-debug", "range-debug"].includes(process.env.HIZ) ? process.env.HIZ : "off";
   await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html?gtao=${gtao}&traa=${traa}&ssr=${ssr}&hiz=${hiz}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.waitForFunction(() => document.querySelector("#webgpu-lab")?.dataset.storageParticles === "32768", null, { timeout: 30_000 });
   await page.waitForFunction(() => Number(document.querySelector("#webgpu-lab")?.dataset.renderedFrames ?? 0) >= 20, null, { timeout: 45_000 });
@@ -26,8 +26,9 @@ try {
   const expectedTraa = traa === "off" ? "OFF_AB_BASELINE" : "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP";
   const expectedSsr = ssr === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssr === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
   const hizMinimum = Number(result.hizLastMinimum);
+  const hizMaximum = Number(result.hizLastMaximum);
   const hizCenter = Number(result.hizBaseCenter);
-  const validHiz = hiz !== "off" ? /^MIN_DEPTH_COMPUTE_\d+_LEVEL$/.test(result.hiz ?? "") && result.hizConsumer === "TSL_ZERO_READBACK_MIP_SAMPLING" && /^depth/.test(result.hizSource ?? "") && Number(result.hizUpdates) >= 2 && Number.isFinite(hizMinimum) && hizMinimum >= 0 && hizMinimum <= 1 && Number.isFinite(hizCenter) && hizCenter > 0 && hizCenter <= 1 : result.hiz === "OFF";
+  const validHiz = hiz !== "off" ? /^MIN_MAX_DEPTH_COMPUTE_\d+_LEVEL$/.test(result.hiz ?? "") && result.hizConsumer === "TSL_ZERO_READBACK_MIP_SAMPLING" && /^depth/.test(result.hizSource ?? "") && Number(result.hizUpdates) >= 2 && Number.isFinite(hizMinimum) && hizMinimum >= 0 && hizMinimum <= 1 && Number.isFinite(hizMaximum) && hizMaximum >= hizMinimum && hizMaximum <= 1 && Number.isFinite(hizCenter) && hizCenter > 0 && hizCenter <= 1 : result.hiz === "OFF";
   if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.storageParticleRole !== "EVENT_SPLASH_WATER_COLUMN" || result.storageParticlePath !== "COMPUTE_TO_POINTS_ZERO_READBACK" || result.temporalPipeline !== expectedTraa || result.gtao !== expectedGtao || result.gtaoLayers !== "OPAQUE_HULL_ONLY" || result.ssr !== expectedSsr || !validHiz || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING" || result.splashInput !== "LOCAL_EVENT_DISPLACEMENT_FOAM" || result.fftOceanResource !== "GPU_COMPUTE_READBACK_UPLOAD_16X64" || result.tslSky !== "BRUNETON_3_LUT_AFTERNOON" || result.brunetonResource !== "COMPUTE_BRUNETON_3_LUT_READBACK_UPLOAD" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
   await page.locator("#webgpu-lab").screenshot({ path: `verification-webgpu-migration-lab-gtao-${gtao}-ssr-${ssr}.png` });
 } catch (error) {
