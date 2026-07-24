@@ -251,7 +251,7 @@ const indirectSun = new THREE.Mesh(
 );
 indirectSun.position.set(-45, 80, 32);
 indirectEnvironmentScene.add(indirectSun);
-const bouncedLightEnvironment = pmremGenerator.fromScene(indirectEnvironmentScene, 0.18).texture;
+const bouncedLightEnvironment = pmremGenerator.fromScene(indirectEnvironmentScene, 0.04).texture;
 indirectSea.geometry.dispose(); (indirectSea.material as THREE.Material).dispose();
 indirectSun.geometry.dispose(); (indirectSun.material as THREE.Material).dispose();
 pmremGenerator.dispose();
@@ -2457,7 +2457,7 @@ const webGpuUltraInput = ultraQualityField.querySelector("input") as HTMLInputEl
 const webGpuUltraStatusElement = ultraQualityField.querySelector("span") as HTMLSpanElement;
 
 function updateWebGpuUltraStatus() {
-  webGpuUltraStatusElement.textContent = webGpuUltraStatus.toUpperCase();
+  webGpuUltraStatusElement.textContent = webGpuUltraStatus === "failed" ? "FAILED / CLICK TO RETRY" : webGpuUltraStatus.toUpperCase();
   webGpuUltraStatusElement.dataset.status = webGpuUltraStatus;
   ultraQualityField.title = webGpuUltraResult?.error || webGpuUltraResult?.adapterName || "WebGPU compute is initialized only when Ultra is selected";
   canvas.dataset.webGpuUltraRequested = String(webGpuUltraInput.checked);
@@ -2517,6 +2517,12 @@ async function configureWebGpuUltra(requested: boolean) {
   updateWebGpuUltraStatus();
   webGpuUltraInitialization = (async () => {
     webGpuUltraResult = await initializeWebGpuUltra();
+    if (webGpuUltraResult.status === "failed") {
+      const firstError = webGpuUltraResult.error;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      webGpuUltraResult = await initializeWebGpuUltra();
+      if (webGpuUltraResult.status === "failed") webGpuUltraResult.error = `${firstError} | retry: ${webGpuUltraResult.error}`;
+    }
     webGpuUltraStatus = webGpuUltraResult.status;
     highQualityEnvironment.setUltraDetail(webGpuUltraResult.detailTexture, webGpuUltraResult.volumeTexture);
     highQualityEnvironment.setAtmosphereLuts(
@@ -2547,6 +2553,13 @@ async function configureWebGpuUltra(requested: boolean) {
 
 webGpuUltraInput.addEventListener("change", () => {
   void configureWebGpuUltra(webGpuUltraInput.checked);
+});
+webGpuUltraStatusElement.addEventListener("click", (event) => {
+  if (webGpuUltraStatus !== "failed") return;
+  event.preventDefault();
+  webGpuUltraStatus = "idle";
+  webGpuUltraResult = null;
+  void configureWebGpuUltra(true);
 });
 const airPresetField = document.createElement("label");
 airPresetField.className = "sandbox-field";
