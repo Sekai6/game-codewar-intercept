@@ -11,6 +11,7 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
+  PostProcessing,
   Scene,
   Points,
   PointsNodeMaterial,
@@ -18,8 +19,9 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mul, normalWorld, normalize, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, time, uniform, vec2, vec3 } from "three/tsl";
+import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalWorld, normalize, output, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, time, uniform, vec2, vec3, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
+import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
 import { createWebGpuOceanSpectrum } from "./webgpu-ocean-spectrum";
 import { createWebGpuAtmosphereLuts } from "./webgpu-atmosphere-luts";
 
@@ -233,6 +235,10 @@ const particles = new Points(particleGeometry, particleMaterial);
 particles.frustumCulled = false;
 scene.add(particles);
 await renderer.computeAsync(initializeParticles);
+const temporalPass = traaPass(scene, camera);
+temporalPass.setMRT(mrt({ output, velocity }));
+const postProcessing = new PostProcessing(renderer);
+postProcessing.outputNode = temporalPass;
 
 canvas.dataset.backend = renderer.backend.constructor.name === "WebGPUBackend" ? "WEBGPU" : "FALLBACK";
 canvas.dataset.pbr = "MESH_STANDARD_NODE";
@@ -240,6 +246,7 @@ canvas.dataset.tiledLights = "24";
 canvas.dataset.storageParticles = String(particleCount);
 canvas.dataset.storageParticleRole = "EVENT_SPLASH_WATER_COLUMN";
 canvas.dataset.storageParticlePath = "COMPUTE_TO_POINTS_ZERO_READBACK";
+canvas.dataset.temporalPipeline = "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
 canvas.dataset.splashInput = "LOCAL_EVENT_DISPLACEMENT_FOAM";
@@ -256,7 +263,7 @@ async function frame() {
     light.intensity = base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
   });
   renderer.compute(updateParticles);
-  renderer.render(scene, camera);
+  postProcessing.render();
   renderedFrames++;
   canvas.dataset.renderedFrames = String(renderedFrames);
   canvas.dataset.drawCalls = String(renderer.info.render.calls);

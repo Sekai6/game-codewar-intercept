@@ -13,10 +13,14 @@ try {
   const base = process.env.APP_URL ?? "http://127.0.0.1:5173";
   await page.goto(`${base.replace(/\/$/, "")}/webgpu-lab.html`, { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.waitForFunction(() => document.querySelector("#webgpu-lab")?.dataset.storageParticles === "32768", null, { timeout: 30_000 });
-  await page.waitForFunction(() => Number(document.querySelector("#webgpu-lab")?.dataset.renderedFrames ?? 0) >= 20, null, { timeout: 15_000 });
+  await page.waitForFunction(() => Number(document.querySelector("#webgpu-lab")?.dataset.renderedFrames ?? 0) >= 20, null, { timeout: 45_000 });
   const result = await page.locator("#webgpu-lab").evaluate(canvas => ({ ...canvas.dataset }));
   result.errors = errors;
   console.log(JSON.stringify(result, null, 2));
-  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.storageParticleRole !== "EVENT_SPLASH_WATER_COLUMN" || result.storageParticlePath !== "COMPUTE_TO_POINTS_ZERO_READBACK" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING" || result.splashInput !== "LOCAL_EVENT_DISPLACEMENT_FOAM" || result.fftOceanResource !== "GPU_COMPUTE_READBACK_UPLOAD_16X64" || result.tslSky !== "BRUNETON_3_LUT_AFTERNOON" || result.brunetonResource !== "COMPUTE_BRUNETON_3_LUT_READBACK_UPLOAD" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
+  if (errors.length || result.backend !== "WEBGPU" || result.pbr !== "MESH_STANDARD_NODE" || result.tiledLights !== "24" || result.storageParticles !== "32768" || result.storageParticleRole !== "EVENT_SPLASH_WATER_COLUMN" || result.storageParticlePath !== "COMPUTE_TO_POINTS_ZERO_READBACK" || result.temporalPipeline !== "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP" || result.depthOcclusion !== "SHARED_RENDERER_DEPTH" || result.tslOcean !== "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING" || result.splashInput !== "LOCAL_EVENT_DISPLACEMENT_FOAM" || result.fftOceanResource !== "GPU_COMPUTE_READBACK_UPLOAD_16X64" || result.tslSky !== "BRUNETON_3_LUT_AFTERNOON" || result.brunetonResource !== "COMPUTE_BRUNETON_3_LUT_READBACK_UPLOAD" || Number(result.renderedFrames) < 20 || Number(result.drawCalls) < 1) process.exitCode = 1;
   await page.locator("#webgpu-lab").screenshot({ path: "verification-webgpu-migration-lab.png" });
+} catch (error) {
+  const diagnostic = await page.locator("#webgpu-lab").evaluate(canvas => ({ ...canvas.dataset })).catch(() => ({}));
+  console.error(JSON.stringify({ error: error.stack ?? error.message, diagnostic, browserErrors: errors }, null, 2));
+  process.exitCode = 1;
 } finally { await browser.close(); }

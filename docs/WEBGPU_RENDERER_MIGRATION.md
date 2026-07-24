@@ -9,12 +9,15 @@ The first gate proves, on one `WebGPURenderer` and one depth buffer:
 - TSL compute updating a 32,768-entry `StorageBufferAttribute`;
 - direct `PointsNodeMaterial` drawing from that storage attribute without CPU readback;
 - normal depth occlusion between storage particles and opaque geometry.
+- native TRAA with velocity MRT, camera jitter, history reprojection, 3x3 neighborhood clamping and luminance weighting;
 - a TSL ocean material sampling the 16-frame 64x64 Tessendorf FFT displacement/Jacobian atlas, plus a ship-aligned Kelvin/bow-wave local displacement and foam field;
 - a TSL afternoon sky sampling the transmittance, single-scattering and multiple-scattering Bruneton LUTs, with a bounded solar halo and disk.
 
 Run `npm run verify:webgpu-migration-lab` in Chrome or Edge. The verifier limits Chromium to one renderer process, requires 20 rendered frames and at least one draw call, rejects console/page errors, and writes `verification-webgpu-migration-lab.png` for manual depth/particle inspection.
 
 Three.js r178 `TiledLightsNode.customCacheKey()` dereferences its compute node before first setup. The lab uses a narrow initialization guard and delegates to the original cache key after setup; this is isolated from production code.
+
+Three.js r178 `TRAAPassNode.updateBefore()` also expects its MRT before its lazy setup has run. The lab explicitly supplies the documented `mrt({ output, velocity })` configuration at construction; the resolve, jitter, history and velocity implementation remain the native Three.js TRAA path. This is not the legacy `TAARenderPass`, which has no reprojection.
 
 Migration order:
 
