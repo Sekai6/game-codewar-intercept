@@ -50,6 +50,27 @@ export function createChamferedBoxGeometry(
   return geometry;
 }
 
+export function createChamferedSlopedBoxGeometry(
+  length: number,
+  height: number,
+  depth: number,
+  chamfer: number,
+  foreSlope: number,
+  aftSlope = 0,
+) {
+  const geometry = createChamferedBoxGeometry(length, height, depth, chamfer);
+  const position = geometry.attributes.position as THREE.BufferAttribute;
+  for (let index = 0; index < position.count; index++) {
+    const x = position.getX(index);
+    const y = position.getY(index);
+    if (y > 0 && x > 0) position.setX(index, x - foreSlope);
+    if (y > 0 && x < 0) position.setX(index, x + aftSlope);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export function addModelStrut(
   group: THREE.Group,
   from: THREE.Vector3,

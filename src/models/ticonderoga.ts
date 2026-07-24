@@ -9,6 +9,7 @@ import {
 } from "./hull-geometry";
 import {
   addModelStrut as strut,
+  createChamferedSlopedBoxGeometry,
   createGuardRailBeam,
   createHawsePipe,
   createLifeRaftCanister,
@@ -113,9 +114,11 @@ export function buildTiconderoga() {
       roughness: 0.58,
     }),
     windowMat = new THREE.MeshStandardMaterial({
-      color: 0x4ca8ad,
-      emissive: 0x123f43,
-      emissiveIntensity: 1.5,
+      color: 0x18363d,
+      emissive: 0x092126,
+      emissiveIntensity: 0.42,
+      metalness: 0.22,
+      roughness: 0.28,
     }),
     highDetail = new THREE.Group(),
     mediumDetail = new THREE.Group(),
@@ -137,19 +140,19 @@ export function buildTiconderoga() {
   );
   ship.add(deck);
   const forwardHouse = new THREE.Mesh(
-    slopedBox(longitudinal(15.5), 7.8, 6.35, longitudinal(2.8), longitudinal(0.65)),
+    createChamferedSlopedBoxGeometry(longitudinal(15.5), 7.8, 6.35, 0.42, longitudinal(2.8), longitudinal(0.65)),
     superMat,
   );
   forwardHouse.position.set(longitudinal(5.5), 9.6, 0);
   ship.add(forwardHouse);
   const bridge = new THREE.Mesh(
-    slopedBox(longitudinal(8.8), 3.1, 5.85, longitudinal(1.8), longitudinal(0.45)),
+    createChamferedSlopedBoxGeometry(longitudinal(8.8), 3.1, 5.85, 0.38, longitudinal(1.8), longitudinal(0.45)),
     superMat,
   );
   bridge.position.set(longitudinal(9.4), 14.85, 0);
   ship.add(bridge);
   const bridgeRoof = new THREE.Mesh(
-    slopedBox(longitudinal(6.4), 0.55, 5.2, longitudinal(0.7), longitudinal(0.25)),
+    createChamferedSlopedBoxGeometry(longitudinal(6.4), 0.55, 5.2, 0.24, longitudinal(0.7), longitudinal(0.25)),
     dark,
   );
   bridgeRoof.position.set(longitudinal(8.4), 16.65, 0);
@@ -172,6 +175,14 @@ export function buildTiconderoga() {
     ship.add(window);
   }
   for (const side of [-1, 1]) {
+    const windowBrow = new THREE.Mesh(
+      createChamferedSlopedBoxGeometry(longitudinal(6.2), 0.18, 0.24, 0.06, longitudinal(0.45), longitudinal(0.15)),
+      dark,
+    );
+    windowBrow.position.set(longitudinal(9.2), 15.58, side * 3.04);
+    ship.add(windowBrow);
+  }
+  for (const side of [-1, 1]) {
     const bridgeWing = new THREE.Mesh(
       new THREE.BoxGeometry(longitudinal(3.1), 0.32, 1.15),
       superMat,
@@ -185,13 +196,13 @@ export function buildTiconderoga() {
     highDetail.add(bridgeWing, bulwark);
   }
   const aftHouse = new THREE.Mesh(
-    slopedBox(longitudinal(14), 6.8, 6.35, longitudinal(0.75), longitudinal(1.9)),
+    createChamferedSlopedBoxGeometry(longitudinal(14), 6.8, 6.35, 0.42, longitudinal(0.75), longitudinal(1.9)),
     superMat,
   );
   aftHouse.position.set(longitudinal(-7.8), 9.1, 0);
   ship.add(aftHouse);
   const hangar = new THREE.Mesh(
-    slopedBox(longitudinal(8.2), 4.2, 6.25, longitudinal(0.25), longitudinal(1.15)),
+    createChamferedSlopedBoxGeometry(longitudinal(8.2), 4.2, 6.25, 0.38, longitudinal(0.25), longitudinal(1.15)),
     superMat,
   );
   hangar.position.set(longitudinal(-14.3), 8, 0);
@@ -241,6 +252,19 @@ export function buildTiconderoga() {
     ),
   );
   ship.add(...arrays);
+  const platingMat = new THREE.MeshStandardMaterial({ color: 0x445255, metalness: 0.08, roughness: 0.76 });
+  for (const side of [-1, 1]) {
+    for (const x of [-29, -23, -17, -11, -5, 1, 7, 13, 19, 25]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.045, 2.4, 0.025), platingMat);
+      seam.position.set(longitudinal(x), 4.12, side * 3.55);
+      highDetail.add(seam);
+    }
+    for (const x of [-26, -20, -14, -8, -2, 4, 10, 16, 22]) {
+      const scupper = new THREE.Mesh(new THREE.BoxGeometry(longitudinal(0.5), 0.14, 0.04), dark);
+      scupper.position.set(longitudinal(x), 5.28, side * 3.66);
+      highDetail.add(scupper);
+    }
+  }
   for (const x of [longitudinal(1.2), longitudinal(-8.5)]) {
     const trunk = new THREE.Mesh(
       slopedBox(3.1, 3.2, 3.5, 0.45, 0.45),

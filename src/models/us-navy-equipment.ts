@@ -211,16 +211,24 @@ export function createSpy1Array(
   panel.rotation.x = Math.PI / 2;
   panel.position.z = 0.09;
   group.add(border, panel);
-  for (let x = -1.2; x <= 1.2; x += 0.6)
-    for (let y = -1.2; y <= 1.2; y += 0.6) {
-      if (Math.hypot(x, y) > 1.65) continue;
-      const module = new THREE.Mesh(
-        new THREE.CircleGeometry(0.055, 8),
-        new THREE.MeshBasicMaterial({ color: 0xdfe3d9 }),
-      );
-      module.position.set(x, y, 0.2);
-      group.add(module);
-    }
+  const modulePositions: THREE.Vector2[] = [];
+  for (let x = -1.54; x <= 1.54; x += 0.28)
+    for (let y = -1.54; y <= 1.54; y += 0.28)
+      if (Math.hypot(x, y) <= 1.78) modulePositions.push(new THREE.Vector2(x, y));
+  const modules = new THREE.InstancedMesh(
+    new THREE.CircleGeometry(0.032, 6),
+    new THREE.MeshStandardMaterial({ color: 0xdfe3d9, metalness: 0.18, roughness: 0.62 }),
+    modulePositions.length,
+  );
+  const matrix = new THREE.Matrix4();
+  modulePositions.forEach((point, index) => {
+    matrix.makeTranslation(point.x, point.y, 0.2);
+    modules.setMatrixAt(index, matrix);
+  });
+  modules.instanceMatrix.needsUpdate = true;
+  modules.name = "SPY-1 T/R modules";
+  group.add(modules);
   group.userData.panel = panel;
+  group.userData.moduleCount = modulePositions.length;
   return group;
 }
