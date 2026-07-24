@@ -16,6 +16,8 @@ The first gate proves, on one `WebGPURenderer` and one depth buffer:
 
 Run `npm run verify:webgpu-migration-lab` in Chrome or Edge. The verifier limits Chromium to one renderer process, requires 20 rendered frames and at least one draw call, rejects console/page errors, and writes `verification-webgpu-migration-lab.png` for manual depth/particle inspection.
 
+Run `npm run verify:webgpu-temporal-stability` for the controlled temporal A/B. It freezes the ocean, wake, splash simulation and dynamic lights, moves one emissive fast target by a fixed amount per rendered frame, and serially captures frames 40 and 42 with TRAA off/on. The gate measures high-energy residue at the old target position relative to current-target energy, requires at least a 5% improvement without reducing target energy, and saves four images for manual ghosting inspection. Whole-screen frame delta is diagnostic only because TRAA jitter intentionally changes subpixel coverage. On the current Edge/NVIDIA validation, the old-position ratio fell from about 25.44% to 22.34% (12.19% relative improvement) over 27.3 pixels of travel without a visible trail.
+
 Three.js r178 `TiledLightsNode.customCacheKey()` dereferences its compute node before first setup. The lab uses a narrow initialization guard and delegates to the original cache key after setup; this is isolated from production code.
 
 Three.js r178 `TRAAPassNode.updateBefore()` also expects its MRT before its lazy setup has run. The lab explicitly supplies the documented `mrt({ output, velocity })` configuration at construction; the resolve, jitter, history and velocity implementation remain the native Three.js TRAA path. This is not the legacy `TAARenderPass`, which has no reprojection.

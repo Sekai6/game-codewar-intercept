@@ -20,7 +20,7 @@ import {
   Vector3,
   WebGPURenderer,
 } from "three/webgpu";
-import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, time, uniform, vec2, vec3, velocity } from "three/tsl";
+import { Fn, If, cameraPosition, color, cross, dot, float, fract, instanceIndex, mix, mrt, mul, normalView, normalWorld, normalize, output, pass, positionLocal, positionWorld, positionWorldDirection, pow, smoothstep, storage, texture, uniform, vec2, vec3, velocity } from "three/tsl";
 import { TiledLighting } from "three/addons/lighting/TiledLighting.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
 import { traaPass } from "three/addons/tsl/display/TRAAPassNode.js";
@@ -38,6 +38,9 @@ class StableTiledLighting extends TiledLighting {
 
 const canvas = document.querySelector("#webgpu-lab") as HTMLCanvasElement;
 const status = document.querySelector("#status") as HTMLElement;
+const query = new URLSearchParams(location.search);
+const temporalTest = query.get("temporalTest") === "on";
+const simulationTime = uniform(temporalTest ? 3.25 : 0);
 const scene = new Scene();
 const sunDirection = uniform(new Vector3(-0.707, 0.469, -0.526).normalize());
 const camera = new PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 500);
@@ -103,6 +106,12 @@ const deck = new Mesh(new BoxGeometry(9, 5, 5), new MeshStandardNodeMaterial({ c
 deck.position.set(-2, 4.25, 0);
 deck.layers.enable(1);
 hull.add(deck);
+const temporalTarget = new Mesh(
+  new BoxGeometry(2.8, 0.32, 0.32),
+  new MeshStandardNodeMaterial({ color: 0xf4f7ff, emissive: 0xff5a18, emissiveIntensity: 4.5, roughness: 0.28 }),
+);
+temporalTarget.position.set(-18, 10.5, -2);
+scene.add(temporalTarget);
 const seaMaterial = new MeshStandardNodeMaterial({ metalness: 0.38, roughness: 0.24 });
 const splashOrigin = vec2(18, -12);
 const wavePosition = Fn(() => {
@@ -110,7 +119,7 @@ const wavePosition = Fn(() => {
   const x = p.x;
   const z = p.y;
   const fftUv = fract(vec2(x, z).div(420).add(0.5));
-  const atlasFrame = fract(time.mul(0.7).div(16)).mul(16);
+  const atlasFrame = fract(simulationTime.mul(0.7).div(16)).mul(16);
   const frame0 = atlasFrame.floor();
   const frame1 = frame0.add(1).mod(16);
   const frameBlend = fract(atlasFrame);
@@ -118,9 +127,9 @@ const wavePosition = Fn(() => {
   const spectral1 = fftAtlas.sample(vec2(fftUv.x, frame1.add(fftUv.y).div(16)));
   const spectral = mix(spectral0, spectral1, frameBlend);
   const displacement = spectral.rgb.mul(2).sub(1);
-  const phaseA = x.mul(0.105).add(z.mul(0.041)).add(time.mul(0.72));
-  const phaseB = x.mul(-0.074).add(z.mul(0.162)).add(time.mul(1.08));
-  const phaseC = x.mul(0.31).add(z.mul(-0.19)).add(time.mul(1.74));
+  const phaseA = x.mul(0.105).add(z.mul(0.041)).add(simulationTime.mul(0.72));
+  const phaseB = x.mul(-0.074).add(z.mul(0.162)).add(simulationTime.mul(1.08));
+  const phaseC = x.mul(0.31).add(z.mul(-0.19)).add(simulationTime.mul(1.74));
   const residualHeight = phaseA.sin().mul(0.16).add(phaseB.sin().mul(0.08)).add(phaseC.sin().mul(0.025));
   const shipX = x.mul(0.984).sub(z.mul(0.179));
   const shipZ = x.mul(0.179).add(z.mul(0.984));
@@ -129,14 +138,14 @@ const wavePosition = Fn(() => {
   const wakeCenter = float(1).sub(smoothstep(0.55, 3.2, shipZ.abs())).mul(wakeEnvelope);
   const kelvinArmDistance = shipZ.abs().sub(aftDistance.mul(0.27)).abs();
   const kelvinArms = float(1).sub(smoothstep(0.12, 0.62, kelvinArmDistance)).mul(wakeEnvelope);
-  const wakeHeight = z.mul(1.8).add(aftDistance.mul(0.72)).add(time.mul(4.1)).sin().mul(wakeCenter.mul(0.18).add(kelvinArms.mul(0.27)));
+  const wakeHeight = z.mul(1.8).add(aftDistance.mul(0.72)).add(simulationTime.mul(4.1)).sin().mul(wakeCenter.mul(0.18).add(kelvinArms.mul(0.27)));
   const bowEnvelope = float(1).sub(smoothstep(0, 8, shipX.add(11).abs())).mul(float(1).sub(smoothstep(1.2, 6, shipZ.abs())));
-  const bowWave = shipZ.abs().mul(1.25).sub(shipX.add(11).mul(0.45)).add(time.mul(2.2)).sin().mul(bowEnvelope).mul(0.11);
-  const splashAge = fract(time.div(7.5));
+  const bowWave = shipZ.abs().mul(1.25).sub(shipX.add(11).mul(0.45)).add(simulationTime.mul(2.2)).sin().mul(bowEnvelope).mul(0.11);
+  const splashAge = fract(simulationTime.div(7.5));
   const splashRadius = splashAge.mul(22).add(0.8);
   const splashDelta = vec2(x, z).sub(splashOrigin);
   const splashDistance = splashDelta.length();
-  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(time.mul(0.8)).sin().mul(0.5).add(0.5);
+  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(simulationTime.mul(0.8)).sin().mul(0.5).add(0.5);
   const splashRing = float(1).sub(smoothstep(0.12, 0.68, splashDistance.sub(splashRadius).abs())).mul(float(1).sub(splashAge)).mul(angularBreakup.mul(0.55).add(0.25)).mul(0.22);
   return vec3(x.add(displacement.x.mul(1.15)), z.add(displacement.y.mul(1.15)), residualHeight.add(displacement.z.mul(0.74)).add(wakeHeight).add(bowWave).add(splashRing));
 })();
@@ -145,7 +154,7 @@ seaMaterial.normalNode = Fn(() => {
   const p = positionLocal;
   const epsilon = float(2.4);
   const fftUv = fract(vec2(p.x, p.y).div(420).add(0.5));
-  const atlasFrame = fract(time.mul(0.7).div(16)).mul(16).floor();
+  const atlasFrame = fract(simulationTime.mul(0.7).div(16)).mul(16).floor();
   const sampleHeight = (offsetX: any, offsetY: any) => fftAtlas.sample(vec2(fract(fftUv.x.add(offsetX.div(420))), atlasFrame.add(fract(fftUv.y.add(offsetY.div(420)))).div(16))).b.mul(2).sub(1).mul(0.74);
   const dx = sampleHeight(epsilon, float(0)).sub(sampleHeight(epsilon.negate(), float(0))).div(epsilon.mul(2));
   const dz = sampleHeight(float(0), epsilon).sub(sampleHeight(float(0), epsilon.negate())).div(epsilon.mul(2));
@@ -159,7 +168,7 @@ seaMaterial.colorNode = Fn(() => {
   const water = mix(color(0x082c3e), color(0x1b6b7e), facing.mul(0.32));
   const environmentReflection = mix(color(0x7798a8), color(0x244c70), normalWorld.y.clamp(0, 1)).mul(fresnel.mul(0.72));
   const fftUv = fract(vec2(positionLocal.x, positionLocal.y).div(420).add(0.5));
-  const atlasFrame = fract(time.mul(0.7).div(16)).mul(16).floor();
+  const atlasFrame = fract(simulationTime.mul(0.7).div(16)).mul(16).floor();
   const jacobianFoam = fftAtlas.sample(vec2(fftUv.x, atlasFrame.add(fftUv.y).div(16))).a;
   const shipX = positionLocal.x.mul(0.984).sub(positionLocal.y.mul(0.179));
   const shipZ = positionLocal.x.mul(0.179).add(positionLocal.y.mul(0.984));
@@ -169,12 +178,12 @@ seaMaterial.colorNode = Fn(() => {
   const kelvinArmDistance = shipZ.abs().sub(aftDistance.mul(0.27)).abs();
   const kelvinArms = float(1).sub(smoothstep(0.1, 0.58, kelvinArmDistance)).mul(wakeEnvelope);
   const bowFoam = float(1).sub(smoothstep(0, 6.5, shipX.add(11).abs())).mul(float(1).sub(smoothstep(0.8, 5.2, shipZ.abs())));
-  const breakup = positionLocal.x.mul(1.37).add(positionLocal.y.mul(2.11)).add(time.mul(1.8)).sin().mul(0.5).add(0.5);
-  const splashAge = fract(time.div(7.5));
+  const breakup = positionLocal.x.mul(1.37).add(positionLocal.y.mul(2.11)).add(simulationTime.mul(1.8)).sin().mul(0.5).add(0.5);
+  const splashAge = fract(simulationTime.div(7.5));
   const splashRadius = splashAge.mul(22).add(0.8);
   const splashDelta = vec2(positionLocal.x, positionLocal.y).sub(splashOrigin);
   const splashDistance = splashDelta.length();
-  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(time.mul(0.8)).sin().mul(0.5).add(0.5);
+  const angularBreakup = splashDelta.x.mul(0.93).add(splashDelta.y.mul(1.47)).add(simulationTime.mul(0.8)).sin().mul(0.5).add(0.5);
   const primaryRing = float(1).sub(smoothstep(0.12, 0.72, splashDistance.sub(splashRadius).abs()));
   const secondaryRing = float(1).sub(smoothstep(0.2, 0.9, splashDistance.sub(splashRadius.mul(0.72)).abs())).mul(0.32);
   const splashFoam = primaryRing.add(secondaryRing).mul(float(1).sub(splashAge)).mul(angularBreakup.mul(0.7).add(0.12)).mul(0.14);
@@ -220,7 +229,7 @@ const updateParticles = Fn(() => {
   velocity.z.mulAssign(float(1).sub(deltaTime.mul(0.16)));
   position.addAssign(velocity.mul(deltaTime));
   If(age.greaterThan(1.55), () => {
-    const angle = index.mul(2.399963).add(time.mul(0.21)).mod(6.283185);
+    const angle = index.mul(2.399963).add(simulationTime.mul(0.21)).mod(6.283185);
     const spread = fract(index.mul(0.618034)).pow(1.7);
     const radialSpeed = mix(float(0.45), float(3.8), spread);
     const launchSpeed = mix(float(6.5), float(12), fract(index.mul(0.414214)));
@@ -241,7 +250,9 @@ scene.add(particles);
 await renderer.computeAsync(initializeParticles);
 const temporalPass = traaPass(scene, camera);
 temporalPass.setMRT(mrt({ output, velocity }));
-const gtaoMode = new URLSearchParams(location.search).get("gtao") ?? "on";
+const traaEnabled = query.get("traa") !== "off";
+const baselinePass = pass(scene, camera);
+const gtaoMode = query.get("gtao") ?? "on";
 const gtaoEnabled = gtaoMode !== "off";
 const geometryPass = pass(scene, camera);
 geometryPass.setMRT(mrt({ output, normal: normalView }));
@@ -258,9 +269,10 @@ gtaoPass.distanceFallOff.value = 0.92;
 gtaoPass.scale.value = 2.1;
 const postProcessing = new PostProcessing(renderer);
 const boundedAo = gtaoPass.getTextureNode().mul(0.32).add(0.68);
+const colorPass = traaEnabled ? temporalPass : baselinePass;
 postProcessing.outputNode = gtaoMode === "debug"
   ? gtaoPass.getTextureNode()
-  : gtaoEnabled ? temporalPass.mul(boundedAo) : temporalPass;
+  : gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
 
 canvas.dataset.backend = renderer.backend.constructor.name === "WebGPUBackend" ? "WEBGPU" : "FALLBACK";
 canvas.dataset.pbr = "MESH_STANDARD_NODE";
@@ -268,7 +280,8 @@ canvas.dataset.tiledLights = "24";
 canvas.dataset.storageParticles = String(particleCount);
 canvas.dataset.storageParticleRole = "EVENT_SPLASH_WATER_COLUMN";
 canvas.dataset.storageParticlePath = "COMPUTE_TO_POINTS_ZERO_READBACK";
-canvas.dataset.temporalPipeline = "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP";
+canvas.dataset.temporalPipeline = traaEnabled ? "NATIVE_TRAA_VELOCITY_MRT_NEIGHBOR_CLAMP" : "OFF_AB_BASELINE";
+canvas.dataset.temporalTest = temporalTest ? "FROZEN_BACKGROUND_FAST_TARGET" : "OFF";
 canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "NATIVE_HALF_RES_16_SAMPLE" : "OFF_AB_BASELINE";
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
@@ -280,19 +293,27 @@ canvas.dataset.brunetonResource = `${atmosphereLuts.backend}_READBACK_UPLOAD`;
 status.textContent = `WEBGPU NATIVE\nFFT OCEAN + BRUNETON SKY\nSTORAGE PARTICLES ${particleCount}`;
 const clock = new Clock();
 let renderedFrames = 0;
+let elapsed = 0;
 async function frame() {
   deltaTime.value = Math.min(clock.getDelta(), 0.05);
+  elapsed += deltaTime.value;
+  if (!temporalTest) simulationTime.value += deltaTime.value;
+  temporalTarget.position.x = temporalTest ? -18 + (renderedFrames * 0.72) % 36 : -18;
   localLights.forEach((light, index) => {
     const base = index % 5 < 2 ? 2.1 : 1.05;
-    light.intensity = base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
+    light.intensity = temporalTest ? base : base + Math.sin(performance.now() * 0.002 + index * 1.37) * base * 0.22;
   });
-  renderer.compute(updateParticles);
+  if (!temporalTest) renderer.compute(updateParticles);
   postProcessing.render();
   renderedFrames++;
+  const targetScreen = temporalTarget.getWorldPosition(new Vector3()).project(camera);
+  canvas.dataset.temporalTargetX = String((targetScreen.x * 0.5 + 0.5) * canvas.clientWidth);
+  canvas.dataset.temporalTargetY = String((-targetScreen.y * 0.5 + 0.5) * canvas.clientHeight);
   canvas.dataset.renderedFrames = String(renderedFrames);
   canvas.dataset.drawCalls = String(renderer.info.render.calls);
-  requestAnimationFrame(frame);
+  if (!temporalTest || renderedFrames < 40) requestAnimationFrame(frame);
 }
+(window as any).__stepWebgpuLab = () => requestAnimationFrame(frame);
 requestAnimationFrame(frame);
 
 addEventListener("resize", () => {

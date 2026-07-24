@@ -58,6 +58,7 @@
     "capture:webgpu-clustered": "node scripts/capture-webgpu-clustered.mjs",
     "verify:webgpu-clustered": "node scripts/verify-webgpu-clustered.mjs",
     "verify:webgpu-migration-lab": "node scripts/verify-webgpu-migration-lab.mjs",
+    "verify:webgpu-temporal-stability": "node scripts/verify-webgpu-temporal-stability.mjs",
     "verify:ocean-spectrum": "tsc src/visual/ocean-spectrum.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-ocean-spectrum.mjs",
     "verify:webgpu-ultra-reprojection": "node scripts/verify-webgpu-ultra-reprojection.mjs",
     "verify:mig29-combat": "node scripts/verify-mig29-combat.mjs",
