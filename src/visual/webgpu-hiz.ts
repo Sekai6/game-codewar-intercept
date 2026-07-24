@@ -10,6 +10,8 @@ export interface WebGpuHiZRuntime {
   readonly levels: number;
   readonly width: number;
   readonly height: number;
+  readonly near: number;
+  readonly far: number;
   readonly texture: StorageTexture;
   update(sourceDepth: any, sampleCount?: number): void;
   readLastMinimum(): Promise<number>;
@@ -18,9 +20,10 @@ export interface WebGpuHiZRuntime {
   dispose(): void;
 }
 
-export async function createWebGpuHiZRuntime(renderer: any, width: number, height: number): Promise<WebGpuHiZRuntime> {
+export async function createWebGpuHiZRuntime(renderer: any, width: number, height: number, near = 0.1, far = 1000): Promise<WebGpuHiZRuntime> {
   const device = renderer.backend.device;
   const levels = Math.floor(Math.log2(Math.max(width, height))) + 1;
+  if (!(near > 0 && far > near)) throw new Error(`Invalid Hi-Z projection range: ${near}..${far}`);
   const storageTexture = new StorageTexture(width, height);
   storageTexture.format = RGFormat;
   storageTexture.type = FloatType;
@@ -36,6 +39,10 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
   // Allocation needs the full chain, but only the min-reduction compute pass may populate it.
   storageTexture.generateMipmaps = false;
   const module = device.createShaderModule({ code: `
+    fn viewDistance(depth: f32) -> f32 {
+      let viewZ = (${near} * ${far}) / ((${far} - ${near}) * depth - ${far});
+      return -viewZ;
+    }
     @group(0) @binding(0) var sourceDepth: texture_depth_multisampled_2d;
     @group(0) @binding(1) var destinationDepth: texture_storage_2d<rg32float, write>;
     @compute @workgroup_size(8, 8)
@@ -47,8 +54,12 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
       let d1 = textureLoad(sourceDepth, coordinate, 1);
       let d2 = textureLoad(sourceDepth, coordinate, 2);
       let d3 = textureLoad(sourceDepth, coordinate, 3);
-      let minimumDepth = min(min(d0, d1), min(d2, d3));
-      let maximumDepth = max(max(d0, d1), max(d2, d3));
+      let v0 = viewDistance(d0);
+      let v1 = viewDistance(d1);
+      let v2 = viewDistance(d2);
+      let v3 = viewDistance(d3);
+      let minimumDepth = min(min(v0, v1), min(v2, v3));
+      let maximumDepth = max(max(v0, v1), max(v2, v3));
       textureStore(destinationDepth, coordinate, vec4<f32>(minimumDepth, maximumDepth, 0.0, 1.0));
     }
     @group(2) @binding(0) var sourceDepthSingle: texture_depth_2d;
@@ -59,7 +70,8 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
       if (id.x >= size.x || id.y >= size.y) { return; }
       let coordinate = vec2<i32>(id.xy);
       let depth = textureLoad(sourceDepthSingle, coordinate, 0);
-      textureStore(destinationDepthSingle, coordinate, vec4<f32>(depth, depth, 0.0, 1.0));
+      let distance = viewDistance(depth);
+      textureStore(destinationDepthSingle, coordinate, vec4<f32>(distance, distance, 0.0, 1.0));
     }
     @group(1) @binding(0) var sourceMin: texture_2d<f32>;
     @group(1) @binding(1) var destinationMin: texture_storage_2d<rg32float, write>;
@@ -87,6 +99,8 @@ export async function createWebGpuHiZRuntime(renderer: any, width: number, heigh
     levels,
     width,
     height,
+    near,
+    far,
     texture: storageTexture,
     update(sourceDepth, sampleCount = 4) {
       const encoder = device.createCommandEncoder();

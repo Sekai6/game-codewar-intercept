@@ -276,7 +276,7 @@ const colorPass = traaEnabled ? temporalPass : baselinePass;
 const ssrMode = query.get("ssr") ?? "off";
 const hizMode = query.get("hiz") ?? "off";
 const hizEnabled = hizMode === "on" || hizMode === "depth-debug" || hizMode === "range-debug";
-const hizRuntime = hizEnabled ? await createWebGpuHiZRuntime(renderer, canvas.width, canvas.height) : null;
+const hizRuntime = hizEnabled ? await createWebGpuHiZRuntime(renderer, canvas.width, canvas.height, camera.near, camera.far) : null;
 const hizTexture = hizRuntime ? texture(hizRuntime.texture) : null;
 const ssrPass = ssr(
   baselinePass.getTextureNode("output"),
@@ -294,10 +294,10 @@ const baseComposite = gtaoEnabled ? colorPass.mul(boundedAo) : colorPass;
 const compositeWithHiZSource = baseComposite;
 const debugRange = hizRuntime ? texture(hizRuntime.texture, screenUV).level(float(4)) : null;
 postProcessing.outputNode = hizMode === "range-debug"
-  ? vec3(float(1).sub(debugRange!.r).mul(180), debugRange!.g.sub(debugRange!.r).mul(240), float(1).sub(debugRange!.g).mul(180)).clamp(0, 1)
+  ? vec3(float(1).sub(debugRange!.r.div(camera.far)), debugRange!.g.sub(debugRange!.r).div(80), float(1).sub(debugRange!.g.div(camera.far))).clamp(0, 1)
       .add(vec3(geometryPass.getTextureNode("depth").r).mul(0.000001))
   : hizMode === "depth-debug"
-  ? vec3(float(1).sub(texture(hizRuntime!.texture, screenUV).level(float(0)).r).mul(180).clamp(0, 1))
+  ? vec3(float(1).sub(texture(hizRuntime!.texture, screenUV).level(float(0)).r.div(camera.far)).clamp(0, 1))
       .add(vec3(geometryPass.getTextureNode("depth").r).mul(0.000001))
   : ssrMode === "debug"
   ? ssrTexture
@@ -317,6 +317,7 @@ canvas.dataset.gtao = gtaoMode === "debug" ? "DEBUG_AO_OUTPUT" : gtaoEnabled ? "
 canvas.dataset.gtaoLayers = "OPAQUE_HULL_ONLY";
 canvas.dataset.ssr = ssrMode === "debug" ? "DEBUG_FIXED_STEP_OUTPUT" : ssrMode === "on" ? "FIXED_STEP_BASELINE_HALF_RES" : "OFF";
 canvas.dataset.hiz = hizRuntime ? `MIN_MAX_DEPTH_COMPUTE_${hizRuntime.levels}_LEVEL` : "OFF";
+canvas.dataset.hizSpace = hizRuntime ? `LINEAR_VIEW_DISTANCE_${camera.near}_${camera.far}` : "OFF";
 canvas.dataset.hizConsumer = hizTexture ? "TSL_ZERO_READBACK_MIP_SAMPLING" : "NONE";
 canvas.dataset.depthOcclusion = "SHARED_RENDERER_DEPTH";
 canvas.dataset.tslOcean = "FFT_JACOBIAN_KELVIN_WAKE_SPLASH_RING";
