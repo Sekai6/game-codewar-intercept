@@ -15,7 +15,7 @@
 
 Link 11 是独立的轮询式网络：由存活且具备能力的节点选出 Net Control Station，NCS 每次只轮询一个参与者；节点数量会直接拉长完整刷新周期。报告要承受排队、调制解调器延迟、距离/终端健康丢包、较大的不确定度与质量折损，并保持阵营隔离。当前场景只有一艘蓝方水面舰具备 Link 11，因此它会成为 NCS，但不会凭空产生“队友航迹”；后续加入编队舰或 E-2 时可直接成为真实报告源。F-14A 与 A-6E 没有被伪装成 Link 11 节点。AI 只把未过期的 Link 11 报告用于慢速调整搜索扇区和威胁轴，弱/陈旧提示会回退本舰搜索，不能建火控航迹、发射 SAM 或更新导弹。
 
-按 `N` 打开独立的战术网络观察层，按 `Shift+N` 在 `LINK 11 / LINK 16 / ALL / OFF` 间循环。琥珀色节点、NCS 环和瞬时轮询线表示 Link 11；青色节点及在途报文脉冲表示 Link 16。系统不会画永久全互联“蜘蛛网”，只显示运行时真正发生的轮询和报文传输。远程航迹以随不确定度、质量和年龄变化的误差环显示，而不是目标真值框。独立诊断面板列出年代、在线状态、NCS、轮询周期、收发量、平均延迟和最近事件，并永久提示 `CUE ONLY - NO WEAPON AUTHORITY`。
+按 `N` 打开独立的战术网络观察层，按 `Shift+N` 在 `LINK 11 / LINK 16 / SOVIET / ALL / OFF` 间循环。琥珀色节点、NCS 环和瞬时轮询线表示 Link 11；青色节点及在途报文脉冲表示 Link 16；紫色向量表示 GCI 指令，橙色误差椭圆表示 Uspekh-U/Legenda 目标区域报告，红色标记表示舰队使命命令与齐射分配。系统不会画永久全互联“蜘蛛网”，只显示运行时真正发生的轮询、报文和命令。远程航迹或区域报告以随不确定度、质量和年龄变化的误差范围显示，而不是目标真值框。独立诊断面板列出年代、在线状态、NCS、轮询周期、收发量、平均延迟和最近事件，并永久提示 `CUE ONLY - NO WEAPON AUTHORITY`。
 
 联合运行时现已为显式装备终端的美方平台加入游戏化 Link 16/JTIDS 层。它模拟有限 TDMA 时隙、消息优先级、排队与延迟、距离及终端健康造成的丢包、时间同步、阵营隔离、报告来源、重复观测抑制和航迹老化。网络报告始终是提示级：飞机可以据此转向搜索扇区，舰艇可以据此聚焦雷达搜索，但双方都不能直接用 Link 16 报告授权武器。飞机武器仍需本机武器级航迹与实体挂点释放；舰载 SAM 仍需本舰 `CombatPicture` 建轨并经过既有 Mk 10/Mk 41 队列。Tu-16K 与 MiG-29A 没有 Link 16 终端。CEC 保留为远期独立的测量级融合能力，不能用提高 Link 16 航迹质量代替。
 
@@ -515,13 +515,13 @@ AAR 保存时间线和固定间隔快照，重放内容包括：
 
 AAR 面板提供 `EXPORT TACVIEW`，可将整局四分之一秒采样的舰船、飞机、导弹、拦截弹和诱饵导出为 Tacview ACMI 2.2 文本文件。沙盒中的 `AUTO-EXPORT TACVIEW ACMI AFTER ACTION` 默认关闭；勾选后仅在任务结算时触发一次浏览器下载。
 
-Link 11/Link 16 已进入结构化 AAR：每帧保存通信年代、开关状态、网络节点与 NCS、远端估计航迹的质量/年龄/不确定度/报告源，时间线记录去重后的轮询、发送、投递、丢包和 NCS 变化。OODA 因果事件会另外标出提示被用于调整搜索、提示因陈旧而过期、本机雷达在提示后取得建轨，以及提示被明确拒绝用于武器授权。原生战术回放用琥珀/青色误差圈区分 Link 11/16 提示；这些提示始终标为 `CUE ONLY`，不等同于目标真值或武器授权。AAR 时间线可在 `ALL / COMBAT / NETWORK` 间过滤，避免高流量 Link 16 报文淹没交战事件。
+Link 11/Link 16 与苏联 C2 均已进入结构化 AAR。每帧除通信年代、网络节点、NCS 和远端提示外，还保存 GCI 截击指令、Uspekh-U/Legenda 目标区域、舰队使命命令及齐射分配。时间线明确区分 `战略区域提示 -> 舰队使命命令 -> 齐射释放计划 -> 本机传感器建轨 -> 武器授权 -> 实体离架 -> 末制导`，便于确认指挥网络没有越过本机火控。原生回放沿用琥珀/青色 Link 提示，并用紫色、橙色和红色显示苏联各层。AAR 时间线可在 `ALL / COMBAT / NETWORK / SOVIET C2` 间过滤。
 
 ACMI 使用虚拟参考点 `31.2 N, 121.5 E` 保留相对几何关系：水平 `1 world unit = 100 m`，高度 `1 world unit = 50 m`。该参考点不代表任务真实地理位置，也不影响模拟物理。导出器消费结构化 AAR，不访问 Three.js 场景或重新计算战果。
 
 增强遥测包含由物理速度向量推导的航向与俯仰、速度、垂直速度、平台健康、任务/制导阶段、失能状态、诱饵阵营、发射平台和目标关系。渲染模型的轴向修正不会进入 ACMI，因此不会再令导弹横飞或倒置。`Parent` 与 `Target` 会预扫描整局实体并转换为 Tacview 数字对象 ID；合法离架武器生成结构化 `HasFired` 事件。只有明确进入失能/摧毁状态的实体才生成 `Destroyed`，普通武器结束、脱靶和诱饵过期只删除对象；已摧毁实体写入一次终止帧后不再冻结悬空。
 
-ACMI 将网络节点导出为 `Misc+Waypoint`，将远端估计航迹导出为独立的 `Misc+Bullseye`，并附带 `Network`、`TrackQuality`、`TrackAge`、`Uncertainty`、`Source` 与 `EngagementQuality=Cue` 属性。估计航迹使用独立稳定 ID，绝不与真实飞机、舰船或导弹对象共用身份；无线电报文只作为消息事件导出。
+ACMI 将网络节点导出为 `Misc+Waypoint`，将远端估计航迹和苏联目标区域导出为独立的 `Misc+Bullseye`，并附带 `Network`、`C2Layer`、`TrackQuality`、`TrackAge`、`Uncertainty`、`Source` 与 `EngagementQuality=Cue` 属性。GCI 指令点、舰队接近点和齐射计划是命令/任务元数据，并明确写入 `WeaponAuthority=No` 或 `WeaponAuthority=OrganicTrackRequired`。所有估计对象使用独立稳定 ID，绝不与真实飞机、舰船或导弹对象共用身份；无线电报文只作为消息事件导出。
 
 <a id="单位确定性"></a>
 ## 14. 单位、缩尺与确定性
@@ -577,7 +577,10 @@ game-codewar-intercept/
    │  ├─ gci-network.ts          # 有延迟、误差和寿命的截击指挥命令链
    │  ├─ maritime-targeting.ts   # Uspekh-U/Legenda 匿名目标区域报告
    │  ├─ fleet-command.ts        # 节点化集中任务命令、攻击窗口与命令惯性
-   │  └─ salvo-coordination.ts   # 编队释放分配与共同计划到达时间
+   │  ├─ salvo-coordination.ts   # 编队释放分配与共同计划到达时间
+   │  └─ observability.ts        # GCI、区域报告、使命命令与齐射观察快照
+   ├─ aar/
+   │  └─ soviet-c2-recorder.ts  # 苏联 C2 因果事件、回放快照与 ACMI 输入
    ├─ ship-defense/
    │  ├─ defense-targets.ts      # 通用防空目标与来源映射
    │  ├─ engagement-runtime.ts   # 观察评分、武器计划与照射器资源分配

@@ -78,7 +78,7 @@ The scenario panel exposes separate `TACTICAL NETWORK ERA` and `TACTICAL DATA LI
 
 Link 11 is a separate roll-call runtime. A live capable participant becomes Net Control Station, and the NCS polls only one unit per response window, so adding participants lengthens the full update cycle. Reports pay queue/modem delay, range and terminal-health loss, substantial uncertainty growth, quality degradation, and coalition isolation. The current scenario has only one blue Link 11 surface participant: it becomes NCS but cannot invent a teammate report. Future formation ships or an E-2 can join through the same participant contract. F-14A and A-6E are deliberately not fabricated as Link 11 terminals. AI may use a live Link 11 cue only to bias its search sector/threat axis; weak or stale cues fall back to organic search and can never create fire control, launch a SAM, or update a weapon.
 
-Press `N` for the independent tactical-network observer and `Shift+N` to cycle `LINK 11 / LINK 16 / ALL / OFF`. Amber nodes, the NCS ring, and momentary poll lines represent Link 11; cyan nodes and moving report pulses represent Link 16. The observer does not draw a permanent full-mesh “network spiderweb”: it renders only poll and transmission events emitted by the simulation. Remote tracks use age/quality/uncertainty-scaled error rings rather than truth boxes. Its separate panel shows era, connection state, NCS, roll-call cycle, traffic, mean delay, and recent events while permanently marking the picture `CUE ONLY - NO WEAPON AUTHORITY`.
+Press `N` for the independent tactical-network observer and `Shift+N` to cycle `LINK 11 / LINK 16 / SOVIET / ALL / OFF`. Amber nodes, the NCS ring, and momentary poll lines represent Link 11; cyan nodes and moving report pulses represent Link 16; purple vectors represent GCI commands, orange uncertainty ellipses represent Uspekh-U/Legenda target-area reports, and red markers represent fleet mission orders and salvo assignments. The observer does not draw a permanent full-mesh “network spiderweb”: it renders only events emitted by the simulation. Estimated tracks and report areas use age/quality/uncertainty-scaled bounds rather than truth boxes. Its separate panel permanently marks the picture `CUE ONLY - NO WEAPON AUTHORITY`.
 
 The joint runtime includes a game-scaled Link 16/JTIDS layer for explicitly equipped US participants. It models finite TDMA slots, message priority, queueing, latency, range and terminal-health loss, time synchronization, coalition isolation, report provenance, duplicate-observation rejection, and track ageing. Network reports remain cue-quality: aircraft use them to turn toward a search sector, and the ship uses them to focus its radar search, but neither may authorize a weapon from a Link 16 report. Every aircraft weapon still needs a local weapon-quality track and physical hardpoint release; every ship SAM still needs a local `CombatPicture` track and the existing Mk 10/Mk 41 queue. Tu-16K and MiG-29A have no Link 16 terminal. CEC remains a separate future measurement-fusion capability, not a Link 16 quality multiplier.
 
@@ -662,7 +662,10 @@ game-codewar-intercept/
 │  │  ├─ gci-network.ts          # Delayed, uncertain, expiring intercept commands
 │  │  ├─ maritime-targeting.ts   # Anonymous Uspekh-U/Legenda target-area reports
 │  │  ├─ fleet-command.ts        # Node-based mission orders, attack windows, and inertia
-│  │  └─ salvo-coordination.ts   # Formation release assignments and common planned arrival
+│  │  ├─ salvo-coordination.ts   # Formation release assignments and common planned arrival
+│  │  └─ observability.ts        # GCI, target-area, mission-order, and salvo observations
+│  ├─ aar/
+│  │  └─ soviet-c2-recorder.ts  # Soviet C2 causal events, replay snapshots, and ACMI input
 │  ├─ ship-defense/
 │  │  ├─ defense-targets.ts   # Generic defense targets and source mapping
 │  │  ├─ engagement-runtime.ts # Observation scoring, weapon plans, and illuminator allocation
@@ -708,6 +711,8 @@ Shipboard and airborne defenders share one pipeline: `target-source registration
 The AAR panel includes `EXPORT TACVIEW`, which writes the quarter-second ship, aircraft, weapon, interceptor, and decoy timeline as Tacview ACMI 2.2 text. `AUTO-EXPORT TACVIEW ACMI AFTER ACTION` is opt-in and disabled by default. Export uses a virtual `31.2 N, 121.5 E` reference origin, with `1 world unit = 100 m` horizontally and `50 m` vertically; this preserves relative geometry without claiming a real mission location.
 
 Extended telemetry includes heading and pitch derived from physical velocity, speed, vertical speed, platform health, mission/guidance state, disabled state, decoy allegiance, launch parent, and target. Render-model axis corrections never enter ACMI, preventing sideways or inverted missiles. The exporter pre-scans every snapshot and converts game entity references into Tacview numeric object IDs; legal weapon releases emit structured `HasFired` events. Only explicitly disabled or destroyed entities emit `Destroyed`; ordinary weapon termination, misses, and expired decoys are deleted without false kill events, while destroyed entities receive one terminal frame and cannot remain frozen in later snapshots.
+
+Link 11, Link 16, and Soviet C2 are recorded as structured AAR layers. The replay draws GCI intercept points, Uspekh-U/Legenda uncertainty areas, fleet approach orders, and salvo assignments, and provides a dedicated `SOVIET C2` event filter. The timeline exposes the causal sequence from strategic area cue and fleet mission order through organic detection, weapon authorization, physical release, and terminal guidance. ACMI exports command objects with `C2Layer` plus `WeaponAuthority=No` or `WeaponAuthority=OrganicTrackRequired`; none of these objects shares identity with a truth aircraft, ship, or weapon.
 
 <a id="adding-ships-and-weapons"></a>
 ### Adding Ships and Weapons

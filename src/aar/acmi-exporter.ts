@@ -129,6 +129,56 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
         Source: track.senderId ?? "unknown",
       },
     });
+  for (const node of snapshot.sovietC2?.nodes ?? [])
+    objects.push({
+      key: `soviet-c2-node:${node.id}`,
+      name: `SOVIET C2 ${node.label}`,
+      type: "Misc+Waypoint",
+      coalition: "Red",
+      x: node.x, y: node.y, z: node.z,
+      state: node.operational ? "operational" : "offline",
+      properties: { C2Layer: node.kind, Era: snapshot.sovietC2?.era ?? "unknown" },
+    });
+  for (const command of snapshot.sovietC2?.gciCommands ?? [])
+    objects.push({
+      key: `soviet-gci-command:${command.id}`,
+      name: `GCI INTERCEPT ${command.controllerTrackId}`,
+      type: "Misc+Waypoint",
+      coalition: "Neutral",
+      x: command.x, y: command.y, z: command.z,
+      state: "command-cue-only",
+      properties: { C2Layer: "GCI", Participant: command.participantId, TrackQuality: command.quality.toFixed(3), Uncertainty: command.uncertainty.toFixed(1), WeaponAuthority: "No" },
+    });
+  for (const area of snapshot.sovietC2?.maritimeAreas ?? [])
+    objects.push({
+      key: `soviet-target-area:${area.id}`,
+      name: `${area.source.toUpperCase()} EST ${area.reportTrackId}`,
+      type: "Misc+Bullseye",
+      coalition: "Neutral",
+      x: area.x, y: area.y, z: area.z,
+      state: "strategic-target-area-cue",
+      properties: { C2Layer: "MaritimeTargetIndication", Participant: area.participantId, Report: area.reportTrackId, TrackQuality: area.quality.toFixed(3), UncertaintyMajor: area.uncertaintyMajor.toFixed(1), UncertaintyMinor: area.uncertaintyMinor.toFixed(1), UncertaintyBearing: area.uncertaintyBearing.toFixed(3), WeaponAuthority: "No" },
+    });
+  for (const order of snapshot.sovietC2?.fleetOrders ?? [])
+    objects.push({
+      key: `soviet-fleet-order:${order.id}`,
+      name: `FLEET ORDER ${order.id}`,
+      type: "Misc+Waypoint",
+      coalition: "Neutral",
+      x: order.x, y: order.y, z: order.z,
+      state: "mission-order-no-weapon-authority",
+      properties: { C2Layer: "FleetCommand", Participant: order.participantId, CommandNode: order.commandNodeId, SourceReport: order.sourceReportTrackId, AttackWindowStart: order.attackWindowStart.toFixed(2), AttackWindowEnd: order.attackWindowEnd.toFixed(2), WeaponAuthority: "No" },
+    });
+  for (const assignment of snapshot.sovietC2?.salvoAssignments ?? [])
+    objects.push({
+      key: `soviet-salvo:${assignment.id}`,
+      name: `${assignment.waveId} ${assignment.sequence}/${assignment.total}`,
+      type: "Misc+Waypoint",
+      coalition: "Neutral",
+      x: assignment.x, y: assignment.y, z: assignment.z,
+      state: "planned-release",
+      properties: { C2Layer: "SalvoCoordination", Participant: assignment.participantId, SourceOrder: assignment.sourceOrderId, SourceReport: assignment.sourceReportTrackId, ReleaseAt: assignment.releaseAt.toFixed(2), PlannedArrivalAt: assignment.plannedArrivalAt.toFixed(2), WeaponAuthority: "OrganicTrackRequired" },
+    });
   return objects;
 }
 
@@ -175,6 +225,8 @@ export function exportTacviewAcmi(
     `0,Title=${clean(options.title)}`,
     `0,DataLink=${clean(snapshots[0]?.datalink?.era ?? "none")}`,
     `0,DataLinkEnabled=${snapshots[0]?.datalink?.enabled ? 1 : 0}`,
+    `0,SovietCommandEra=${clean(snapshots[0]?.sovietC2?.era ?? "none")}`,
+    `0,SovietCommandEnabled=${snapshots[0]?.sovietC2?.enabled ? 1 : 0}`,
     `0,ReferenceLatitude=${latitude.toFixed(7)}`,
     `0,ReferenceLongitude=${longitude.toFixed(7)}`,
   ];

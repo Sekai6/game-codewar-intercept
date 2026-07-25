@@ -51,6 +51,8 @@ import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
+import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
+import type { SovietC2Observation } from "../soviet-c2/observability.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -227,6 +229,8 @@ export class AirCombatSystem {
   private readonly seenFleetOrders = new Set<string>();
   private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
   private readonly seenSalvoPlans = new Set<string>();
+  private sovietCommandEra: AirScenarioContext["sovietCommandEra"] = "ntu-1980s";
+  private sovietCommandEnabled = true;
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
@@ -386,17 +390,16 @@ export class AirCombatSystem {
     const datalinkEra = context.datalinkEra ?? "link16-modernized",
       datalinkEnabled = context.datalinkEnabled ?? context.link16Enabled ?? true,
       link16Enabled = datalinkEnabled && (context.link16Enabled ?? true);
-    this.sovietGci.configure(
-      context.sovietCommandEra ?? "ntu-1980s",
-      context.sovietCommandEnabled ?? true,
-    );
+    this.sovietCommandEra = context.sovietCommandEra ?? "ntu-1980s";
+    this.sovietCommandEnabled = context.sovietCommandEnabled ?? true;
+    this.sovietGci.configure(this.sovietCommandEra, this.sovietCommandEnabled);
     this.sovietMaritimeTargeting.configure(
-      context.sovietCommandEra ?? "ntu-1980s",
-      context.sovietCommandEnabled ?? true,
+      this.sovietCommandEra,
+      this.sovietCommandEnabled,
     );
     this.sovietFleetCommand.configure(
-      context.sovietCommandEra ?? "ntu-1980s",
-      context.sovietCommandEnabled ?? true,
+      this.sovietCommandEra,
+      this.sovietCommandEnabled,
     );
     const datalinkConfigurationKey = `${datalinkEra}:${datalinkEnabled}:${link16Enabled}`;
     if (this.datalinkConfigurationKey !== datalinkConfigurationKey) {
@@ -801,6 +804,108 @@ export class AirCombatSystem {
 
   sovietSalvoPlanFor(participantId: string, time = this.currentTime) {
     return this.sovietSalvoCoordinator.planFor(participantId, time);
+  }
+
+  sovietC2Observation(time = this.currentTime): SovietC2Observation {
+    const context = this.group.userData.context as AirScenarioContext | undefined;
+    const fleet = this.sovietFleetCommand.diagnostics(time);
+    const fleetPosition = context?.redShip?.position.clone() ??
+      new THREE.Vector3(420, 14, -940);
+    const nodes = [
+      {
+        id: "soviet-gci-sector-1",
+        kind: "gci-controller" as const,
+        label: this.sovietGci.diagnostics(time).controller,
+        position: SOVIET_GCI_CONTROLLER_POSITION.clone(),
+        operational: this.sovietGci.diagnostics(time).enabled,
+      },
+      {
+        id: fleet.nodeId,
+        kind: "fleet-command" as const,
+        label: fleet.nodeLabel,
+        position: fleetPosition,
+        operational: fleet.enabled && fleet.nodeAlive,
+      },
+    ];
+    const gciCommands = this.aircraft.flatMap((aircraft) => {
+      const command = this.sovietGci.commandFor(aircraft.id, time);
+      return command ? [{
+        id: command.id,
+        participantId: aircraft.id,
+        participantPosition: aircraft.position.clone(),
+        controllerTrackId: command.controllerTrackId,
+        interceptPoint: command.interceptPoint.clone(),
+        quality: command.quality,
+        uncertainty: command.uncertainty,
+        deliveredAt: command.deliveredAt,
+        expiresAt: command.expiresAt,
+      }] : [];
+    });
+    const maritimeAreas = this.aircraft.flatMap((aircraft) => {
+      const cue = this.sovietMaritimeTargeting.cueFor(aircraft.id, time);
+      return cue ? [{
+        id: cue.id,
+        participantId: aircraft.id,
+        reportTrackId: cue.reportTrackId,
+        source: cue.source,
+        estimatedPosition: cue.estimatedPosition.clone(),
+        launchRegionCenter: cue.launchRegionCenter.clone(),
+        uncertaintyMajor: cue.uncertaintyMajor,
+        uncertaintyMinor: cue.uncertaintyMinor,
+        uncertaintyBearing: cue.uncertaintyBearing,
+        quality: cue.quality,
+        deliveredAt: cue.deliveredAt,
+        expiresAt: cue.expiresAt,
+      }] : [];
+    });
+    const fleetOrders = this.aircraft.flatMap((aircraft) => {
+      const order = this.sovietFleetCommand.orderFor(aircraft.id, time);
+      return order ? [{
+        id: order.id,
+        participantId: aircraft.id,
+        participantPosition: aircraft.position.clone(),
+        commandNodeId: order.commandNodeId,
+        sourceReportTrackId: order.sourceReportTrackId,
+        approachPoint: order.approachPoint.clone(),
+        attackWindowStart: order.attackWindowStart,
+        attackWindowEnd: order.attackWindowEnd,
+        deliveredAt: order.deliveredAt,
+        expiresAt: order.expiresAt,
+      }] : [];
+    });
+    const salvoAssignments = this.aircraft.flatMap((aircraft) => {
+      const plan = this.sovietSalvoCoordinator.planFor(aircraft.id, time);
+      return plan ? [{
+        id: plan.id,
+        waveId: plan.waveId,
+        participantId: aircraft.id,
+        participantPosition: aircraft.position.clone(),
+        sourceOrderId: plan.sourceOrderId,
+        sourceReportTrackId: plan.sourceReportTrackId,
+        sequence: plan.sequence,
+        total: plan.total,
+        releaseAt: plan.releaseAt,
+        plannedArrivalAt: plan.plannedArrivalAt,
+        expiresAt: plan.expiresAt,
+      }] : [];
+    });
+    return {
+      era: this.sovietCommandEra ?? "ntu-1980s",
+      enabled: this.sovietCommandEnabled,
+      nodes,
+      gciCommands,
+      maritimeAreas,
+      fleetOrders,
+      salvoAssignments,
+      events: this.events.flatMap((event, index) => {
+        const layer = event.text.includes("GCI COMMAND") ? "gci" as const
+          : event.text.includes("TARGET AREA RECEIVED") ? "maritime" as const
+          : event.text.includes("FLEET STRIKE ORDER") ? "fleet-command" as const
+          : event.text.includes("SALVO ASSIGNMENT") ? "salvo" as const
+          : undefined;
+        return layer ? [{ id: `soviet-c2-event-${index}`, time: event.time, layer, text: event.text }] : [];
+      }),
+    };
   }
 
   private fleetOrderForAircraft(a: AirPlatformInstance, time: number) {

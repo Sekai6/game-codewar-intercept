@@ -44,7 +44,7 @@ export interface GciDiagnostics {
 }
 
 interface PendingCommand { command: GciInterceptCommand; deliverAt: number; }
-const CONTROLLER_POSITION = new THREE.Vector3(520, 12, -1180);
+export const SOVIET_GCI_CONTROLLER_POSITION = new THREE.Vector3(520, 12, -1180);
 
 function deterministic(seed: string) {
   let hash = 2166136261;
@@ -129,7 +129,7 @@ export class SovietGciNetwork {
     this.nextScan = time + parameters.scanInterval;
     const detected = targets.filter((target) => {
       if (!target.alive) return false;
-      const range = CONTROLLER_POSITION.distanceTo(target.position);
+      const range = SOVIET_GCI_CONTROLLER_POSITION.distanceTo(target.position);
       const rcsFactor = Math.pow(Math.max(.05, target.radarCrossSection / 8), .25);
       const effectiveRange = parameters.range * rcsFactor;
       if (range > effectiveRange) return false;
@@ -141,7 +141,7 @@ export class SovietGciNetwork {
         .map((candidate) => ({ candidate, distance: candidate.position.distanceTo(participant.position) }))
         .sort((left, right) => left.distance - right.distance)[0]?.candidate;
       if (!target) continue;
-      const range = CONTROLLER_POSITION.distanceTo(target.position);
+      const range = SOVIET_GCI_CONTROLLER_POSITION.distanceTo(target.position);
       const quality = THREE.MathUtils.clamp(.88 - range / parameters.range * .42, .25, .86);
       const uncertainty = parameters.uncertainty * (1.15 - quality * .35);
       const attempt = ++this.serial;

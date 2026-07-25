@@ -8,6 +8,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import "./style.css";
 import { exportTacviewAcmi } from "./aar/acmi-exporter";
 import { DatalinkAarRecorder } from "./aar/datalink-recorder";
+import { SovietC2AarRecorder } from "./aar/soviet-c2-recorder";
 import { downloadTextFile } from "./aar/download";
 import { CombatPicture, radarHorizonWorldUnits, type Track } from "./sim";
 import {
@@ -306,10 +307,12 @@ let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
 const airCombat = new AirCombatSystem(scene);
 const datalinkAarRecorder = new DatalinkAarRecorder();
+const sovietC2AarRecorder = new SovietC2AarRecorder();
 const tacticalNetworkRuntime = createTacticalNetworkRuntime({
   scene,
   parent: document.querySelector("#app") as HTMLElement,
   observation: () => airCombat.tacticalNetworkObservation(),
+  sovietObservation: () => airCombat.sovietC2Observation(),
 });
 function addOceanSplash(position: THREE.Vector3, energy: number) {
   ocean.addSplash(position, energy);
@@ -3165,6 +3168,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     aarSnapshots = [];
     aarEvents = [];
     datalinkAarRecorder.reset();
+    sovietC2AarRecorder.reset();
     nextAarSnapshot = 0;
     resultPanel.style.display = "none";
   },
@@ -3555,6 +3559,8 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }, 0),
 );
 function classifyAarEvent(text: string): AarCategory {
+  if (/GCI COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2/.test(text))
+    return "network";
   if (/POINT DEFENSE FIRE/.test(text)) return "fire";
   if (
     /INTERCEPT|SOFT KILL|SURFACE KILL|POINT DEFENSE|PENETRATION|INTERNAL DETONATION|HARPOON HIT|IMPACT|CIWS KILL|MISS|DAMAGED|DEGRADED|CRITICAL|DESTROYED|FRAGMENTATION|DAMAGE ISOLATION|ROUND[S]? TRAPPED/.test(
@@ -3562,11 +3568,12 @@ function classifyAarEvent(text: string): AarCategory {
     )
   )
     return "effect";
-  if (/LAUNCH|CIWS WINDOW|SRBOC/.test(text)) return "fire";
+  if (/RELEASE AUTHORIZED/.test(text)) return "guidance";
+  if (/LAUNCH|PHYSICAL RELEASE|CIWS WINDOW|SRBOC/.test(text)) return "fire";
   if (/OODA MANEUVER/.test(text)) return "maneuver";
   if (/SEEKER|DATALINK|FIRE CONTROL|ILLUMIN|CHAFF|ECM|LOCK TRANSFER/.test(text))
     return "guidance";
-  if (/TRACK|RADAR|SENSOR|CORRELATION/.test(text)) return "sensor";
+  if (/DETECT|TRACK|RADAR|SENSOR|CORRELATION/.test(text)) return "sensor";
   return "system";
 }
 function captureAarSnapshot(force = false) {
@@ -3575,7 +3582,11 @@ function captureAarSnapshot(force = false) {
     airCombat.tacticalNetworkObservation(elapsed),
     elapsed,
   );
-  aarEvents.push(...datalinkSample.events);
+  const sovietC2Sample = sovietC2AarRecorder.sample(
+    airCombat.sovietC2Observation(elapsed),
+    elapsed,
+  );
+  aarEvents.push(...datalinkSample.events, ...sovietC2Sample.events);
   aarEvents.sort((a, b) => a.time - b.time);
   const headingFromVelocity = (velocity: THREE.Vector3) =>
     velocity.lengthSq() > 1e-6 ? Math.atan2(velocity.x, -velocity.z) : 0;
@@ -3667,6 +3678,7 @@ function captureAarSnapshot(force = false) {
       side: decoy.side,
     })),
     datalink: datalinkSample.snapshot,
+    sovietC2: sovietC2Sample.snapshot,
   };
   if (
     force &&
@@ -3815,6 +3827,22 @@ function renderAarFrame(index: number) {
     ctx.arc(p.x, p.y, node.role === "ncs" ? 7 : 4, 0, Math.PI * 2);
     ctx.stroke();
   }
+  for (const area of snapshot.sovietC2?.maritimeAreas ?? []) {
+    const p = map(area);
+    ctx.save();ctx.translate(p.x, p.y);ctx.rotate(-area.uncertaintyBearing);
+    ctx.strokeStyle = "rgba(255,163,79,.76)";ctx.setLineDash([6, 4]);ctx.lineWidth = 1.2;
+    ctx.beginPath();ctx.ellipse(0, 0, Math.max(5, area.uncertaintyMajor * scale), Math.max(4, area.uncertaintyMinor * scale), 0, 0, Math.PI * 2);ctx.stroke();ctx.restore();
+    ctx.fillStyle = "#ffa34f";ctx.font = "9px Consolas";ctx.fillText(`${area.source.toUpperCase()} ${area.reportTrackId}`, p.x + 7, p.y - 7);
+  }
+  for (const command of snapshot.sovietC2?.gciCommands ?? []) {
+    const p = map(command);ctx.strokeStyle = "#d85cff";ctx.lineWidth = 1.5;ctx.beginPath();ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);ctx.stroke();ctx.fillStyle = "#e8adff";ctx.font = "9px Consolas";ctx.fillText("GCI INTERCEPT", p.x + 8, p.y - 6);
+  }
+  for (const order of snapshot.sovietC2?.fleetOrders ?? []) {
+    const p = map(order);ctx.strokeStyle = "#e85f4c";ctx.lineWidth = 1.5;ctx.strokeRect(p.x - 5, p.y - 5, 10, 10);ctx.fillStyle = "#ff9b8d";ctx.font = "9px Consolas";ctx.fillText(order.id, p.x + 8, p.y - 6);
+  }
+  for (const salvo of snapshot.sovietC2?.salvoAssignments ?? []) {
+    const p = map(salvo);ctx.fillStyle = snapshot.time >= salvo.releaseAt ? "#ffdf6e" : "#e85f4c";ctx.beginPath();ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);ctx.fill();
+  }
   for (const interceptor of snapshot.interceptors) {
     const p = map(interceptor);
     ctx.fillStyle = "#8de9f3";
@@ -3872,7 +3900,8 @@ function renderAarFrame(index: number) {
   ctx.beginPath();
   ctx.arc(ship.x, ship.y, 20, 0, Math.PI * 2);
   ctx.stroke();
-  label.textContent = `T+${aarTime(snapshot.time)} / HULL ${snapshot.ship.hull}% / ${snapshot.missiles.filter((m) => m.phase !== "destroyed").length} THREATS${snapshot.enemyPlatform ? ` / TARGET ${Math.round(snapshot.enemyPlatform.hull)}%` : ""}${snapshot.datalink ? ` / ${snapshot.datalink.era.toUpperCase()} ${snapshot.datalink.enabled ? "ONLINE" : "OFF"} / ${snapshot.datalink.tracks.length} CUES` : ""}`;
+  const sovietC2 = snapshot.sovietC2;
+  label.textContent = `T+${aarTime(snapshot.time)} / HULL ${snapshot.ship.hull}% / ${snapshot.missiles.filter((m) => m.phase !== "destroyed").length} THREATS${snapshot.enemyPlatform ? ` / TARGET ${Math.round(snapshot.enemyPlatform.hull)}%` : ""}${snapshot.datalink ? ` / ${snapshot.datalink.era.toUpperCase()} ${snapshot.datalink.enabled ? "ONLINE" : "OFF"} / ${snapshot.datalink.tracks.length} CUES` : ""}${sovietC2 ? ` / SOVIET C2 ${sovietC2.maritimeAreas.length} AREA ${sovietC2.fleetOrders.length} ORDER ${sovietC2.salvoAssignments.length} SALVO` : ""}`;
   const eventButtons = [
     ...resultPanel.querySelectorAll<HTMLButtonElement>(".aar-event"),
   ];
@@ -3898,7 +3927,7 @@ function showAar(outcome: string, score: number) {
       /RGM-84 HARPOON SURFACE LAUNCH/i.test(e.text),
     ).length,
     networkEvents = aarEvents.filter((event) => event.category === "network").length;
-  resultPanel.innerHTML = `<header class="aar-top"><div><small>AFTER ACTION REVIEW / ${activeShip.name}</small><h2>${outcome}</h2></div><div class="aar-score">SCORE <b>${score}</b></div></header><div class="aar-metrics"><span>THREATS<b>${missiles.length}</b></span><span>SAM SHOTS<b>${samShots}</b></span><span>HARD KILLS<b>${hardKills}</b></span><span>SOFT KILLS<b>${softKills}</b></span><span>LEAKERS<b>${impacts}</b></span><span>HARPOONS<b>${harpoons}</b></span><span>NETWORK<b>${networkEvents}</b></span><span>SURFACE HITS<b>${surfaceHits}</b></span><span>PROG DAMAGE<b>${surfaceProgressiveDamage.toFixed(1)}</b></span><span>SFC MISSES<b>${surfaceMisses}</b></span><span>SFC SOFT KILLS<b>${surfaceSoftKills}</b></span><span>SFC PD KILLS<b>${surfacePointDefenseKills}</b></span><span>TARGET HULL<b>${Math.round(enemyPlatform?.hullIntegrity ?? 0)}%</b></span><span>HULL<b>${hullIntegrity}%</b></span></div><div class="aar-body"><section class="aar-replay"><div class="aar-section-head"><b>TACTICAL REPLAY</b><span id="aarTime"></span></div><canvas id="aarCanvas" width="900" height="440"></canvas><div class="aar-controls"><button id="aarStart" title="Jump to start">|&lt;</button><button id="aarPlay">PLAY</button><input id="aarSlider" type="range" min="0" max="${Math.max(0, aarSnapshots.length - 1)}" value="${Math.max(0, aarSnapshots.length - 1)}"><button id="aarEnd" title="Jump to end">&gt;|</button></div></section><aside class="aar-timeline"><div class="aar-section-head"><b>EVENT TIMELINE</b><span>${aarEvents.length} EVENTS</span></div><nav class="aar-event-filters"><button class="active" data-filter="all">ALL</button><button data-filter="combat">COMBAT</button><button data-filter="network">NETWORK</button></nav><div id="aarEvents"></div></aside></div><footer class="aar-footer"><button id="aarExportTacview">EXPORT TACVIEW</button><button id="aarClose">CLOSE AAR</button><button id="restartMission">RESTART EXERCISE</button></footer>`;
+  resultPanel.innerHTML = `<header class="aar-top"><div><small>AFTER ACTION REVIEW / ${activeShip.name}</small><h2>${outcome}</h2></div><div class="aar-score">SCORE <b>${score}</b></div></header><div class="aar-metrics"><span>THREATS<b>${missiles.length}</b></span><span>SAM SHOTS<b>${samShots}</b></span><span>HARD KILLS<b>${hardKills}</b></span><span>SOFT KILLS<b>${softKills}</b></span><span>LEAKERS<b>${impacts}</b></span><span>HARPOONS<b>${harpoons}</b></span><span>NETWORK<b>${networkEvents}</b></span><span>SURFACE HITS<b>${surfaceHits}</b></span><span>PROG DAMAGE<b>${surfaceProgressiveDamage.toFixed(1)}</b></span><span>SFC MISSES<b>${surfaceMisses}</b></span><span>SFC SOFT KILLS<b>${surfaceSoftKills}</b></span><span>SFC PD KILLS<b>${surfacePointDefenseKills}</b></span><span>TARGET HULL<b>${Math.round(enemyPlatform?.hullIntegrity ?? 0)}%</b></span><span>HULL<b>${hullIntegrity}%</b></span></div><div class="aar-body"><section class="aar-replay"><div class="aar-section-head"><b>TACTICAL REPLAY</b><span id="aarTime"></span></div><canvas id="aarCanvas" width="900" height="440"></canvas><div class="aar-controls"><button id="aarStart" title="Jump to start">|&lt;</button><button id="aarPlay">PLAY</button><input id="aarSlider" type="range" min="0" max="${Math.max(0, aarSnapshots.length - 1)}" value="${Math.max(0, aarSnapshots.length - 1)}"><button id="aarEnd" title="Jump to end">&gt;|</button></div></section><aside class="aar-timeline"><div class="aar-section-head"><b>EVENT TIMELINE</b><span>${aarEvents.length} EVENTS</span></div><nav class="aar-event-filters"><button class="active" data-filter="all">ALL</button><button data-filter="combat">COMBAT</button><button data-filter="network">NETWORK</button><button data-filter="soviet-c2">SOVIET C2</button></nav><div id="aarEvents"></div></aside></div><footer class="aar-footer"><button id="aarExportTacview">EXPORT TACVIEW</button><button id="aarClose">CLOSE AAR</button><button id="restartMission">RESTART EXERCISE</button></footer>`;
   const eventList = resultPanel.querySelector("#aarEvents")!;
   aarEvents.forEach((event, eventIndex) => {
     const button = document.createElement("button");
@@ -3918,6 +3947,11 @@ function showAar(outcome: string, score: number) {
     };
     button.dataset.index = String(eventIndex);
     button.dataset.category = event.category;
+    button.dataset.sovietC2 = String(
+      /SOVIET C2|SOVIET GCI|SOVIET STRATEGIC|SOVIET FLEET|SOVIET SALVO|GCI COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT/.test(
+        event.text,
+      ),
+    );
     eventList.appendChild(button);
   });
   for (const filter of resultPanel.querySelectorAll<HTMLButtonElement>(".aar-event-filters button"))
@@ -3927,7 +3961,15 @@ function showAar(outcome: string, score: number) {
         button.classList.toggle("active", button === filter));
       resultPanel.querySelectorAll<HTMLElement>(".aar-event").forEach((event) => {
         const network = event.dataset.category === "network";
-        event.hidden = mode === "network" ? !network : mode === "combat" ? network : false;
+        const sovietC2 = event.dataset.sovietC2 === "true";
+        event.hidden =
+          mode === "network"
+            ? !network
+            : mode === "combat"
+              ? network
+              : mode === "soviet-c2"
+                ? !sovietC2
+                : false;
       });
     };
   const slider = resultPanel.querySelector("#aarSlider") as HTMLInputElement,
@@ -8235,6 +8277,14 @@ function tick(now: number) {
     .join("|");
   canvas.dataset.aarDatalinkNodes = String(latestAar?.datalink?.nodes.length ?? 0);
   canvas.dataset.aarDatalinkTracks = String(latestAar?.datalink?.tracks.length ?? 0);
+  canvas.dataset.aarSovietC2Nodes = String(latestAar?.sovietC2?.nodes.length ?? 0);
+  canvas.dataset.aarSovietC2Commands = String(latestAar?.sovietC2?.gciCommands.length ?? 0);
+  canvas.dataset.aarSovietC2Areas = String(latestAar?.sovietC2?.maritimeAreas.length ?? 0);
+  canvas.dataset.aarSovietC2Orders = String(latestAar?.sovietC2?.fleetOrders.length ?? 0);
+  canvas.dataset.aarSovietC2Salvos = String(latestAar?.sovietC2?.salvoAssignments.length ?? 0);
+  canvas.dataset.aarSovietC2Events = String(
+    aarEvents.filter((event) => /SOVIET (?:C2|GCI COMMAND|STRATEGIC TARGET-AREA CUE|FLEET MISSION ORDER|SALVO RELEASE PLAN)/.test(event.text)).length,
+  );
   canvas.dataset.aarDatalinkEvents = String(
     aarEvents.filter((event) => /LINK1[16] (?:POLL|TRANSMIT|DELIVER|DROP|CUE|ORGANIC)/.test(event.text)).length,
   );
