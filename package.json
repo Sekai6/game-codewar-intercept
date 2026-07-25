@@ -91,6 +91,7 @@
     "verify:radar-countermeasures": "tsc src/radar-countermeasures.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-radar-countermeasures.mjs",
     "verify:anti-ship-guidance": "tsc src/anti-ship-guidance.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-anti-ship-guidance.mjs",
     "verify:acmi-export": "tsc src/aar/acmi-exporter.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-acmi-export.mjs",
+    "verify:datalink-aar": "tsc src/aar/datalink-recorder.ts src/aar/acmi-exporter.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-datalink-aar.mjs",
     "verify:acmi-ui": "node scripts/verify-acmi-ui.mjs"
   },
   "dependencies": {

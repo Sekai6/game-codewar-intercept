@@ -7,6 +7,7 @@ import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import "./style.css";
 import { exportTacviewAcmi } from "./aar/acmi-exporter";
+import { DatalinkAarRecorder } from "./aar/datalink-recorder";
 import { downloadTextFile } from "./aar/download";
 import { CombatPicture, radarHorizonWorldUnits, type Track } from "./sim";
 import {
@@ -300,6 +301,7 @@ let clusteredLightCount = 0;
 let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
 const airCombat = new AirCombatSystem(scene);
+const datalinkAarRecorder = new DatalinkAarRecorder();
 const tacticalNetworkRuntime = createTacticalNetworkRuntime({
   scene,
   parent: document.querySelector("#app") as HTMLElement,
@@ -3139,6 +3141,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     aarReplayTimer = undefined;
     aarSnapshots = [];
     aarEvents = [];
+    datalinkAarRecorder.reset();
     nextAarSnapshot = 0;
     resultPanel.style.display = "none";
   },
@@ -3544,6 +3547,12 @@ function classifyAarEvent(text: string): AarCategory {
 }
 function captureAarSnapshot(force = false) {
   if (!force && elapsed + 1e-6 < nextAarSnapshot) return;
+  const datalinkSample = datalinkAarRecorder.sample(
+    airCombat.tacticalNetworkObservation(elapsed),
+    elapsed,
+  );
+  aarEvents.push(...datalinkSample.events);
+  aarEvents.sort((a, b) => a.time - b.time);
   const headingFromVelocity = (velocity: THREE.Vector3) =>
     velocity.lengthSq() > 1e-6 ? Math.atan2(velocity.x, -velocity.z) : 0;
   const kinematics = (
@@ -3633,6 +3642,7 @@ function captureAarSnapshot(force = false) {
       alive: decoy.alive,
       side: decoy.side,
     })),
+    datalink: datalinkSample.snapshot,
   };
   if (
     force &&
@@ -3665,6 +3675,8 @@ function renderAarFrame(index: number) {
       ...s.interceptors,
       ...s.surfaceStrikes,
       ...(s.enemyPlatform ? [s.enemyPlatform] : []),
+      ...(s.datalink?.nodes ?? []),
+      ...(s.datalink?.tracks ?? []),
     ]),
     minX = Math.min(...points.map((p) => p.x)),
     maxX = Math.max(...points.map((p) => p.x)),
@@ -3756,6 +3768,29 @@ function renderAarFrame(index: number) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  for (const track of snapshot.datalink?.tracks ?? []) {
+    const p = map(track),
+      radius = THREE.MathUtils.clamp(Math.sqrt(Math.max(1, track.uncertainty)) * 0.38 * scale, 5, 70);
+    ctx.save();
+    ctx.strokeStyle = track.network === "link11" ? "rgba(228,170,84,.72)" : "rgba(66,215,232,.72)";
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.font = "9px Consolas";
+    ctx.fillText(`${track.network.toUpperCase()} CUE Q${track.quality.toFixed(2)} A${track.age.toFixed(1)}`, p.x + 6, p.y - 6);
+    ctx.restore();
+  }
+  for (const node of snapshot.datalink?.nodes ?? []) {
+    const p = map(node);
+    ctx.strokeStyle = node.network === "link11" ? "#e4aa54" : "#42d7e8";
+    ctx.lineWidth = node.role === "ncs" ? 3 : 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, node.role === "ncs" ? 7 : 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   for (const interceptor of snapshot.interceptors) {
     const p = map(interceptor);
     ctx.fillStyle = "#8de9f3";
@@ -3813,7 +3848,7 @@ function renderAarFrame(index: number) {
   ctx.beginPath();
   ctx.arc(ship.x, ship.y, 20, 0, Math.PI * 2);
   ctx.stroke();
-  label.textContent = `T+${aarTime(snapshot.time)} / HULL ${snapshot.ship.hull}% / ${snapshot.missiles.filter((m) => m.phase !== "destroyed").length} THREATS${snapshot.enemyPlatform ? ` / TARGET ${Math.round(snapshot.enemyPlatform.hull)}%` : ""}`;
+  label.textContent = `T+${aarTime(snapshot.time)} / HULL ${snapshot.ship.hull}% / ${snapshot.missiles.filter((m) => m.phase !== "destroyed").length} THREATS${snapshot.enemyPlatform ? ` / TARGET ${Math.round(snapshot.enemyPlatform.hull)}%` : ""}${snapshot.datalink ? ` / ${snapshot.datalink.era.toUpperCase()} ${snapshot.datalink.enabled ? "ONLINE" : "OFF"} / ${snapshot.datalink.tracks.length} CUES` : ""}`;
   const eventButtons = [
     ...resultPanel.querySelectorAll<HTMLButtonElement>(".aar-event"),
   ];

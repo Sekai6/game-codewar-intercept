@@ -26,6 +26,7 @@ type AcmiObject = {
   disabled?: boolean;
   parent?: string;
   target?: string | number;
+  properties?: Record<string, string | number>;
 };
 
 function isTerminal(object: AcmiObject): boolean {
@@ -99,6 +100,35 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
     objects.push({ key: `chaff:${item.id}`, name: "Chaff", type: "Misc+Decoy", coalition: item.side === "platform" || item.side === "threat" ? "Red" : "Blue", ...item });
   for (const item of snapshot.airDecoys)
     objects.push({ key: `airdecoy:${item.id}`, name: item.type, coalition: item.side === "blue" ? "Blue" : "Red", ...item, type: "Misc+Decoy", state: item.alive ? "active" : "expired" });
+  for (const node of snapshot.datalink?.nodes ?? [])
+    objects.push({
+      key: `network-node:${node.network}:${node.id}`,
+      name: `${node.network.toUpperCase()} ${node.id}${node.role === "ncs" ? " NCS" : ""}`,
+      type: "Misc+Waypoint",
+      coalition: "Blue",
+      x: node.x, y: node.y, z: node.z,
+      state: node.transmitEnabled && node.receiveEnabled ? "online" : "degraded",
+      properties: { Network: node.network, Role: node.role, TerminalHealth: node.terminalHealth.toFixed(1) },
+    });
+  for (const track of snapshot.datalink?.tracks ?? [])
+    objects.push({
+      // Network estimates deliberately never share aliases with truth objects.
+      key: `network-track:${track.network}:${track.id}`,
+      name: `${track.network.toUpperCase()} EST ${track.id}`,
+      type: "Misc+Bullseye",
+      coalition: "Neutral",
+      x: track.x, y: track.y, z: track.z,
+      state: "cue-only",
+      properties: {
+        Network: track.network,
+        Classification: track.classification,
+        TrackQuality: track.quality.toFixed(3),
+        TrackAge: track.age.toFixed(2),
+        Uncertainty: track.uncertainty.toFixed(1),
+        EngagementQuality: "Cue",
+        Source: track.senderId ?? "unknown",
+      },
+    });
   return objects;
 }
 
@@ -143,6 +173,8 @@ export function exportTacviewAcmi(
     "FileVersion=2.2",
     `0,ReferenceTime=${options.referenceTime.toISOString()}`,
     `0,Title=${clean(options.title)}`,
+    `0,DataLink=${clean(snapshots[0]?.datalink?.era ?? "none")}`,
+    `0,DataLinkEnabled=${snapshots[0]?.datalink?.enabled ? 1 : 0}`,
     `0,ReferenceLatitude=${latitude.toFixed(7)}`,
     `0,ReferenceLongitude=${longitude.toFixed(7)}`,
   ];
@@ -171,6 +203,8 @@ export function exportTacviewAcmi(
       if (object.state) properties.push(`State=${clean(object.state)}`);
       if (object.disabled !== undefined)
         properties.push(`Disabled=${object.disabled ? 1 : 0}`);
+      for (const [key, value] of Object.entries(object.properties ?? {}))
+        properties.push(`${clean(key)}=${clean(String(value))}`);
       if (!previous.has(object.key)) {
         properties.push(`Type=${object.type}`, `Name=${clean(object.name)}`, `Coalition=${object.coalition}`);
         const targetKey = object.target === undefined ? undefined : referenceKey(object.target);

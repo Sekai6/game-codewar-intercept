@@ -178,6 +178,37 @@ export type AarKinematics = {
   speed: number;
   verticalSpeed: number;
 };
+export type AarDatalinkNode = {
+  id: string;
+  network: "link11" | "link16";
+  x: number;
+  y: number;
+  z: number;
+  role: "ncs" | "participant";
+  terminalHealth: number;
+  transmitEnabled: boolean;
+  receiveEnabled: boolean;
+};
+export type AarDatalinkTrack = {
+  id: string;
+  network: "link11" | "link16";
+  x: number;
+  y: number;
+  z: number;
+  classification: "unknown" | "aircraft" | "ship";
+  quality: number;
+  uncertainty: number;
+  age: number;
+  senderId?: string;
+};
+export type AarDatalinkSnapshot = {
+  era: string;
+  enabled: boolean;
+  link11Ncs: string | null;
+  link11CycleSeconds: number;
+  nodes: AarDatalinkNode[];
+  tracks: AarDatalinkTrack[];
+};
 export type AarSnapshot = {
   time: number;
   ship: AarKinematics & { hull: number };
@@ -229,4 +260,5 @@ export type AarSnapshot = {
     alive: boolean;
     side: "blue" | "red";
   })[];
+  datalink?: AarDatalinkSnapshot;
 };
