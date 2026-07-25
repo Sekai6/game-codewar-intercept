@@ -87,6 +87,7 @@ import {
 } from "./platforms/defense";
 import { recordPlatformPointDefenseShot } from "./platforms/visual-defense";
 import { AirCombatSystem } from "./air/runtime";
+import { createShipInterceptorModel } from "./models/ship-interceptors";
 import {
   AIR_SCENARIO_PRESETS,
   airScenarioSpawns,
@@ -1079,76 +1080,16 @@ function launchInterceptor(
   origin: THREE.Vector3,
   railDirection: THREE.Vector3,
 ) {
-  const g = new THREE.Group(),
-    visual = new THREE.Group(),
-    er = weapon === "SM-2ER",
+  const er = weapon === "SM-2ER",
     sm2 = weapon === "SM-2MR" || er,
-    missileMat = new THREE.MeshStandardMaterial({
-      color: sm2 ? 0xf0eee4 : 0xd9d7c7,
-      metalness: 0.7,
-      roughness: 0.3,
-    });
-  g.add(visual);
-  visual.rotation.x = Math.PI / 2;
-  visual.scale.setScalar(0.58);
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(
-      sm2 ? 0.42 : 0.55,
-      sm2 ? 0.48 : 0.62,
-      sm2 ? 5.6 : 6.4,
-      12,
-    ),
-    missileMat,
-  );
-  body.rotation.x = Math.PI / 2;
-  visual.add(body);
-  const nose = new THREE.Mesh(
-    new THREE.ConeGeometry(sm2 ? 0.42 : 0.55, sm2 ? 1.7 : 2.1, 12),
-    missileMat,
-  );
-  nose.rotation.x = -Math.PI / 2;
-  nose.position.z = -(sm2 ? 3.65 : 4.25);
-  visual.add(nose);
-  const booster = new THREE.Group(),
-    boosterBody = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        sm2 ? 0.48 : 0.62,
-        sm2 ? 0.55 : 0.7,
-        sm2 ? 2.2 : 2.8,
-        12,
-      ),
-      new THREE.MeshStandardMaterial({
-        color: 0xb9bcb4,
-        metalness: 0.55,
-        roughness: 0.42,
-      }),
-    );
-  boosterBody.rotation.x = Math.PI / 2;
-  boosterBody.position.z = sm2 ? 3.7 : 4.5;
-  booster.add(boosterBody);
-  for (const side of [-1, 1])
-    for (const axis of ["x", "y"] as const) {
-      const fin = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          axis === "x" ? 1.8 : 0.12,
-          axis === "y" ? 1.8 : 0.12,
-          1.25,
-        ),
-        missileMat,
-      );
-      fin.position[axis] = side * (sm2 ? 0.82 : 1.05);
-      fin.position.z = sm2 ? 4.1 : 4.9;
-      booster.add(fin);
-    }
-  g.add(booster);
-  g.userData.booster = booster;
+    g = createShipInterceptorModel(weapon);
   const flame = new THREE.PointLight(sm2 ? 0x8fdfff : 0x6cdcff, 7, 28);
-  flame.position.z = sm2 ? 5.1 : 6;
+  flame.position.y = -8;
   g.add(flame);
   const trail = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 4),
-      new THREE.Vector3(0, 0, 16),
+      new THREE.Vector3(0, -5, 0),
+      new THREE.Vector3(0, -18, 0),
     ]),
     new THREE.LineBasicMaterial({
       color: 0x8fe9ff,
@@ -1167,26 +1108,10 @@ function launchInterceptor(
       side: THREE.DoubleSide,
     }),
   );
-  seeker.rotation.x = -Math.PI / 2;
-  seeker.position.z = -15;
+  seeker.position.y = 15;
   seeker.visible = false;
   g.add(seeker);
   g.userData.seeker = seeker;
-  visual.add(booster, flame, trail, seeker);
-  if (er) {
-    visual.scale.set(0.63, 0.63, 0.72);
-    const erBand = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.51, 0.51, 0.42, 12),
-      new THREE.MeshStandardMaterial({
-        color: 0xd39a43,
-        metalness: 0.52,
-        roughness: 0.38,
-      }),
-    );
-    erBand.rotation.x = Math.PI / 2;
-    erBand.position.z = 1.6;
-    visual.add(erBand);
-  }
   g.position.copy(origin);
   setMissileAttitude(g, railDirection, "+Y", 0);
   const illuminationBeam = new THREE.Line(
@@ -7971,6 +7896,12 @@ function tick(now: number) {
   canvas.dataset.airDefenseTargetNames = airDefenseSamLaunches
     .map((interceptor) => interceptor.target.displayName)
     .join("|");
+  canvas.dataset.shipInterceptorVisuals = airDefenseSamLaunches
+    .map((interceptor) => `${interceptor.weapon}:${interceptor.mesh.userData.weaponVisualId ?? "missing"}:${interceptor.mesh.userData.forwardAxis ?? "missing"}`)
+    .join("|");
+  canvas.dataset.shipInterceptorBoostersSeparated = String(
+    airDefenseSamLaunches.filter((interceptor) => interceptor.mesh.userData.boosterSeparated).length,
+  );
   const latestAar = aarSnapshots[aarSnapshots.length - 1];
   canvas.dataset.aarAircraftCount = String(latestAar?.aircraft.length ?? 0);
   canvas.dataset.aarAirWeaponCount = String(latestAar?.airWeapons.length ?? 0);
