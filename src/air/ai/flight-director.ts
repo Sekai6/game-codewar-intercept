@@ -39,10 +39,17 @@ export function stepFlightDirector(input: {
   flightControlHealth: number;
   engineHealth: number;
   afterburnerRemaining: number;
+  externalStoresMassKg?: number;
+  externalDragIndex?: number;
   intent: FlightDirectorIntent;
   dt: number;
 }) {
   const performance = aircraftPerformance(input.definition);
+  const externalStoresMassKg = Math.max(0, input.externalStoresMassKg ?? 0);
+  const grossMassRatio = 1 + externalStoresMassKg /
+    Math.max(1, performance.referenceMassKg);
+  const effectiveStallSpeed = input.definition.flight.stallSpeed *
+    Math.sqrt(grossMassRatio);
   const currentHeadingDeg = DEG(Math.atan2(input.heading.x, -input.heading.z));
   const desiredHeadingDeg = DEG(Math.atan2(
     input.intent.desiredDirection.x,
@@ -73,8 +80,9 @@ export function stepFlightDirector(input: {
     angleOfAttackDeg: controls.angleOfAttackDeg,
     bankDeg: controls.bankDeg,
     maximumLoadFactor: input.definition.flight.maxLoadFactor,
-    stallSpeed: input.definition.flight.stallSpeed,
+    stallSpeed: effectiveStallSpeed,
     flightControlHealth: input.flightControlHealth,
+    grossMassRatio,
     performance,
   });
   const protection = protectFlightEnvelope({
@@ -82,7 +90,7 @@ export function stepFlightDirector(input: {
     requestedLoadFactor: controls.requestedLoadFactor,
     availableLoadFactor: preliminary.availableLoadFactor,
     speed: input.speed,
-    stallSpeed: input.definition.flight.stallSpeed,
+    stallSpeed: effectiveStallSpeed,
     altitude: input.altitude,
     performance,
   });
@@ -92,8 +100,9 @@ export function stepFlightDirector(input: {
     angleOfAttackDeg: protection.angleOfAttackDeg,
     bankDeg: controls.bankDeg,
     maximumLoadFactor: input.definition.flight.maxLoadFactor,
-    stallSpeed: input.definition.flight.stallSpeed,
+    stallSpeed: effectiveStallSpeed,
     flightControlHealth: input.flightControlHealth,
+    grossMassRatio,
     performance,
   });
   const engine = stepEngine({
@@ -121,18 +130,20 @@ export function stepFlightDirector(input: {
     altitude: input.altitude,
     flightPathDeg: currentPathDeg,
     loadFactor: realizedLoadFactor,
-    stallSpeed: flight.stallSpeed,
+    stallSpeed: effectiveStallSpeed,
     maximumSpeed: flight.maxSpeed,
     baseAcceleration: flight.acceleration,
     baseDrag: flight.drag,
     thrustModeFactor: modeFactor,
     thrustFraction: engine.thrustFraction,
+    grossMassRatio,
+    externalDragIndex: input.externalDragIndex,
     aerodynamics: aero,
   });
   const acceleration = forceBalance.netAcceleration;
   const speed = clamp(
     input.speed + acceleration * input.dt,
-    flight.stallSpeed * 0.72,
+    effectiveStallSpeed * 0.72,
     flight.maxSpeed,
   );
   const bankTurnRateDeg = coordinatedTurnRateDegPerSecond({
@@ -186,6 +197,9 @@ export function stepFlightDirector(input: {
     parasiteDragAcceleration: forceBalance.parasiteDragAcceleration,
     inducedDragAcceleration: forceBalance.inducedDragAcceleration,
     gravityAcceleration: forceBalance.gravityAcceleration,
+    externalStoresMassKg,
+    grossMassRatio,
+    effectiveStallSpeed,
     engineSpool: engine.engineSpool,
     stalled: aero.stalled,
     controlMode: protection.mode,

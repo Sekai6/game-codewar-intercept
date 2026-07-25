@@ -19,6 +19,11 @@ try {
   await page.locator("#sbAdvancedAirAi").check();
   await page.locator("#sbAirCombat").check();
   await page.locator("#sbStart").click();
+  await page.waitForFunction(() =>
+    (document.querySelector("#scene")?.dataset.advancedAirStoreStates ?? "")
+      .includes("blue-F-14A-1:"), null, { timeout: 10_000 });
+  const initialStores = await page.locator("#scene").evaluate(canvas =>
+    canvas.dataset.advancedAirStoreStates ?? "");
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
   await page.waitForFunction(() => {
@@ -32,8 +37,26 @@ try {
     states: canvas.dataset.advancedAirTacticalStates ?? "",
     launchZones: canvas.dataset.advancedAirLaunchZones ?? "",
     launches: canvas.dataset.airWeaponLaunchLog ?? "",
+    stores: canvas.dataset.advancedAirStoreStates ?? "",
   }));
-  console.log(JSON.stringify({ ...result, errors }, null, 2));
+  const parseStores = value => new Map(value.split("|").filter(Boolean).map(record => {
+    const [id, mass, ratio, stall, thrust, parasite, induced] = record.split(":");
+    return [id, { mass:Number(mass), ratio:Number(ratio), stall:Number(stall),
+      thrust:Number(thrust), parasite:Number(parasite), induced:Number(induced) }];
+  }));
+  const before = parseStores(initialStores);
+  const after = parseStores(result.stores);
+  const releasedAircraft = [...new Set(result.launches.split("|")
+    .filter(launch => launch.includes("AIM-54A Phoenix"))
+    .map(launch => launch.match(/AIRFRAME ([^ /]+)/)?.[1]).filter(Boolean))];
+  const storeReleaseValid = releasedAircraft.length > 0 &&
+    releasedAircraft.every(id => {
+      const initial = before.get(id), current = after.get(id);
+      return initial && current && current.mass < initial.mass &&
+        current.ratio < initial.ratio && current.stall < initial.stall;
+    });
+  console.log(JSON.stringify({ ...result, initialStores, releasedAircraft,
+    storeReleaseValid, errors }, null, 2));
   const zoneValid = result.launchZones.split("|").filter(Boolean).every(record => {
     const [, range, rMin, rNe, rTr, rMax] = record.split(":");
     return Number(rMin) < Number(rNe) && Number(rNe) < Number(rTr) &&
@@ -44,6 +67,7 @@ try {
     !result.maneuvers.includes("BVR CRANK") ||
     !result.launchZones ||
     !zoneValid ||
+    !storeReleaseValid ||
     !result.launches.includes("AIM-54A Phoenix")
   ) process.exitCode = 1;
 } finally {

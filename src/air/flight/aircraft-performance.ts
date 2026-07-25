@@ -10,6 +10,8 @@ export interface AircraftPerformance {
   controlResponseSeconds: number;
   engineSpoolUpSeconds: number;
   engineSpoolDownSeconds: number;
+  referenceMassKg: number;
+  wingAreaM2: number;
 }
 
 export interface AdvancedFlightState {
@@ -23,6 +25,9 @@ export interface AdvancedFlightState {
   parasiteDragAcceleration: number;
   inducedDragAcceleration: number;
   gravityAcceleration: number;
+  externalStoresMassKg: number;
+  grossMassRatio: number;
+  effectiveStallSpeed: number;
   engineSpool: number;
   stalled: boolean;
   controlMode: "normal" | "angle-of-attack-limit" | "stall-recovery";
@@ -45,6 +50,9 @@ export function initialAdvancedFlightState(
     parasiteDragAcceleration: 0,
     inducedDragAcceleration: 0,
     gravityAcceleration: 0,
+    externalStoresMassKg: 0,
+    grossMassRatio: 1,
+    effectiveStallSpeed: definition.flight.stallSpeed,
     engineSpool: 0.58,
     stalled: false,
     controlMode: "normal",
@@ -56,13 +64,14 @@ export function aircraftPerformance(
   definition: AirPlatformDefinition,
 ): AircraftPerformance {
   const flight = definition.flight;
+  const data = flight.aerodynamics;
   const agility = Math.max(0, Math.min(1,
     (flight.maxLoadFactor - 2.5) / 6.5,
   ));
   const speedBand = Math.max(0, Math.min(1,
     (flight.maxSpeed / Math.max(0.1, flight.cruiseSpeed) - 1.35) / 1.1,
   ));
-  return {
+  if (!data) return {
     wingLoadingFactor: 1.24 - agility * 0.31,
     zeroLiftDrag: 0.03 - speedBand * 0.007,
     inducedDragFactor: 0.078 - agility * 0.022,
@@ -72,5 +81,21 @@ export function aircraftPerformance(
     controlResponseSeconds: 1.5 - agility * 1.05,
     engineSpoolUpSeconds: 5.4 - speedBand * 2.8,
     engineSpoolDownSeconds: 4.3 - speedBand * 2.1,
+    referenceMassKg: 18000,
+    wingAreaM2: 45,
+  };
+  return {
+    wingLoadingFactor: Math.max(0.65, Math.min(1.55,
+      data.referenceMassKg / data.wingAreaM2 / 450,
+    )),
+    zeroLiftDrag: data.zeroLiftDragCoefficient,
+    inducedDragFactor: data.inducedDragFactor,
+    liftCurveSlope: data.liftCurveSlopePerDeg,
+    criticalAngleOfAttackDeg: data.criticalAngleOfAttackDeg,
+    controlResponseSeconds: data.controlResponseSeconds,
+    engineSpoolUpSeconds: data.engineSpoolUpSeconds,
+    engineSpoolDownSeconds: data.engineSpoolDownSeconds,
+    referenceMassKg: data.referenceMassKg,
+    wingAreaM2: data.wingAreaM2,
   };
 }

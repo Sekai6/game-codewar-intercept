@@ -8003,6 +8003,14 @@ function tick(now: number) {
       `${state.id}:${state.angleOfAttackDeg.toFixed(2)}:${state.loadFactor.toFixed(2)}:${state.specificEnergy.toFixed(2)}:${state.specificExcessPower.toFixed(2)}:${state.controlMode}:${state.updates}`,
     )
     .join("|");
+  canvas.dataset.advancedAirStoreStates = air.advancedFlightStates
+    .map((state) =>
+      `${state.id}:${state.externalStoresMassKg.toFixed(0)}:` +
+      `${state.grossMassRatio.toFixed(3)}:${state.effectiveStallSpeed.toFixed(3)}:` +
+      `${state.thrustAcceleration.toFixed(3)}:` +
+      `${state.parasiteDragAcceleration.toFixed(3)}:` +
+      `${state.inducedDragAcceleration.toFixed(3)}`)
+    .join("|");
   canvas.dataset.advancedAirTacticalStates = air.tacticalStates
     .map((state) =>
       `${state.id}:${state.mode}:${state.supportedWeaponId ?? "none"}:${state.bfmShotWindowSeconds.toFixed(2)}`,

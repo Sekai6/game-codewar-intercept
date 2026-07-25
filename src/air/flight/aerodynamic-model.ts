@@ -15,6 +15,7 @@ export function evaluateAerodynamics(input: {
   maximumLoadFactor: number;
   stallSpeed: number;
   flightControlHealth: number;
+  grossMassRatio?: number;
   performance: AircraftPerformance;
 }) {
   const altitudeMeters = Math.max(0, input.altitude) *
@@ -37,7 +38,7 @@ export function evaluateAerodynamics(input: {
     input.performance.inducedDragFactor * liftCoefficient * liftCoefficient;
   const availableLoadFactor = clamp(
     dynamicPressureRatio * input.flightControlHealth /
-      input.performance.wingLoadingFactor,
+      (input.performance.wingLoadingFactor * (input.grossMassRatio ?? 1)),
     1,
     input.maximumLoadFactor,
   );
@@ -88,6 +89,8 @@ export function evaluateLongitudinalForceBalance(input: {
   baseDrag: number;
   thrustModeFactor: number;
   thrustFraction: number;
+  grossMassRatio?: number;
+  externalDragIndex?: number;
   aerodynamics: ReturnType<typeof evaluateAerodynamics>;
 }): LongitudinalForceBalance {
   const density = input.aerodynamics.densityRatio;
@@ -103,10 +106,12 @@ export function evaluateLongitudinalForceBalance(input: {
     0.32,
     1.06,
   );
+  const grossMassRatio = Math.max(1, input.grossMassRatio ?? 1);
   const thrustAcceleration = input.baseAcceleration * input.thrustModeFactor *
-    input.thrustFraction * thrustLapse;
+    input.thrustFraction * thrustLapse / grossMassRatio;
   const parasiteDragAcceleration = input.baseDrag * input.speed * input.speed *
-    density * (0.82 + input.aerodynamics.dragCoefficient * 5.5);
+    density * (0.82 + input.aerodynamics.dragCoefficient * 5.5) *
+    (1 + Math.max(0, input.externalDragIndex ?? 0));
   // Induced drag follows n^2 / q. The floor keeps the approximation bounded
   // during stall recovery, where the envelope protector owns the response.
   const pressureRatio = Math.max(0.22,

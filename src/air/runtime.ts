@@ -2514,6 +2514,19 @@ export class AirCombatSystem {
     const headingBeforeFlight = a.heading.clone();
     let newSpeed: number;
     if (context.advancedAirAiEnabled) {
+      const mountedWeapons = a.hardpoints.flatMap((hardpoint) =>
+        hardpoint.weaponId && hardpoint.state !== "empty"
+          ? [AIR_WEAPONS[hardpoint.weaponId]]
+          : []
+      );
+      const externalStoresMassKg = mountedWeapons.reduce(
+        (total, weapon) => total + weapon.massKg,
+        0,
+      );
+      const externalDragIndex = mountedWeapons.reduce(
+        (total, weapon) => total + weapon.dragIndex,
+        0,
+      );
       const controlError = pilotControlError({
         pilotId: a.id,
         time,
@@ -2542,6 +2555,8 @@ export class AirCombatSystem {
         flightControlHealth: fc,
         engineHealth: eng,
         afterburnerRemaining: a.afterburnerRemaining,
+        externalStoresMassKg,
+        externalDragIndex,
         intent: {
           desiredDirection: pilotDirection,
           thrustMode: a.thrustMode,
@@ -3346,6 +3361,17 @@ export class AirCombatSystem {
         dynamicPressure: aircraft.advancedFlightState.dynamicPressure,
         specificEnergy: aircraft.advancedFlightState.specificEnergy,
         specificExcessPower: aircraft.advancedFlightState.specificExcessPower,
+        externalStoresMassKg:
+          aircraft.advancedFlightState.externalStoresMassKg,
+        grossMassRatio: aircraft.advancedFlightState.grossMassRatio,
+        effectiveStallSpeed:
+          aircraft.advancedFlightState.effectiveStallSpeed,
+        thrustAcceleration:
+          aircraft.advancedFlightState.thrustAcceleration,
+        parasiteDragAcceleration:
+          aircraft.advancedFlightState.parasiteDragAcceleration,
+        inducedDragAcceleration:
+          aircraft.advancedFlightState.inducedDragAcceleration,
         stalled: aircraft.advancedFlightState.stalled,
         controlMode: aircraft.advancedFlightState.controlMode,
         updates: aircraft.advancedFlightState.updateCount,

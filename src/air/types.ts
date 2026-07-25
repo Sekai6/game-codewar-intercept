@@ -33,6 +33,17 @@ export interface AirThrustDefinition {
   afterburnerInfraredMultiplier: number;
   afterburnerSeconds: number;
 }
+export interface AirAerodynamicDefinition {
+  referenceMassKg: number;
+  wingAreaM2: number;
+  zeroLiftDragCoefficient: number;
+  inducedDragFactor: number;
+  liftCurveSlopePerDeg: number;
+  criticalAngleOfAttackDeg: number;
+  controlResponseSeconds: number;
+  engineSpoolUpSeconds: number;
+  engineSpoolDownSeconds: number;
+}
 export type AirGuidance =
   "active-radar" | "semi-active-radar" | "infrared" | "anti-ship-radar";
 export type AirPlatformId =
@@ -72,6 +83,8 @@ export interface AirWeaponDefinition {
   damage: number;
   proximityRadius: number;
   countermeasureResistance: number;
+  massKg: number;
+  dragIndex: number;
   shipDefenseTemplate: EnemyType;
   antiShipFlight?: {
     boostAltitude: number;
@@ -119,6 +132,7 @@ export interface AirPlatformDefinition {
     maxPitchRateDeg: number;
     maxAngleOfAttackDeg?: number;
     fuelSeconds: number;
+    aerodynamics: AirAerodynamicDefinition;
     thrust: AirThrustDefinition;
   };
   sensor: AirSensorDefinition;

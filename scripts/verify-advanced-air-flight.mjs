@@ -27,6 +27,17 @@ const definition = {
     maxPitchRateDeg: 28,
     maxAngleOfAttackDeg: 18,
     fuelSeconds: 900,
+    aerodynamics: {
+      referenceMassKg: 22000,
+      wingAreaM2: 52.5,
+      zeroLiftDragCoefficient: 0.024,
+      inducedDragFactor: 0.055,
+      liftCurveSlopePerDeg: 0.098,
+      criticalAngleOfAttackDeg: 20,
+      controlResponseSeconds: 0.5,
+      engineSpoolUpSeconds: 4.2,
+      engineSpoolDownSeconds: 3.1,
+    },
     thrust,
   },
 };
@@ -40,6 +51,8 @@ const step = (overrides = {}) => stepFlightDirector({
   flightControlHealth: overrides.flightControlHealth ?? 1,
   engineHealth: overrides.engineHealth ?? 1,
   afterburnerRemaining: overrides.afterburnerRemaining ?? 120,
+  externalStoresMassKg: overrides.externalStoresMassKg ?? 0,
+  externalDragIndex: overrides.externalDragIndex ?? 0,
   intent: overrides.intent ?? {
     desiredDirection: new THREE.Vector3(1, 0.2, -0.2).normalize(),
     thrustMode: "afterburner",
@@ -49,6 +62,7 @@ const step = (overrides = {}) => stepFlightDirector({
 });
 
 const first = step();
+const loaded = step({ externalStoresMassKg: 2700, externalDragIndex: 0.22 });
 let sustained = first;
 for (let index = 0; index < 80; index++) {
   sustained = step({
@@ -81,6 +95,14 @@ const result = {
   recoveryMode: stalled.state.controlMode,
   recoveryAoa: stalled.state.angleOfAttackDeg,
   updates: sustained.state.updateCount,
+  cleanMassRatio: first.state.grossMassRatio,
+  loadedMassRatio: loaded.state.grossMassRatio,
+  cleanStallSpeed: first.state.effectiveStallSpeed,
+  loadedStallSpeed: loaded.state.effectiveStallSpeed,
+  cleanThrustAcceleration: first.state.thrustAcceleration,
+  loadedThrustAcceleration: loaded.state.thrustAcceleration,
+  cleanParasiteDrag: first.state.parasiteDragAcceleration,
+  loadedParasiteDrag: loaded.state.parasiteDragAcceleration,
 };
 console.log(JSON.stringify(result, null, 2));
 if (
@@ -93,5 +115,9 @@ if (
   !Number.isFinite(result.ps) ||
   result.recoveryMode !== "stall-recovery" ||
   result.recoveryAoa > 5 ||
+  !(result.loadedMassRatio > result.cleanMassRatio) ||
+  !(result.loadedStallSpeed > result.cleanStallSpeed) ||
+  !(result.loadedThrustAcceleration < result.cleanThrustAcceleration) ||
+  !(result.loadedParasiteDrag > result.cleanParasiteDrag) ||
   result.updates !== 81
 ) process.exitCode = 1;

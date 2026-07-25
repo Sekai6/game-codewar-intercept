@@ -15,6 +15,8 @@
 
 高级管线保持单一集成边界：任务层当前仍产生机动意图，`flight-director.ts` 将意图转换为坡度、载荷、迎角和推力命令，`control-law.ts`、`envelope-protection.ts`、`aerodynamic-model.ts` 与 `engine-model.ts` 依次约束并积分输出；`runtime.ts` 只选择高级/兼容路径、应用结果和生成事件。纵向点质量受力明确拆成发动机推力、寄生阻力、随实际载荷平方增长的诱导阻力和沿航迹方向的重力分量；密度同时影响动压、可用过载、阻力和推力衰减。`verify:advanced-air-aerodynamics` 验证高 G 掉速、爬升/下降能量交换、高空推力/阻力变化和低动压 G 限制，`verify:advanced-air-flight` 验证发动机迟滞、控制限制和失速恢复，单 renderer 的 `verify:advanced-air-ai-toggle` 验证关闭时零高级更新及运行中开启后的状态增长。
 
+六种飞机分别在平台目录声明参考质量、翼面积、零升阻力、诱导阻力因子、升力曲线斜率、临界迎角、控制响应和发动机转速响应，不通过机型 ID 分支推断。每种空射武器同时声明质量与外挂阻力指数；高级飞行层只统计仍物理连接在挂点上的武器，因此合法释放会立即降低总重比、有效失速速度和阻力。BVR 运行时门会比较同一机号发射前后的外挂状态，并拒绝仅扣弹药但未改变物理挂载的实现。
+
 高级模式的空空武器使用会根据本机速度/高度、目标估计速度/高度、闭合率、航迹质量和不确定度计算动态 `Rmin / Rne / Rtr / Rmax`，常规射击必须进入 `Rtr`，防御机会射击可放宽到 `Rmax`。发射后，主动弹在导引头自主前维持支援并执行 crank，自主后允许 pump；AIM-7F/R-27R 在全程保持半主动照射。探测到来弹后只依据告警航迹估算 TTI，较远时 notch，近迫时 drag。交战账本仍阻止向在途目标叠射，但支援航迹可继续驱动雷达和机动，且不能重新授予武器权限。对应门槛为 `verify:advanced-air-bvr` 和单 renderer 的 `verify:advanced-air-bvr-runtime`。
 
 高级模式还为每架飞机维护独立的飞行员感知图。AI 仅接收匿名 `P-xxxx` 航迹、估计位置/速度、分类置信度、质量、不确定度、来源和武器授权；实体 ID 到匿名航迹的绑定只存在于 `runtime.ts` 的私有适配层。丢失观测后航迹按最后估计速度外推、质量衰减且误差增长，记忆航迹不能开火；Link 11/16 提示同样不能授予武器权限。关闭 `ADVANCED FLIGHT AI` 时不更新这套感知模型。`verify:advanced-air-perception` 与单 renderer 的 `verify:advanced-air-perception-runtime` 分别验证真值隔离和运行时零开销门控。
