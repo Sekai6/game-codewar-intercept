@@ -46,6 +46,7 @@ import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
 import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
 import { createAuroraRuntime } from "./visual/aurora-runtime";
+import { updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
 import { TemporalReconstructionPass } from "./visual/temporal-reconstruction-pass";
@@ -8241,6 +8242,7 @@ function tick(now: number) {
   cinematicAtmospherePass.uniforms.chromaticAberration.value = followedMissile ? 0.72 : 0;
   cinematicAtmospherePass.uniforms.ultraTime.value = elapsed;
   updateShipVisualLod();
+  updateRegisteredAssetDetailLods(scene, camera.position);
   updateShipLights();
   defender.userData.smokePuffs?.forEach((puff: THREE.Mesh, index: number) => {
     const life = (elapsed * 0.22 + index / 9) % 1;

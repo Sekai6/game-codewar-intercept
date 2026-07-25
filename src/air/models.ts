@@ -1,9 +1,12 @@
 import * as THREE from "three";
+import { applySurfaceDetail } from "../visual/material-textures.js";
+import { registerAssetDetailLod } from "../visual/asset-detail-lod.js";
 
-const skin = (color: number) => new THREE.MeshStandardMaterial({ color, metalness: 0.42, roughness: 0.52 });
-const dark = new THREE.MeshStandardMaterial({ color: 0x20282a, metalness: 0.58, roughness: 0.34 });
-const glass = new THREE.MeshStandardMaterial({ color: 0x315866, metalness: 0.2, roughness: 0.18, transparent: true, opacity: 0.88 });
-const panel = new THREE.MeshStandardMaterial({ color: 0x515b5a, metalness: 0.48, roughness: 0.46 });
+const skin = (color: number) => applySurfaceDetail(new THREE.MeshStandardMaterial({ color, metalness: 0.34, roughness: 0.48 }), "painted-metal", 0.18);
+const dark = applySurfaceDetail(new THREE.MeshStandardMaterial({ color: 0x20282a, metalness: 0.58, roughness: 0.34 }), "dark-metal", 0.2);
+const glass = new THREE.MeshPhysicalMaterial({ color: 0x183d50, metalness: 0.08, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.08, transparent: true, opacity: 0.82, envMapIntensity: 1.35 });
+const panel = applySurfaceDetail(new THREE.MeshStandardMaterial({ color: 0x515b5a, metalness: 0.48, roughness: 0.46 }), "dark-metal", 0.17);
+const seamMaterial = new THREE.MeshStandardMaterial({ color: 0x313b3b, metalness: 0.35, roughness: 0.62 });
 
 function planarShape(points: readonly [number, number][], thickness = 0.08) {
   const shape = new THREE.Shape();
@@ -62,6 +65,61 @@ function addFormationLights(group: THREE.Group, span: number) {
     light.position.set(side * span, 0.04, 0.4);
     group.add(light);
   }
+}
+
+function createStarGeometry(radius: number) {
+  const shape = new THREE.Shape();
+  for (let index = 0; index < 10; index++) {
+    const angle = Math.PI / 2 + index * Math.PI / 5;
+    const r = index % 2 ? radius * 0.42 : radius;
+    const x = Math.cos(angle) * r, y = Math.sin(angle) * r;
+    if (index === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return new THREE.ShapeGeometry(shape);
+}
+
+function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: number, span: number, allegiance: "us" | "ussr") {
+  const high = new THREE.Group();
+  high.name = "aircraft-high-surface-detail";
+  for (const fraction of [-0.25, -0.05, 0.16]) {
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.998, 0.006, 4, 28), seamMaterial);
+    seam.scale.y = 0.86;
+    seam.position.z = fraction * length;
+    seam.castShadow = false;
+    high.add(seam);
+  }
+  for (const side of [-1, 1]) {
+    const accessPanel = new THREE.Mesh(new THREE.BoxGeometry(0.008, radius * 0.5, length * 0.08), seamMaterial);
+    accessPanel.position.set(side * radius * 0.98, 0.04, -length * 0.08);
+    high.add(accessPanel);
+    const marking = new THREE.Group();
+    if (allegiance === "us") {
+      const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xe7ece8, roughness: 0.7 });
+      const center = new THREE.Mesh(new THREE.CircleGeometry(0.29, 20), new THREE.MeshStandardMaterial({ color: 0x214c78, roughness: 0.68 }));
+      center.rotation.x = -Math.PI / 2; marking.add(center);
+      const star = new THREE.Mesh(createStarGeometry(0.18), whiteMaterial);
+      star.rotation.x = -Math.PI / 2; star.position.y = 0.006; marking.add(star);
+      for (const barSide of [-1, 1]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.018, 0.13), whiteMaterial);
+        bar.position.set(barSide * 0.34, 0.004, 0); marking.add(bar);
+      }
+    } else {
+      const border = new THREE.Mesh(createStarGeometry(0.3), new THREE.MeshStandardMaterial({ color: 0xffd24a, roughness: 0.66 }));
+      border.rotation.x = -Math.PI / 2; marking.add(border);
+      const star = new THREE.Mesh(createStarGeometry(0.245), new THREE.MeshStandardMaterial({ color: 0xc62126, roughness: 0.7 }));
+      star.rotation.x = -Math.PI / 2; star.position.y = 0.006; marking.add(star);
+    }
+    marking.position.set(side * span * 0.62, 0.13, 0.15);
+    high.add(marking);
+  }
+  const pitot = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.75, 7), seamMaterial);
+  pitot.rotation.x = Math.PI / 2;
+  pitot.position.z = -length * 0.5 - 0.34;
+  high.add(pitot);
+  group.add(high);
+  registerAssetDetailLod(group, { nearDistance: 58, mediumDistance: 145, high: [high] });
+  group.userData.surfaceDetailCount = high.children.length;
 }
 
 function finishAircraft(group: THREE.Group, length: number, engines: readonly THREE.Vector3[], detailTags: readonly string[]) {
@@ -130,6 +188,7 @@ export function createF14Model() {
     const jet = nozzle(0.43, 0.72); jet.position.set(side * 1.02, -0.16, 3.55); g.add(jet);
   }
   g.userData.variableWings = variableWings;
+  addAircraftSurfaceDetails(g, 0.58, 9.6, 3.75, "us");
   addFormationLights(g, 3.75);
   return finishAircraft(g, 9.6, [new THREE.Vector3(-1.02, -0.16, 3.72), new THREE.Vector3(1.02, -0.16, 3.72)], ["tandem-canopy", "variable-sweep-wings", "twin-nacelles", "twin-tails", "stabilators", "intake-ramps"]);
 }
@@ -148,6 +207,7 @@ export function createTu16Model() {
   }
   const vertical = fin([[0, -1.0], [2.25, -0.2], [2.4, 0.65], [0, 0.85]], metal, 0.12); vertical.position.set(0, 0.7, 3.75); g.add(vertical);
   const ventralRadar = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), panel); ventralRadar.scale.set(1, 0.5, 1.4); ventralRadar.position.set(0, -0.78, 1.2); g.add(ventralRadar);
+  addAircraftSurfaceDetails(g, 0.74, 12, 6, "ussr");
   addFormationLights(g, 6.0);
   return finishAircraft(g, 12, [new THREE.Vector3(-2.55, -0.3, 1.62), new THREE.Vector3(2.55, -0.3, 1.62)], ["glazed-nose", "swept-wings", "wing-engine-pods", "high-tailplane", "single-fin", "ventral-radar"]);
 }
@@ -165,6 +225,7 @@ export function createA6Model() {
   }
   const vertical = fin([[0, -0.75], [1.65, -0.1], [1.75, 0.58], [0, 0.72]], metal); vertical.position.set(0, 0.62, 2.65); g.add(vertical);
   const speedBrake = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.05, 0.42), panel); speedBrake.position.set(0, 0.62, 0.75); g.add(speedBrake);
+  addAircraftSurfaceDetails(g, 0.68, 8.8, 3.85, "us");
   addFormationLights(g, 3.85);
   return finishAircraft(g, 8.8, [new THREE.Vector3(-0.72, -0.12, 2.92), new THREE.Vector3(0.72, -0.12, 2.92)], ["side-by-side-canopy", "blunt-radome", "shoulder-intakes", "straight-swept-wings", "single-fin", "dorsal-speed-brake"]);
 }
@@ -185,5 +246,6 @@ export function createMig29Model() {
     const jet = nozzle(0.35, 0.62); jet.position.set(side * 0.86, -0.2, 3.05); g.add(jet);
   }
   addFormationLights(g, 3.45);
+  addAircraftSurfaceDetails(g, 0.5, 8.65, 3.45, "ussr");
   return finishAircraft(g, 8.65, [new THREE.Vector3(-0.86, -0.2, 3.25), new THREE.Vector3(0.86, -0.2, 3.25)], ["bubble-canopy", "lerx", "twin-nacelles", "separate-intakes", "canted-twin-tails", "stabilators"]);
 }
