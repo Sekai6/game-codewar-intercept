@@ -16,6 +16,7 @@ import type { AdvancedFlightState } from "./flight/aircraft-performance";
 import type { AirTacticalState } from "./ai/tactical-state";
 import type { PilotPerceptionState } from "./ai/perception";
 import type { MissionPlannerState } from "./ai/mission-planner";
+import type { PilotModel, PilotSkill, PilotState } from "./ai/pilot-model";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
@@ -199,6 +200,10 @@ export interface AirPlatformInstance extends TargetableEntity {
   advancedFlightState: AdvancedFlightState;
   tacticalState: AirTacticalState;
   pilotPerception: PilotPerceptionState;
+  pilotState: PilotState;
+  pilotSkill: PilotSkill;
+  pilotModel: PilotModel;
+  nextPilotUpdate: number;
   missionPlanningState: MissionPlannerState;
   nextMissionPlanningUpdate: number;
   nextPerceptionUpdate: number;
@@ -325,4 +330,5 @@ export interface AirSpawn {
   leaderId?: string;
   mission?: AirMissionOrder;
   protectedFormationId?: string;
+  pilotSkill?: PilotSkill;
 }

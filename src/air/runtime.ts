@@ -22,7 +22,12 @@ import {
   type PilotContact,
   type PilotObservation,
 } from "./ai/perception.js";
-import { STANDARD_ADVANCED_PILOT } from "./ai/pilot-model.js";
+import {
+  initialPilotState,
+  pilotControlError,
+  pilotModelForSkill,
+  stepPilotState,
+} from "./ai/pilot-model.js";
 import { planThreatResponse } from "./ai/threat-response.js";
 import {
   initialMissionPlannerState,
@@ -234,6 +239,8 @@ function instantiate(
     };
   });
   const id = `${spawn.side}-${spawn.definition.id}-${serial}`;
+  const pilotSkill = spawn.pilotSkill ?? "regular";
+  const pilotModel = pilotModelForSkill(pilotSkill);
   return {
     id,
     side: spawn.side,
@@ -263,6 +270,10 @@ function instantiate(
     advancedFlightState: initialAdvancedFlightState(spawn.definition),
     tacticalState: initialAirTacticalState(),
     pilotPerception: initialPilotPerception(),
+    pilotState: initialPilotState(pilotModel),
+    pilotSkill,
+    pilotModel,
+    nextPilotUpdate: 0,
     missionPlanningState: initialMissionPlannerState({
       mission: spawn.mission ?? spawn.definition.mission,
       position: spawn.position,
@@ -1993,6 +2004,22 @@ export class AirCombatSystem {
       return;
     }
     this.updateTracks(a, time, dt, context);
+    if (context.advancedAirAiEnabled && time >= a.nextPilotUpdate) {
+      a.pilotState = stepPilotState({
+        state: a.pilotState,
+        model: a.pilotModel,
+        dt: 0.25,
+        loadFactor: a.advancedFlightState.loadFactor,
+        contactCount: a.pilotPerception.contacts.size,
+        threatCount: a.missileWarnings.size,
+        supportingWeapon: this.missiles.some((missile) =>
+          missile.alive && missile.shooterId === a.id &&
+          (!missile.seekerAcquired ||
+            missile.definition.guidance === "semi-active-radar")),
+        damaged: [...a.subsystemHealth.values()].some((health) => health < 75),
+      });
+      a.nextPilotUpdate = time + 0.25;
+    }
     if (context.advancedAirAiEnabled && time >= a.nextPerceptionUpdate) {
       const bindings = this.perceptionBindings.get(a.id) ??
         initialPerceptionBindings();
@@ -2001,7 +2028,7 @@ export class AirCombatSystem {
         observations: [...a.tracks.values(), ...a.networkTracks.values()]
           .map((track) => perceptionObservation(track, bindings)),
         time,
-        memorySeconds: STANDARD_ADVANCED_PILOT.trackMemorySeconds,
+        memorySeconds: a.pilotState.effectiveTrackMemorySeconds,
       });
       a.pilotPerception = perception.state;
       const liveNumbers = new Set(a.pilotPerception.contacts.keys());
@@ -2012,7 +2039,7 @@ export class AirCombatSystem {
       }
       this.perceptionBindings.set(a.id, bindings);
       a.nextPerceptionUpdate = time +
-        STANDARD_ADVANCED_PILOT.perceptionRefreshSeconds;
+        a.pilotState.effectivePerceptionRefreshSeconds;
     }
     if (!context.advancedAirAiEnabled && a.fuel <= 0) a.mission = "return";
     const observedTracks = [...a.tracks.values(), ...a.networkTracks.values()].filter(
@@ -2119,12 +2146,15 @@ export class AirCombatSystem {
         side: a.formationIndex ? 1 : -1,
       });
       a.state = "defending";
-      a.desiredDirection.set(
-        defense.direction.x,
-        defense.direction.y,
-        defense.direction.z,
-      );
-      if (context.advancedAirAiEnabled) {
+      const pilotHasReacted = !context.advancedAirAiEnabled ||
+        a.pilotState.threatReactionRemaining <= 0;
+      if (pilotHasReacted)
+        a.desiredDirection.set(
+          defense.direction.x,
+          defense.direction.y,
+          defense.direction.z,
+        );
+      if (context.advancedAirAiEnabled && pilotHasReacted) {
         const response = planThreatResponse({
           ownPosition: a.position,
           currentHeading: a.heading,
@@ -2182,11 +2212,12 @@ export class AirCombatSystem {
           .normalize();
       }
       if (
+        pilotHasReacted &&
         this.countermeasuresEnabled &&
         defense.timeToImpact < a.definition.countermeasures.program.triggerTti
       )
         this.deployCountermeasures(a, incoming.missile, time);
-      if (time >= a.nextOoda) {
+      if (pilotHasReacted && time >= a.nextOoda) {
         a.nextOoda = time + 1;
         const track = this.missionTrackFor(a, context),
           target = track ? this.targetById(track.targetId, context) : undefined,
@@ -2382,6 +2413,19 @@ export class AirCombatSystem {
     const headingBeforeFlight = a.heading.clone();
     let newSpeed: number;
     if (context.advancedAirAiEnabled) {
+      const controlError = pilotControlError({
+        pilotId: a.id,
+        time,
+        state: a.pilotState,
+      });
+      const pilotDirection = a.desiredDirection.clone()
+        .applyAxisAngle(UP, THREE.MathUtils.degToRad(controlError.headingDeg));
+      pilotDirection.y = clamp(
+        pilotDirection.y + THREE.MathUtils.degToRad(controlError.pitchDeg),
+        -0.9,
+        0.9,
+      );
+      pilotDirection.normalize();
       const advancedStep = stepFlightDirector({
         definition: a.definition,
         state: a.advancedFlightState,
@@ -2393,11 +2437,16 @@ export class AirCombatSystem {
         engineHealth: eng,
         afterburnerRemaining: a.afterburnerRemaining,
         intent: {
-          desiredDirection: a.desiredDirection,
+          desiredDirection: pilotDirection,
           thrustMode: a.thrustMode,
           energyPriority: a.tacticalState.energyPriority,
           bankLimitDeg: a.tacticalState.commandedBankLimitDeg ?? undefined,
-          loadFactorCommand: a.tacticalState.commandedLoadFactor ?? undefined,
+          loadFactorCommand: a.tacticalState.commandedLoadFactor === null
+            ? undefined
+            : Math.min(
+                a.tacticalState.commandedLoadFactor,
+                a.pilotState.gToleranceAvailable,
+              ),
         },
         dt,
       });
@@ -3231,6 +3280,21 @@ export class AirCombatSystem {
         phase: aircraft.missionPlanningState.phase,
         reason: aircraft.missionPlanningState.reason,
         updates: aircraft.missionPlanningState.updates,
+      })),
+      pilotUpdates: this.aircraft.reduce(
+        (sum, aircraft) => sum + aircraft.pilotState.updates,
+        0,
+      ),
+      pilotStates: this.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        skill: aircraft.pilotSkill,
+        stress: aircraft.pilotState.stress,
+        fatigue: aircraft.pilotState.fatigue,
+        taskSaturation: aircraft.pilotState.taskSaturation,
+        gToleranceAvailable: aircraft.pilotState.gToleranceAvailable,
+        reactionRemaining: aircraft.pilotState.threatReactionRemaining,
+        controlPrecision: aircraft.pilotState.effectiveControlPrecision,
+        updates: aircraft.pilotState.updates,
       })),
     };
   }

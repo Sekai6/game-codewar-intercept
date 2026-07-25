@@ -27,6 +27,7 @@ try {
     enabled: canvas.dataset.advancedAirAiEnabled,
     updates: Number(canvas.dataset.advancedAirAiUpdates ?? -1),
     missionUpdates: Number(canvas.dataset.advancedAirMissionUpdates ?? -1),
+    pilotUpdates: Number(canvas.dataset.advancedAirPilotUpdates ?? -1),
   }));
   await page.locator("#sbAdvancedAirAi").evaluate(input => {
     input.checked = true;
@@ -41,6 +42,8 @@ try {
     enabled: canvas.dataset.advancedAirAiEnabled,
     updates: Number(canvas.dataset.advancedAirAiUpdates ?? 0),
     missionUpdates: Number(canvas.dataset.advancedAirMissionUpdates ?? 0),
+    pilotUpdates: Number(canvas.dataset.advancedAirPilotUpdates ?? 0),
+    pilotStates: canvas.dataset.advancedAirPilotStates ?? "",
     missionPlans: canvas.dataset.advancedAirMissionPlans ?? "",
     states: canvas.dataset.advancedAirAiStates ?? "",
   }));
@@ -50,9 +53,12 @@ try {
     disabled.enabled !== "false" ||
     disabled.updates !== 0 ||
     disabled.missionUpdates !== 0 ||
+    disabled.pilotUpdates !== 0 ||
     enabled.enabled !== "true" ||
     enabled.updates <= 0 ||
     enabled.missionUpdates <= 0 ||
+    enabled.pilotUpdates <= 0 ||
+    !enabled.pilotStates.includes("blue-F-14A") ||
     !enabled.missionPlans.includes(":on-station:") ||
     !enabled.states.includes("normal")
   ) process.exitCode = 1;

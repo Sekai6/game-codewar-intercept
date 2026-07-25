@@ -8029,6 +8029,12 @@ function tick(now: number) {
       `${state.id}:${state.assignedMission}:${state.order}:${state.phase}:${state.reason}:${state.updates}`,
     )
     .join("|");
+  canvas.dataset.advancedAirPilotUpdates = String(air.pilotUpdates);
+  canvas.dataset.advancedAirPilotStates = air.pilotStates
+    .map((state) =>
+      `${state.id}:${state.skill}:${state.stress.toFixed(3)}:${state.fatigue.toFixed(3)}:${state.taskSaturation.toFixed(3)}:${state.gToleranceAvailable.toFixed(2)}:${state.reactionRemaining.toFixed(2)}:${state.controlPrecision.toFixed(3)}:${state.updates}`,
+    )
+    .join("|");
   canvas.dataset.advancedAirPerceivedContacts = air.perceivedContacts
     .flatMap((aircraft) => aircraft.contacts.map((contact) =>
       `${aircraft.id}:${contact.trackNumber}:${contact.source}:${contact.classification}:${contact.quality.toFixed(2)}:${contact.uncertainty.toFixed(1)}:${contact.weaponAuthorization ? "weapon" : "cue"}`,
