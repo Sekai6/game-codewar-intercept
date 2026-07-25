@@ -54,6 +54,7 @@ import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
 import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
 import type { SovietC2Observation } from "../soviet-c2/observability.js";
+import { aewOrbitDirection, updateAewModelAnimation } from "./aew/mission.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -715,7 +716,7 @@ export class AirCombatSystem {
     for (const a of this.aircraft) {
       this.updateFormationState(a);
       this.updateAircraft(a, time, dt, context);
-      this.updateFlightVisuals(a, time);
+      this.updateFlightVisuals(a, time, dt);
       this.updateDamageVisuals(a, time);
     }
     this.updateHardpointReleases(time);
@@ -1026,7 +1027,7 @@ export class AirCombatSystem {
     };
   }
 
-  private updateFlightVisuals(aircraft: AirPlatformInstance, time: number) {
+  private updateFlightVisuals(aircraft: AirPlatformInstance, time: number, dt: number) {
     const speedRatio = clamp(
         aircraft.velocity.length() / aircraft.definition.flight.maxSpeed,
         0,
@@ -1038,6 +1039,12 @@ export class AirCombatSystem {
         200,
       exhausts = aircraft.model.userData.exhausts as THREE.Mesh[] | undefined,
       contrails = aircraft.model.userData.contrails as THREE.Mesh[] | undefined;
+    updateAewModelAnimation(
+      aircraft.model,
+      dt,
+      aircraft.alive && (aircraft.subsystemHealth.get("radar") ?? 0) > 5,
+      speedRatio,
+    );
     const modeVisual = aircraft.thrustMode === "afterburner"
       ? { width: 1.35, length: 2.8, opacity: 0.88, color: 0x80bfff }
       : aircraft.thrustMode === "military"
@@ -1258,7 +1265,9 @@ export class AirCombatSystem {
           ecmStrength: ecm?.strength,
           burnThroughRange: ecm?.burnThroughRange,
         }),
-        boresight = angle(a.heading, offset);
+        boresight = a.definition.sensor.coverage === "rotating-360"
+          ? 0
+          : angle(a.heading, offset);
       const key =
         ((time / a.definition.sensor.updateInterval) | 0) +
         this.serial +
@@ -1781,6 +1790,21 @@ export class AirCombatSystem {
           fireAndForget: defensiveWeapon.guidance === "infrared",
         }))
           this.launch(a, target, track, time, true);
+      }
+    } else if (a.mission === "aew") {
+      if (time >= a.nextOoda) {
+        a.nextOoda = time + 1;
+        const station = (a.model.userData.aewStation as THREE.Vector3 | undefined) ??
+          a.position.clone();
+        a.model.userData.aewStation = station;
+        a.desiredDirection.copy(aewOrbitDirection({
+          position:a.position,
+          station,
+          clockwise:a.side === "blue",
+          radius:75,
+        }));
+        a.state = "formation";
+        a.targetId = null;
       }
     } else if (
       a.mission !== "egress" &&

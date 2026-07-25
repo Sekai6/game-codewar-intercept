@@ -11,7 +11,7 @@ page.on("console", message => { if (message.type() === "error") errors.push(mess
 page.on("pageerror", error => errors.push(error.message));
 const results = {};
 try {
-  for (const [preset, expected] of [["joint", 6], ["intercept", 4], ["strike", 2], ["fighter", 4]]) {
+  for (const [preset, expected] of [["joint", 6], ["intercept", 4], ["strike", 2], ["fighter", 4], ["aew", 6]]) {
     await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/", { waitUntil: "domcontentloaded", timeout: 15_000 });
     await page.locator("#sbAirPreset").selectOption(preset);
     await page.locator("#sbAirCombat").check();
@@ -27,5 +27,5 @@ try {
   }
   console.log(JSON.stringify({ results, errors }, null, 2));
   const jointTu16Ranges = results.joint.shipRanges.split("|").filter(value => value.includes("TU-16K")).map(value => Number(value.split(":").at(-1)));
-  if (errors.length || results.joint.total !== 6 || jointTu16Ranges.length !== 2 || jointTu16Ranges.some(range => range < 100) || !results.joint.missions.includes("escort") || !results.joint.escorts.includes("blue-A-6E") || results.intercept.total !== 4 || !results.intercept.missions.includes("intercept") || results.strike.total !== 2 || !results.strike.missions.includes("anti-ship") || results.fighter.total !== 4 || !results.fighter.missions.includes("red-MIG-29A") || !results.fighter.missions.includes("intercept")) process.exitCode = 1;
+  if (errors.length || results.joint.total !== 6 || jointTu16Ranges.length !== 2 || jointTu16Ranges.some(range => range < 100) || !results.joint.missions.includes("escort") || !results.joint.escorts.includes("blue-A-6E") || results.intercept.total !== 4 || !results.intercept.missions.includes("intercept") || results.strike.total !== 2 || !results.strike.missions.includes("anti-ship") || results.fighter.total !== 4 || !results.fighter.missions.includes("red-MIG-29A") || !results.fighter.missions.includes("intercept") || results.aew.total!==6 || !results.aew.missions.includes("blue-E-2C") || !results.aew.missions.includes("red-TU-126") || (results.aew.missions.match(/:aew/g)?.length??0)!==2) process.exitCode = 1;
 } finally { await browser.close(); }

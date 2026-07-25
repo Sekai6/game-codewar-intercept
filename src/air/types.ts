@@ -14,7 +14,7 @@ import type { DatalinkEra } from "../datalink/era.js";
 import type { SovietCommandEra } from "../soviet-c2/era.js";
 
 export type AirMissionOrder =
-  "cap" | "intercept" | "escort" | "anti-ship" | "egress" | "return";
+  "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
 export type AirThrustMode = "idle" | "cruise" | "military" | "afterburner";
 export interface AirThrustDefinition {
   militarySpeedFactor: number;
@@ -30,7 +30,9 @@ export interface AirThrustDefinition {
 }
 export type AirGuidance =
   "active-radar" | "semi-active-radar" | "infrared" | "anti-ship-radar";
-export type AirPlatformId = "F-14A" | "TU-16K" | "A-6E" | "MIG-29A";
+export type AirPlatformId =
+  | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A"
+  | "E-2C" | "TU-126";
 export type AirWeaponId =
   | "AIM-54A" | "AIM-7F" | "AIM-9L"
   | "R-27R" | "R-73"
@@ -82,6 +84,7 @@ export interface AirSensorDefinition {
   updateInterval: number;
   fieldOfViewDeg: number;
   precision: number;
+  coverage?: "forward-sector" | "rotating-360";
 }
 
 export interface CountermeasureProgram {

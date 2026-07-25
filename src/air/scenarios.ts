@@ -31,7 +31,12 @@ function pair(input: {
   }));
 }
 
-export type AirScenarioPresetId = "joint" | "intercept" | "strike" | "fighter";
+export type AirScenarioPresetId = "joint" | "intercept" | "strike" | "fighter" | "aew";
+
+function single(input: {
+  platformId:AirPlatformId; side:"blue"|"red"; formationId:string;
+  position:THREE.Vector3; heading:THREE.Vector3;
+}):AirSpawn[]{return [{definition:AIR_PLATFORM_BY_ID[input.platformId],side:input.side,formationId:input.formationId,position:input.position.clone(),heading:input.heading.clone(),formationIndex:0}];}
 
 function jointAirScenarioSpawns(): AirSpawn[] {
   return [
@@ -112,6 +117,13 @@ function fighterScenarioSpawns(): AirSpawn[] {
   ];
 }
 
+function aewScenarioSpawns():AirSpawn[]{return [
+  ...single({platformId:"E-2C",side:"blue",formationId:"AEW-BLUE-1",position:new THREE.Vector3(-260,92,-520),heading:new THREE.Vector3(.2,0,-1)}),
+  ...pair({platformId:"F-14A",side:"blue",formationId:"AEW-CAP-1",position:new THREE.Vector3(-120,70,-610),heading:new THREE.Vector3(.1,0,-1),wingmanMission:"intercept"}),
+  ...single({platformId:"TU-126",side:"red",formationId:"AEW-RED-1",position:new THREE.Vector3(270,98,-1120),heading:new THREE.Vector3(-.18,0,1)}),
+  ...pair({platformId:"MIG-29A",side:"red",formationId:"AEW-INTERCEPT-1",position:new THREE.Vector3(80,68,-1030),heading:new THREE.Vector3(-.1,0,1),wingmanMission:"intercept"}),
+];}
+
 export const AIR_SCENARIO_PRESETS: Readonly<Record<AirScenarioPresetId, {
   label: string;
   description: string;
@@ -121,6 +133,7 @@ export const AIR_SCENARIO_PRESETS: Readonly<Record<AirScenarioPresetId, {
   intercept: { label: "INTERCEPT", description: "F-14A intercept / Tu-16K raid", createSpawns: interceptScenarioSpawns },
   strike: { label: "STRIKE", description: "A-6E anti-ship strike", createSpawns: strikeScenarioSpawns },
   fighter: { label: "FIGHTER", description: "F-14A CAP / MiG-29A intercept", createSpawns: fighterScenarioSpawns },
+  aew: { label:"AEW", description:"E-2C fleet AEW / Tu-126 GCI support / fighter screens", createSpawns:aewScenarioSpawns },
 };
 
 export function airScenarioSpawns(

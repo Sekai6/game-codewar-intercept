@@ -1,0 +1,10 @@
+import { createE2cModel, createTu126Model } from "./models.js";
+import type { AirPlatformDefinition, AirWeaponId } from "../types.js";
+
+const emptyLoadout = ():Record<AirWeaponId,number> => ({"AIM-54A":0,"AIM-7F":0,"AIM-9L":0,"R-27R":0,"R-73":0,"KSR-5":0,"AGM-84A":0});
+const turbopropThrust={militarySpeedFactor:1.18,militaryAccelerationFactor:1,militaryFuelMultiplier:1.42,militaryInfraredMultiplier:1.12,afterburnerAvailable:false,afterburnerSpeedFactor:1.18,afterburnerAccelerationFactor:1,afterburnerFuelMultiplier:1.42,afterburnerInfraredMultiplier:1.12,afterburnerSeconds:0};
+
+export const AEW_PLATFORM_DEFINITIONS:readonly AirPlatformDefinition[]=[
+  {id:"E-2C",name:"E-2C Hawkeye",nation:"United States",role:"Carrier airborne early warning",mission:"aew",radarCrossSection:14.5,infraredSignature:1.05,flight:{cruiseSpeed:3.25,maxSpeed:4.5,stallSpeed:1.55,acceleration:.38,drag:.024,maxLoadFactor:3,maxRollRateDeg:42,maxPitchRateDeg:10,fuelSeconds:1800,thrust:turbopropThrust},sensor:{name:"AN/APS-125",range:925,updateInterval:4.8,fieldOfViewDeg:360,precision:.78,coverage:"rotating-360"},ecm:{strength:.32,burnThroughRange:24},countermeasures:{chaff:18,flares:12,program:{chaffBurst:3,flareBurst:2,interval:.2,cooldown:7,triggerTti:24}},loadout:emptyLoadout(),fireControlChannels:{datalink:0,illumination:0},hardpoints:[],buildModel:createE2cModel,shipDefenseTemplate:"Kh-22"},
+  {id:"TU-126",name:"Tu-126 Moss",nation:"Soviet Union",role:"Airborne early warning",mission:"aew",radarCrossSection:145,infraredSignature:1.8,flight:{cruiseSpeed:3.9,maxSpeed:5.85,stallSpeed:1.75,acceleration:.32,drag:.026,maxLoadFactor:2.5,maxRollRateDeg:24,maxPitchRateDeg:7,fuelSeconds:2600,thrust:turbopropThrust},sensor:{name:"Liana",range:795,updateInterval:7.2,fieldOfViewDeg:360,precision:.62,coverage:"rotating-360"},ecm:{strength:.58,burnThroughRange:42},countermeasures:{chaff:30,flares:8,program:{chaffBurst:5,flareBurst:2,interval:.22,cooldown:8,triggerTti:28}},loadout:emptyLoadout(),fireControlChannels:{datalink:0,illumination:0},hardpoints:[],buildModel:createTu126Model,shipDefenseTemplate:"Kh-22"},
+];
