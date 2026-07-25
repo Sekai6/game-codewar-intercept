@@ -25,7 +25,7 @@ try {
   await page.waitForFunction(
     () => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("R-27R"),
     null,
-    { timeout: 25_000 },
+    { timeout: 35_000 },
   );
   const result = await page.locator("#scene").evaluate((scene) => ({
     missions: scene.dataset.airMissionStates ?? "",
@@ -35,7 +35,12 @@ try {
     targetNames: scene.dataset.airDefenseTargetNames ?? "",
     legacyRegistrations: Number(scene.dataset.airDefenseLegacyRegistrations ?? -1),
     legacyFields: Number(scene.dataset.airDefenseLegacyFields ?? -1),
+    gciEvents: scene.dataset.gciEventLog ?? "",
   }));
+  const gciEvents = result.gciEvents.split("|");
+  const gciAt = Number(gciEvents.find((event) => event.includes("GCI COMMAND"))?.split(":")[0] ?? Infinity);
+  const detectAt = Number(gciEvents.find((event) => event.includes(" DETECT"))?.split(":")[0] ?? Infinity);
+  const launchAt = Number(gciEvents.find((event) => event.includes(" LAUNCH"))?.split(":")[0] ?? Infinity);
   result.errors = errors;
   console.log(JSON.stringify(result, null, 2));
   if (
@@ -44,6 +49,7 @@ try {
     !result.launches.includes("MiG-29A Fulcrum-A") ||
     !result.launches.includes("R-27R Alamo-A") ||
     !result.hardpoints.includes("red-MIG-29A") ||
+    !(gciAt < detectAt && detectAt <= launchAt) ||
     result.legacyRegistrations !== 0 ||
     result.legacyFields !== 0
   ) process.exitCode = 1;

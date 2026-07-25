@@ -11,6 +11,7 @@ import type {
 import type { EnemyType } from "../threats/catalog";
 import type { FormationStatus } from "./formation";
 import type { DatalinkEra } from "../datalink/era.js";
+import type { SovietCommandEra } from "../soviet-c2/era.js";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "egress" | "return";
@@ -251,6 +252,8 @@ export interface AirScenarioContext {
   datalinkEra?: DatalinkEra;
   datalinkEnabled?: boolean;
   link16Enabled?: boolean;
+  sovietCommandEra?: SovietCommandEra;
+  sovietCommandEnabled?: boolean;
   targets?: readonly TargetableEntity[];
   countermeasures?: (targetId: string) => {
     ecmEnabled: boolean;

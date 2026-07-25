@@ -47,6 +47,7 @@ import { Link11Network } from "../datalink/link11-network.js";
 import type { TacticalNetworkDecisionView, TacticalNetworkObservation, TacticalNetworkTrackView } from "../datalink/observability.js";
 import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
+import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -214,6 +215,8 @@ export class AirCombatSystem {
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
+  private readonly sovietGci = new SovietGciNetwork();
+  private readonly seenGciCommands = new Set<string>();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
@@ -269,6 +272,8 @@ export class AirCombatSystem {
     this.standardDamageApplications = 0;
     this.link16.reset();
     this.link11.reset();
+    this.sovietGci.reset();
+    this.seenGciCommands.clear();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
     this.activeLink16ParticipantIds.clear();
@@ -364,6 +369,10 @@ export class AirCombatSystem {
     const datalinkEra = context.datalinkEra ?? "link16-modernized",
       datalinkEnabled = context.datalinkEnabled ?? context.link16Enabled ?? true,
       link16Enabled = datalinkEnabled && (context.link16Enabled ?? true);
+    this.sovietGci.configure(
+      context.sovietCommandEra ?? "ntu-1980s",
+      context.sovietCommandEnabled ?? true,
+    );
     const datalinkConfigurationKey = `${datalinkEra}:${datalinkEnabled}:${link16Enabled}`;
     if (this.datalinkConfigurationKey !== datalinkConfigurationKey) {
       this.link16.reset();
@@ -530,6 +539,37 @@ export class AirCombatSystem {
       if(cues.length)this.externalLink11Cues.set(participant.entity.id,cues);
     }
     this.pruneExternalCues(time);
+    this.sovietGci.update(
+      time,
+      this.aircraft
+        .filter((aircraft) => aircraft.side === "red" && aircraft.formationIndex === 0)
+        .map((aircraft) => ({
+          id: aircraft.id,
+          platformId: aircraft.definition.id,
+          position: aircraft.position,
+          velocity: aircraft.velocity,
+          alive: aircraft.alive,
+        })),
+      this.aircraft
+        .filter((aircraft) => aircraft.side === "blue")
+        .map((aircraft) => ({
+          id: aircraft.id,
+          position: aircraft.position,
+          velocity: aircraft.velocity,
+          radarCrossSection: aircraft.radarCrossSection,
+          alive: aircraft.alive,
+        })),
+    );
+    for (const aircraft of this.aircraft) {
+      const command = this.sovietGci.commandFor(aircraft.id, time);
+      if (!command || this.seenGciCommands.has(command.id)) continue;
+      this.seenGciCommands.add(command.id);
+      this.emit(
+        time,
+        "guidance",
+        `${aircraft.definition.name} GCI COMMAND RECEIVED / ${command.controllerTrackId} / Q ${Math.round(command.quality * 100)}% / ALT ${Math.round(command.commandedAltitude * 50)}M / VALID ${(command.expiresAt - time).toFixed(1)}S`,
+      );
+    }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -590,6 +630,14 @@ export class AirCombatSystem {
   }
 
   link11Diagnostics() { return this.link11.diagnostics(); }
+
+  sovietGciDiagnostics(time = this.currentTime) {
+    return this.sovietGci.diagnostics(time);
+  }
+
+  gciCommandFor(participantId: string, time = this.currentTime) {
+    return this.sovietGci.commandFor(participantId, time);
+  }
 
   tacticalCuesFor(participantId:string) {
     return [...(this.externalLink16Cues.get(participantId)??[]),
@@ -850,6 +898,13 @@ export class AirCombatSystem {
     context: AirScenarioContext,
   ) {
     advanceAirTracks(a.tracks, dt, time);
+    const gciCommand = this.sovietGci.commandFor(a.id, time);
+    if (
+      a.definition.id === "MIG-29A" &&
+      gciCommand &&
+      a.tracks.size === 0 &&
+      a.position.distanceTo(gciCommand.interceptPoint) > 300
+    ) return;
     if (time < a.nextScan || !a.alive) return;
     a.nextScan = time + a.definition.sensor.updateInterval;
     const radarHealth = (a.subsystemHealth.get("radar") ?? 0) / 100;
@@ -1405,7 +1460,15 @@ export class AirCombatSystem {
         const leader = this.aircraft.find(
           (x) => x.id === a.leaderId && x.alive,
         );
-        if (leader) {
+        const gciCommand = this.sovietGci.commandFor(a.id, time);
+        if (gciCommand) {
+          a.state = "engaging";
+          a.desiredDirection
+            .copy(gciCommand.interceptPoint)
+            .setY(gciCommand.commandedAltitude)
+            .sub(a.position)
+            .normalize();
+        } else if (leader) {
           const slot = formationSlot({
             leader: leader.position,
             leaderHeading: leader.heading,

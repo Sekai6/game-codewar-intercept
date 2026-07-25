@@ -55,6 +55,8 @@ export type AirScenarioBridgeSnapshot = AirShipBridgeDependencies & {
   datalinkEra?: AirScenarioContext["datalinkEra"];
   datalinkEnabled?: AirScenarioContext["datalinkEnabled"];
   link16Enabled?: AirScenarioContext["link16Enabled"];
+  sovietCommandEra?: AirScenarioContext["sovietCommandEra"];
+  sovietCommandEnabled?: AirScenarioContext["sovietCommandEnabled"];
   countermeasures?: AirScenarioContext["countermeasures"];
   requestShipCountermeasure?: AirScenarioContext["requestShipCountermeasure"];
   targets?: readonly TargetableEntity[];
@@ -73,6 +75,8 @@ export function createAirScenarioContext(
       datalinkEra: state.datalinkEra,
       datalinkEnabled: state.datalinkEnabled,
       link16Enabled: state.link16Enabled,
+      sovietCommandEra: state.sovietCommandEra,
+      sovietCommandEnabled: state.sovietCommandEnabled,
       targets:
         state.targets ??
         [bridge.blueShip, ...(bridge.redShip ? [bridge.redShip] : [])],

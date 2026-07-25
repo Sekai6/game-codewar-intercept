@@ -104,6 +104,10 @@ import {
   type DatalinkEra,
 } from "./datalink/era";
 import {
+  SOVIET_COMMAND_ERAS,
+  type SovietCommandEra,
+} from "./soviet-c2/era";
+import {
   DEFAULT_SURFACE_CONFIG,
   initialSurfaceLoadout,
   initialSurfaceThreats,
@@ -2428,6 +2432,19 @@ datalinkEraInput.addEventListener("change", () => {
 });
 updateDatalinkEraControls();
 link16Input.checked = true;
+const sovietCommandEraField = document.createElement("label");
+sovietCommandEraField.className = "sandbox-field";
+sovietCommandEraField.innerHTML = `<span>SOVIET COMMAND ERA</span><select id="sbSovietCommandEra">${Object.values(
+  SOVIET_COMMAND_ERAS,
+).map((era) => `<option value="${era.id}">${era.label} / ${era.description}</option>`).join("")}</select>`;
+sandbox.insertBefore(sovietCommandEraField, sandbox.querySelector("#sbStart"));
+const sovietCommandEraInput = sovietCommandEraField.querySelector("select") as HTMLSelectElement;
+sovietCommandEraInput.value = "ntu-1980s";
+const sovietCommandField = document.createElement("label");
+sovietCommandField.className = "sandbox-toggle";
+sovietCommandField.innerHTML = '<input id="sbSovietCommand" type="checkbox" checked> SOVIET COMMAND & TARGETING ENABLED';
+sandbox.insertBefore(sovietCommandField, sandbox.querySelector("#sbStart"));
+const sovietCommandInput = sovietCommandField.querySelector("input") as HTMLInputElement;
 const tacviewExportField = document.createElement("label");
 tacviewExportField.className = "sandbox-toggle";
 tacviewExportField.innerHTML =
@@ -2674,6 +2691,8 @@ const airScenarioContext = createAirScenarioContext(() => {
     datalinkEra: datalinkEraInput.value as DatalinkEra,
     datalinkEnabled: link16Input.checked,
     link16Enabled: link16Input.checked,
+    sovietCommandEra: sovietCommandEraInput.value as SovietCommandEra,
+    sovietCommandEnabled: sovietCommandInput.checked,
     applyBlueDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
       airShipHits++;
@@ -8101,6 +8120,38 @@ function tick(now: number) {
   canvas.dataset.link16ShipCues = String(
     airCombat.link16CuesFor("blue-surface-ship").length,
   );
+  const gciDiagnostics = airCombat.sovietGciDiagnostics(elapsed);
+  canvas.dataset.sovietCommandEra = sovietCommandEraInput.value;
+  canvas.dataset.sovietCommandEnabled = String(sovietCommandInput.checked);
+  canvas.dataset.gciOperational = String(gciDiagnostics.enabled);
+  canvas.dataset.gciTransmitted = String(gciDiagnostics.transmitted);
+  canvas.dataset.gciDelivered = String(gciDiagnostics.delivered);
+  canvas.dataset.gciDropped = String(gciDiagnostics.dropped);
+  canvas.dataset.gciActiveCommands = String(gciDiagnostics.activeCommands);
+  canvas.dataset.gciMeanDelay = gciDiagnostics.meanDelay.toFixed(3);
+  canvas.dataset.gciCommandStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
+    .map((aircraft) => {
+      const command = airCombat.gciCommandFor(aircraft.id, elapsed);
+      return `${aircraft.id}:${command ? `${command.controllerTrackId}:${command.quality.toFixed(2)}:${aircraft.position.distanceTo(command.interceptPoint).toFixed(1)}` : "none"}`;
+    })
+    .join("|");
+  canvas.dataset.gciRadarStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
+    .map((aircraft) => {
+      const command = airCombat.gciCommandFor(aircraft.id, elapsed);
+      const standby = !!command && aircraft.tracks.size === 0 && aircraft.position.distanceTo(command.interceptPoint) > 300;
+      return `${aircraft.id}:${standby ? "standby" : "search"}`;
+    })
+    .join("|");
+  canvas.dataset.gciAirLocalTracks = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
+    .map((aircraft) => `${aircraft.id}:${aircraft.tracks.size}`)
+    .join("|");
+  canvas.dataset.gciEventLog = airCombat.events
+    .filter((event) => /GCI COMMAND|MiG-29A Fulcrum-A DETECT|MiG-29A Fulcrum-A LAUNCH/.test(event.text))
+    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
+    .join("|");
   const networkObservation = airCombat.tacticalNetworkObservation(elapsed);
   canvas.dataset.datalinkDecisionLog = networkObservation.decisions
     .map((decision) => `${decision.time.toFixed(2)}:${decision.network}:${decision.kind}:${decision.participantId}:${decision.trackId}`)
