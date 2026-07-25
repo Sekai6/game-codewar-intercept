@@ -78,6 +78,7 @@ function abortMk10Task(
 
 export function updateMk10LauncherRuntime(deps: Mk10RuntimeDependencies): void {
   const tolerance = THREE.MathUtils.degToRad(2);
+  const maximumSlewTaskSeconds = 12;
   for (const launcher of deps.launchers) {
     const health = deps.health(launcher);
     const azimuthRate =
@@ -95,6 +96,13 @@ export function updateMk10LauncherRuntime(deps: Mk10RuntimeDependencies): void {
       launcher.phase === "slewing"
     ) {
       abortMk10Task(launcher, launcher.pending, deps, "TASK CANCEL / TARGET DESTROYED");
+    }
+    if (
+      launcher.phase === "slewing" &&
+      launcher.pending &&
+      deps.elapsed - launcher.phaseSince > maximumSlewTaskSeconds
+    ) {
+      abortMk10Task(launcher, launcher.pending, deps, "TASK CANCEL / SLEW TIMEOUT");
     }
     if (launcher.phase === "slewing" && launcher.pending) {
       const trackPosition = deps.trackPosition(launcher.pending);

@@ -375,6 +375,19 @@ assert(
     !mk10.pending,
   "Mk 10 casualty did not cancel and return ammunition",
 );
+resetMk10LauncherRuntime([mk10]);
+mk10.pending = { target: missile, weapon: "RIM-67" };
+mk10.phase = "slewing";
+mk10.phaseSince = 0;
+const originalAzimuthRate = config.azimuthRateDeg;
+config.azimuthRateDeg = 0;
+runMk10(12.1, 1, new THREE.Vector3(0, 10, -100));
+config.azimuthRateDeg = originalAzimuthRate;
+assert(
+  returned === 2 && !mk10.pending &&
+    (mk10.phase === "returning" || mk10.phase === "ready"),
+  "Mk 10 unachievable slew task did not time out and release the launcher",
+);
 
 console.log(
   JSON.stringify(

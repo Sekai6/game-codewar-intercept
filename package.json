@@ -88,6 +88,8 @@
     "verify:soviet-maritime-runtime": "node scripts/verify-soviet-maritime-runtime.mjs",
     "verify:soviet-fleet-command": "tsc src/soviet-c2/era.ts src/soviet-c2/fleet-command.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-soviet-fleet-command.mjs",
     "verify:soviet-fleet-command-runtime": "node scripts/verify-soviet-fleet-command-runtime.mjs",
+    "verify:soviet-salvo": "tsc src/soviet-c2/salvo-coordination.ts src/soviet-c2/fleet-command.ts src/soviet-c2/era.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-soviet-salvo.mjs",
+    "verify:soviet-salvo-runtime": "node scripts/verify-soviet-salvo-runtime.mjs",
     "verify:tactical-network-visual": "node scripts/verify-tactical-network-visual.mjs",
     "verify:air-missile-runtime": "tsc src/air/missile-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-missile-runtime.mjs",
     "verify:ship-defense-runtime": "tsc src/defense/allegiance.ts src/ship-defense/defense-targets.ts src/ship-defense/engagement-runtime.ts src/ship-defense/launcher-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-ship-defense-runtime.mjs",

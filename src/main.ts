@@ -1280,9 +1280,13 @@ function updateMk10Launchers(dt: number) {
     elapsed,
     dt,
     health: launcherHealth,
-    trackPosition: (request) =>
-      combatPicture.trackForTarget(defenseSourceForTarget(request.target))
-        ?.position ?? null,
+    trackPosition: (request) => {
+      const target = request.target;
+      if (target.phase === "destroyed" || target.entity?.alive === false)
+        return null;
+      const track = combatPicture.trackForTarget(defenseSourceForTarget(target));
+      return track && track.age < 2.2 ? track.position : null;
+    },
     worldToLocal: (position) => defender.worldToLocal(position),
     returnAmmo: (request) => changeAmmo(request.weapon, 1),
     cancel: cancelAuthorizedLaunch,
@@ -3350,6 +3354,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
       airScenarioSpawns(
         presetId,
         new URLSearchParams(location.search).get("shortAirValidation") === "1",
+        new URLSearchParams(location.search).get("sovietSalvoValidation") === "1",
       ),
     );
     airCombat.countermeasuresEnabled =
@@ -8020,6 +8025,13 @@ function tick(now: number) {
   canvas.dataset.shipAirMissileTracks = String(airDefenseTracks);
   canvas.dataset.shipAirAircraftTracks = String(airDefenseAircraftTracks);
   canvas.dataset.shipAirWeaponTracks = String(airDefenseMissileTracks);
+  canvas.dataset.shipAirMissileTrackStates = [...combatPicture.tracks.values()]
+    .filter((track) => defenseTargetForSource(track.sourceId)?.entity?.kind === "missile")
+    .map((track) => `${track.sourceId}:${track.quality.toFixed(2)}:${track.solutionQuality.toFixed(2)}:${track.altitudeKnown ? "3d" : "2d"}:${track.age.toFixed(2)}`)
+    .join("|");
+  canvas.dataset.mk10LauncherStates = mk10Launchers
+    .map((launcher) => `${launcher.name}:${launcher.phase}:${launcher.pending ? defenseSourceForTarget(launcher.pending.target) : "none"}`)
+    .join("|");
   canvas.dataset.shipAirMissileKills = String(airDefenseHardKills.size);
   canvas.dataset.airDefenseLegacyRegistrations = String(
     missiles.filter((target) => target.entity).length,
@@ -8199,6 +8211,22 @@ function tick(now: number) {
     .join("|");
   canvas.dataset.sovietFleetCommandEventLog = airCombat.events
     .filter((event) => /TARGET AREA RECEIVED|FLEET STRIKE ORDER|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
+    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
+    .join("|");
+  const sovietSalvo = airCombat.sovietSalvoDiagnostics(elapsed);
+  canvas.dataset.sovietSalvoWavesPlanned = String(sovietSalvo.wavesPlanned);
+  canvas.dataset.sovietSalvoAssignments = String(sovietSalvo.assignments);
+  canvas.dataset.sovietSalvoActiveAssignments = String(sovietSalvo.activeAssignments);
+  canvas.dataset.sovietSalvoArrivalSpread = sovietSalvo.meanArrivalSpread.toFixed(3);
+  canvas.dataset.sovietSalvoPlanStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "TU-16K")
+    .map((aircraft) => {
+      const plan = airCombat.sovietSalvoPlanFor(aircraft.id, elapsed);
+      return `${aircraft.id}:${plan ? `${plan.waveId}:${plan.sequence}/${plan.total}:${plan.releaseAt.toFixed(2)}:${plan.plannedArrivalAt.toFixed(2)}:${plan.sourceReportTrackId}` : "none"}`;
+    })
+    .join("|");
+  canvas.dataset.sovietSalvoEventLog = airCombat.events
+    .filter((event) => /TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)
     .join("|");
   const networkObservation = airCombat.tacticalNetworkObservation(elapsed);

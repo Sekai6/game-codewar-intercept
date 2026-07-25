@@ -50,6 +50,7 @@ import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "
 import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
+import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -224,6 +225,8 @@ export class AirCombatSystem {
   private readonly maritimeEmconParticipants = new Set<string>();
   private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
   private readonly seenFleetOrders = new Set<string>();
+  private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
+  private readonly seenSalvoPlans = new Set<string>();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
@@ -286,6 +289,8 @@ export class AirCombatSystem {
     this.maritimeEmconParticipants.clear();
     this.sovietFleetCommand.reset();
     this.seenFleetOrders.clear();
+    this.sovietSalvoCoordinator.reset();
+    this.seenSalvoPlans.clear();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
     this.activeLink16ParticipantIds.clear();
@@ -667,6 +672,40 @@ export class AirCombatSystem {
         `${aircraft.definition.name} FLEET STRIKE ORDER RECEIVED / ${order.id} / SOURCE ${order.sourceReportTrackId} / ATTACK ${order.attackWindowStart.toFixed(1)}-${order.attackWindowEnd.toFixed(1)} / NO WEAPON AUTHORITY`,
       );
     }
+    for (const leader of this.aircraft.filter((aircraft) =>
+      aircraft.side === "red" && aircraft.definition.id === "TU-16K" && aircraft.formationIndex === 0)) {
+      const order = this.sovietFleetCommand.orderFor(leader.id, time);
+      const cue = this.sovietMaritimeTargeting.cueFor(leader.id, time);
+      this.sovietSalvoCoordinator.update({
+        time,
+        order,
+        participants: this.aircraft
+          .filter((aircraft) => aircraft.formationId === leader.formationId && aircraft.definition.id === "TU-16K")
+          .map((aircraft) => ({
+            id: aircraft.id,
+            formationId: aircraft.formationId,
+            position: aircraft.position,
+            alive: aircraft.alive,
+            weaponReady: (aircraft.ammo.get("KSR-5") ?? 0) > 0 &&
+              aircraft.hardpoints.some((hardpoint) => hardpoint.weaponId === "KSR-5" && hardpoint.state === "ready"),
+          })),
+        targetArea: cue ? {
+          reportTrackId: cue.reportTrackId,
+          estimatedPosition: cue.estimatedPosition,
+        } : undefined,
+        weaponSpeed: AIR_WEAPONS["KSR-5"].speed,
+      });
+    }
+    for (const aircraft of this.aircraft) {
+      const plan = this.sovietSalvoCoordinator.planFor(aircraft.id, time);
+      if (!plan || this.seenSalvoPlans.has(plan.id)) continue;
+      this.seenSalvoPlans.add(plan.id);
+      this.emit(
+        time,
+        "guidance",
+        `${aircraft.definition.name} SALVO ASSIGNMENT / AIRFRAME ${aircraft.id} / ${plan.waveId} / ROUND ${plan.sequence}/${plan.total} / RELEASE ${plan.releaseAt.toFixed(1)} / ARRIVAL ${plan.plannedArrivalAt.toFixed(1)} / SOURCE ${plan.sourceReportTrackId}`,
+      );
+    }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -756,6 +795,14 @@ export class AirCombatSystem {
     return this.sovietFleetCommand.orderFor(participantId, time);
   }
 
+  sovietSalvoDiagnostics(time = this.currentTime) {
+    return this.sovietSalvoCoordinator.diagnostics(time);
+  }
+
+  sovietSalvoPlanFor(participantId: string, time = this.currentTime) {
+    return this.sovietSalvoCoordinator.planFor(participantId, time);
+  }
+
   private fleetOrderForAircraft(a: AirPlatformInstance, time: number) {
     return this.sovietFleetCommand.orderFor(a.id, time) ??
       (a.leaderId ? this.sovietFleetCommand.orderFor(a.leaderId, time) : undefined);
@@ -766,7 +813,9 @@ export class AirCombatSystem {
     if (!this.sovietFleetCommand.diagnostics(time).enabled) return true;
     const order = this.fleetOrderForAircraft(a, time);
     if (!order) return time >= 15;
-    return time >= order.attackWindowStart && time <= order.attackWindowEnd;
+    const plan = this.sovietSalvoCoordinator.planFor(a.id, time);
+    if (!plan) return false;
+    return time >= plan.releaseAt && time <= order.attackWindowEnd;
   }
 
   tacticalCuesFor(participantId:string) {
@@ -1033,6 +1082,7 @@ export class AirCombatSystem {
       a.mission === "anti-ship" &&
       this.sovietMaritimeTargeting.diagnostics(time).enabled &&
       !this.sovietMaritimeTargeting.cueFor(a.id, time) &&
+      !this.sovietSalvoCoordinator.planFor(a.id, time) &&
       a.tracks.size === 0 &&
       time < 12;
     if (awaitingMaritimeCue) {
@@ -1276,7 +1326,7 @@ export class AirCombatSystem {
         this.emit(
           time,
           "launch",
-          `${aircraft.definition.name} LAUNCH ${weapon.name} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}%`,
+          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}%`,
         );
       }
     }
@@ -1617,7 +1667,14 @@ export class AirCombatSystem {
         const gciCommand = this.sovietGci.commandFor(a.id, time);
         const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
         const fleetOrder = this.fleetOrderForAircraft(a, time);
-        if (fleetOrder && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+        const salvoPlan = this.sovietSalvoCoordinator.planFor(a.id, time);
+        if (salvoPlan && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+          a.state = "engaging";
+          a.desiredDirection
+            .copy(salvoPlan.searchPoint)
+            .sub(a.position)
+            .normalize();
+        } else if (fleetOrder && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(fleetOrder.approachPoint)

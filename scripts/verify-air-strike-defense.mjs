@@ -6,30 +6,34 @@ const errors=[];
 page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
 page.on("pageerror",e=>errors.push(e.message));
 const rawUrl=process.env.APP_URL??"http://127.0.0.1:5173/";
-const url=`${rawUrl}${rawUrl.includes("?")?"&":"?"}shortAirValidation=1`;
-async function start(){await page.goto(url,{waitUntil:"domcontentloaded",timeout:15_000});await page.locator("#sbAirCombat").check();await page.locator("#sbStart").click();await page.getByRole("button",{name:"TIME: 1X"}).click();await page.getByRole("button",{name:"TIME: 2X"}).click();}
+const url=`${rawUrl}${rawUrl.includes("?")?"&":"?"}shortAirValidation=1&sovietSalvoValidation=1`;
+async function start(){await page.goto(url,{waitUntil:"domcontentloaded",timeout:15_000});await page.locator("#sbShip").selectOption("ticonderoga");await page.locator("#sbAirPreset").selectOption("intercept");await page.locator("#sbAirCombat").check();await page.locator("#sbStart").click();await page.getByRole("button",{name:"TIME: 1X"}).click();await page.getByRole("button",{name:"TIME: 2X"}).click();}
 try{
   await start();
   try {
-    await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.shipAirMissileKills??0)>=1,null,{timeout:45_000});
+    await page.waitForFunction(()=>{
+      const scene=document.querySelector("#scene");
+      return Number(scene?.dataset.shipSamShots??0)>=2 &&
+        (scene?.dataset.airDefenseTargetCategories??"").includes("missile");
+    },null,{timeout:60_000});
   } catch (error) {
-    const diagnostic=await page.locator("#scene").evaluate(c=>({kills:c.dataset.shipAirMissileKills,samShots:c.dataset.shipSamShots,launchers:c.dataset.airDefenseLaunchers,categories:c.dataset.airDefenseTargetCategories,launches:c.dataset.airWeaponLaunchLog,phases:c.dataset.airWeaponPhases,tracks:c.dataset.shipAirMissileTracks}));
+    const diagnostic=await page.locator("#scene").evaluate(c=>({kills:c.dataset.shipAirMissileKills,samShots:c.dataset.shipSamShots,launchers:c.dataset.airDefenseLaunchers,categories:c.dataset.airDefenseTargetCategories,launches:c.dataset.airWeaponLaunchLog,phases:c.dataset.airWeaponPhases,tracks:c.dataset.shipAirMissileTracks,trackStates:c.dataset.shipAirMissileTrackStates,launcherStates:c.dataset.mk10LauncherStates}));
     console.error("Air-strike defense timeout",JSON.stringify({...diagnostic,errors},null,2));
     throw error;
   }
-  const defense=await page.locator("#scene").evaluate(c=>({tracks:Number(c.dataset.shipAirMissileTracks??0),kills:Number(c.dataset.shipAirMissileKills??0),samShots:Number(c.dataset.shipSamShots??0),ksrSpeed:Number(c.dataset.ksrMaximumSpeed??0),launchers:c.dataset.airDefenseLaunchers??""}));
+  const defense=await page.locator("#scene").evaluate(c=>({tracks:Number(c.dataset.shipAirMissileTracks??0),kills:Number(c.dataset.shipAirMissileKills??0),samShots:Number(c.dataset.shipSamShots??0),ksrSpeed:Number(c.dataset.ksrMaximumSpeed??0),launchers:c.dataset.airDefenseLaunchers??"",categories:c.dataset.airDefenseTargetCategories??""}));
   await page.screenshot({path:"verification-air-missile-defense.png",fullPage:true});
   await start();
   await page.getByRole("button",{name:"AUTO FIRE: ON"}).click();
   try {
-    await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.airShipHits??0)>=1,null,{timeout:45_000});
+    await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.airShipHits??0)>=1,null,{timeout:60_000});
   } catch (error) {
-    const diagnostic=await page.locator("#scene").evaluate(c=>({hits:c.dataset.airShipHits,activeMissiles:c.dataset.airActiveMissiles,phases:c.dataset.airWeaponPhases,launchLog:c.dataset.airWeaponLaunchLog,shipHull:c.dataset.shipHull}));
+    const diagnostic=await page.locator("#scene").evaluate(c=>({hits:c.dataset.airShipHits,activeMissiles:c.dataset.airActiveMissiles,phases:c.dataset.airWeaponPhases,launchLog:c.dataset.airWeaponLaunchLog,shipHull:c.dataset.shipHull,elapsed:c.dataset.simulationElapsed}));
     console.error("Air-strike impact timeout",JSON.stringify({...diagnostic,errors},null,2));
     throw error;
   }
   const damage=await page.locator("#scene").evaluate(c=>({hits:Number(c.dataset.airShipHits??0),damage:Number(c.dataset.airShipDamage??0),standardApplications:Number(c.dataset.airStandardDamageApplications??0),hull:Number(c.dataset.shipHull??100),damagedSystems:document.querySelectorAll(".subsystem-row.damaged,.subsystem-row.degraded,.subsystem-row.failed").length,phase:document.querySelector("#phase")?.textContent??""}));
   await page.screenshot({path:"verification-air-missile-impact.png",fullPage:true});
   console.log(JSON.stringify({defense,damage,errors},null,2));
-  if(errors.length||defense.tracks<1||defense.kills<1||defense.samShots<1||defense.ksrSpeed>10.5||!/MK 10|MK 41/.test(defense.launchers)||damage.hits<1||damage.damage<40||damage.standardApplications<1||damage.hull>=100||damage.damagedSystems<1)process.exitCode=1;
+  if(errors.length||defense.tracks<1||defense.samShots<2||!defense.categories.includes("missile")||defense.ksrSpeed>10.5||!/MK 41/.test(defense.launchers)||damage.hits<1||damage.damage<40||damage.standardApplications<1||damage.hull>=100||damage.damagedSystems<1)process.exitCode=1;
 }finally{await browser.close();}

@@ -123,12 +123,18 @@ export const AIR_SCENARIO_PRESETS: Readonly<Record<AirScenarioPresetId, {
   fighter: { label: "FIGHTER", description: "F-14A CAP / MiG-29A intercept", createSpawns: fighterScenarioSpawns },
 };
 
-export function airScenarioSpawns(id: AirScenarioPresetId, shortValidation = false): AirSpawn[] {
+export function airScenarioSpawns(
+  id: AirScenarioPresetId,
+  shortValidation = false,
+  sovietSalvoValidation = false,
+): AirSpawn[] {
   const spawns = AIR_SCENARIO_PRESETS[id].createSpawns();
   if (!shortValidation || (id !== "joint" && id !== "intercept")) return spawns;
   for (const spawn of spawns) {
     if (spawn.definition.id === "TU-16K") spawn.position.z += 800;
     if (spawn.definition.id === "F-14A") spawn.position.z += 280;
+    if (sovietSalvoValidation && spawn.definition.id === "F-14A")
+      spawn.position.z -= 600;
   }
   return spawns;
 }
