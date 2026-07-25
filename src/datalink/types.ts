@@ -58,3 +58,15 @@ export interface Link11Diagnostics extends Link16Diagnostics {
   netControlStation: string | null;
   cycleSeconds: number;
 }
+
+export type TacticalNetworkKind = "link11" | "link16";
+export interface TacticalNetworkActivity {
+  id: string;
+  network: TacticalNetworkKind;
+  kind: "poll" | "transmit" | "deliver" | "drop";
+  time: number;
+  senderId: string;
+  recipientId?: string;
+  trackId?: string;
+  delay?: number;
+}

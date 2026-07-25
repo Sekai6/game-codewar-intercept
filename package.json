@@ -82,6 +82,7 @@
     "verify:link16-runtime": "node scripts/verify-link16-runtime.mjs",
     "verify:datalink-era": "tsc src/datalink/era.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-datalink-era.mjs",
     "verify:datalink-era-runtime": "node scripts/verify-datalink-era-runtime.mjs",
+    "verify:tactical-network-visual": "node scripts/verify-tactical-network-visual.mjs",
     "verify:air-missile-runtime": "tsc src/air/missile-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-missile-runtime.mjs",
     "verify:ship-defense-runtime": "tsc src/defense/allegiance.ts src/ship-defense/defense-targets.ts src/ship-defense/engagement-runtime.ts src/ship-defense/launcher-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-ship-defense-runtime.mjs",
     "verify:vls-runtime": "tsc src/ship-defense/launcher-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-vls-runtime.mjs",

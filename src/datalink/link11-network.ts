@@ -4,6 +4,7 @@ import type {
   Link16Delivery,
   Link16ParticipantState,
   Link16TrackReport,
+  TacticalNetworkActivity,
 } from "./types.js";
 
 export interface Link11ParticipantState extends Link16ParticipantState {
@@ -30,6 +31,7 @@ export class Link11Network {
   private readonly pending: Pending[] = [];
   private readonly inboxes = new Map<string, Link16Delivery[]>();
   private readonly seen = new Map<string, number>();
+  private readonly activities: TacticalNetworkActivity[] = [];
   private nextRollCallAt = 0;
   private pollIndex = 0;
   private serial = 0;
@@ -47,6 +49,7 @@ export class Link11Network {
   reset() {
     this.participants.clear(); this.queues.clear(); this.pending.length = 0;
     this.inboxes.clear(); this.seen.clear(); this.nextRollCallAt = 0;
+    this.activities.length = 0;
     this.pollIndex = 0; this.serial = 0; this.delayTotal = 0;
     this.diagnosticsState = this.emptyDiagnostics();
   }
@@ -80,6 +83,8 @@ export class Link11Network {
       this.seen.set(key,time); const inbox=this.inboxes.get(delivery.recipientId)??[];
       inbox.push(delivery); this.inboxes.set(delivery.recipientId,inbox);
       this.diagnosticsState.delivered++; this.delayTotal+=delivery.networkDelay;
+      this.record({kind:"deliver",time,senderId:delivery.report.senderId,
+        recipientId:delivery.recipientId,trackId:delivery.report.trackId,delay:delivery.networkDelay});
     }
     for (const [key,at] of this.seen) if(time-at>40)this.seen.delete(key);
     this.diagnosticsState.meanDelay=this.diagnosticsState.delivered?this.delayTotal/this.diagnosticsState.delivered:0;
@@ -92,8 +97,10 @@ export class Link11Network {
     this.diagnosticsState.cycleSeconds=live.length*this.pollSeconds;
     if(!ncs||!live.length)return;
     const sender=live[this.pollIndex++%live.length]; this.diagnosticsState.rollCalls++;
+    this.record({kind:"poll",time,senderId:ncs.id,recipientId:sender.id});
     const queue=this.queues.get(sender.id); const item=queue?.shift(); if(!item)return;
     this.diagnosticsState.transmitted++;
+    this.record({kind:"transmit",time,senderId:sender.id,recipientId:ncs.id,trackId:item.report.trackId});
     for(const recipient of live) {
       if(recipient.id===sender.id||recipient.side!==sender.side||!recipient.receiveEnabled||recipient.terminalHealth<=.05)continue;
       const range=sender.position.distanceTo(recipient.position);
@@ -106,9 +113,17 @@ export class Link11Network {
         quality:item.report.quality*.72,uncertainty:item.report.uncertainty+3500+networkDelay*180};
       this.pending.push({recipientId:recipient.id,report,receivedAt:time+1.1,
         networkDelay,deliverAt:time+1.1});
+      this.record({kind:"transmit",time,senderId:sender.id,recipientId:recipient.id,
+        trackId:item.report.trackId,delay:1.1});
     }
   }
 
   drainInbox(id:string){const value=this.inboxes.get(id)??[];this.inboxes.delete(id);return value;}
   diagnostics():Readonly<Link11Diagnostics>{return {...this.diagnosticsState};}
+  participantStates(){return [...this.participants.values()].map(p=>({...p,position:p.position.clone()}));}
+  recentActivities(time:number){return this.activities.filter(event=>time-event.time<=12).map(event=>({...event}));}
+  private record(event:Omit<TacticalNetworkActivity,"id"|"network">){
+    this.activities.push({...event,id:`L11-${this.serial}-${this.activities.length}`,network:"link11"});
+    if(this.activities.length>96)this.activities.splice(0,this.activities.length-96);
+  }
 }

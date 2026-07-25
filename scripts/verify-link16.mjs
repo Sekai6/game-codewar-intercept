@@ -58,6 +58,9 @@ assert.ok(diagnostics.transmitted >= 2);
 assert.ok(diagnostics.delivered >= 1);
 assert.ok(diagnostics.droppedDuplicate >= 1);
 assert.ok(diagnostics.droppedLink >= 1);
+assert.equal(network.participantStates().length, 4);
+assert.ok(network.recentActivities(3.1).some(event => event.kind === "transmit" && event.recipientId === "blue-2"));
+assert.ok(network.recentActivities(3.1).some(event => event.kind === "deliver" && event.recipientId === "blue-2"));
 
 const priorityNetwork = new Link16Network({ slotsPerFrame: 1, maximumRange: 500 });
 priorityNetwork.upsertParticipant(participant("blue-1", "blue"));

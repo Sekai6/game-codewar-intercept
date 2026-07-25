@@ -4,6 +4,7 @@ import type {
   Link16Diagnostics,
   Link16ParticipantState,
   Link16TrackReport,
+  TacticalNetworkActivity,
 } from "./types.js";
 
 export interface Link16NetworkOptions {
@@ -50,6 +51,7 @@ export class Link16Network {
   private readonly pending: PendingDelivery[] = [];
   private readonly inboxes = new Map<string, Link16Delivery[]>();
   private readonly seenObservations = new Map<string, number>();
+  private readonly activities: TacticalNetworkActivity[] = [];
   private nextFrameAt = 0;
   private serial = 0;
   private delayTotal = 0;
@@ -73,6 +75,7 @@ export class Link16Network {
     this.pending.length = 0;
     this.inboxes.clear();
     this.seenObservations.clear();
+    this.activities.length = 0;
     this.nextFrameAt = 0;
     this.serial = 0;
     this.delayTotal = 0;
@@ -138,6 +141,8 @@ export class Link16Network {
       inbox.push(delivery);
       this.inboxes.set(delivery.recipientId, inbox);
       this.diagnosticsState.delivered++;
+      this.record({kind:"deliver",time,senderId:delivery.report.senderId,
+        recipientId:delivery.recipientId,trackId:delivery.report.trackId,delay:delivery.networkDelay});
       this.delayTotal += delivery.networkDelay;
     }
     for (const [key, seenAt] of this.seenObservations)
@@ -166,6 +171,7 @@ export class Link16Network {
       const sender = this.participants.get(report.senderId);
       if (!sender) continue;
       this.diagnosticsState.transmitted++;
+      this.record({kind:"transmit",time:frameTime,senderId:sender.id,trackId:report.trackId});
       for (const recipient of this.participants.values()) {
         if (
           recipient.id === sender.id ||
@@ -201,6 +207,8 @@ export class Link16Network {
           networkDelay,
           deliverAt: frameTime + networkDelay,
         });
+        this.record({kind:"transmit",time:frameTime,senderId:sender.id,
+          recipientId:recipient.id,trackId:report.trackId,delay:networkDelay});
       }
     }
   }
@@ -213,5 +221,12 @@ export class Link16Network {
 
   diagnostics(): Readonly<Link16Diagnostics> {
     return { ...this.diagnosticsState };
+  }
+
+  participantStates(){return [...this.participants.values()].map(p=>({...p,position:p.position.clone()}));}
+  recentActivities(time:number){return this.activities.filter(event=>time-event.time<=6).map(event=>({...event}));}
+  private record(event:Omit<TacticalNetworkActivity,"id"|"network">){
+    this.activities.push({...event,id:`L16-${this.serial}-${this.activities.length}`,network:"link16"});
+    if(this.activities.length>160)this.activities.splice(0,this.activities.length-160);
   }
 }

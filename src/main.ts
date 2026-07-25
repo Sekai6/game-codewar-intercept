@@ -46,6 +46,7 @@ import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
 import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
 import { createAuroraRuntime } from "./visual/aurora-runtime";
+import { createTacticalNetworkRuntime } from "./visual/tactical-network-runtime";
 import { registerAssetDetailLod, updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
@@ -299,6 +300,11 @@ let clusteredLightCount = 0;
 let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
 const airCombat = new AirCombatSystem(scene);
+const tacticalNetworkRuntime = createTacticalNetworkRuntime({
+  scene,
+  parent: document.querySelector("#app") as HTMLElement,
+  observation: () => airCombat.tacticalNetworkObservation(),
+});
 function addOceanSplash(position: THREE.Vector3, energy: number) {
   ocean.addSplash(position, energy);
   if (gpuParticlesEnabled) webGpuUltraResult?.particles?.emit({
@@ -7860,6 +7866,7 @@ function tick(now: number) {
   canvas.dataset.airCombatEnabled = String(airCombat.enabled);
   canvas.dataset.highQualityEnvironment = String(highQualityEnvironmentEnabled);
   auroraRuntime.writeDiagnostics(canvas);
+  tacticalNetworkRuntime.writeDiagnostics(canvas);
   canvas.dataset.environmentCloudCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.cloudCount : 0);
   canvas.dataset.environmentFogVolumeCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.fogVolumeCount : 0);
   canvas.dataset.environmentSunIntensity = sun.intensity.toFixed(2);
@@ -8204,6 +8211,7 @@ function tick(now: number) {
   ocean.update(elapsed, camera.position);
   highQualityEnvironment.update(elapsed, camera.position);
   auroraRuntime.update(elapsed, camera.position);
+  tacticalNetworkRuntime.update(elapsed);
   const ewPulse = defender.userData.ewPulse as THREE.Group | undefined,
     ewThreat = missiles.some((m) => m.mesh.visible && m.phase === "terminal"),
     ecmHealth = subsystemHealth("ecm");

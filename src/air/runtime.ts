@@ -44,6 +44,7 @@ import {
 import { opposingSides } from "../defense/allegiance.js";
 import { Link16Network } from "../datalink/link16-network.js";
 import { Link11Network } from "../datalink/link11-network.js";
+import type { TacticalNetworkObservation, TacticalNetworkTrackView } from "../datalink/observability.js";
 import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
 import {
@@ -571,6 +572,37 @@ export class AirCombatSystem {
   }
 
   link11Participants() { return [...this.activeLink11ParticipantIds]; }
+
+  tacticalNetworkObservation(time = this.currentTime): TacticalNetworkObservation {
+    const context = this.group.userData.context as AirScenarioContext | undefined;
+    const link11Diagnostics = this.link11.diagnostics();
+    const tracks: TacticalNetworkTrackView[] = [];
+    const seen = new Set<string>();
+    const appendTrack = (track: AirTrack) => {
+      if ((track.source !== "link11" && track.source !== "link16") || seen.has(track.targetId)) return;
+      seen.add(track.targetId);
+      tracks.push({id:track.targetId,network:track.source,position:track.position.clone(),
+        uncertainty:track.uncertainty,quality:track.quality,age:Math.max(0,time-track.lastUpdate),
+        classification:track.classification,senderId:track.senderId});
+    };
+    for(const cues of this.externalLink11Cues.values())for(const track of cues)appendTrack(track);
+    for(const cues of this.externalLink16Cues.values())for(const track of cues)appendTrack(track);
+    for(const aircraft of this.aircraft)for(const track of aircraft.networkTracks.values())appendTrack(track);
+    return {
+      era:context?.datalinkEra??"link16-modernized",
+      enabled:context?.datalinkEnabled??context?.link16Enabled??true,
+      nodes:[
+        ...this.link11.participantStates().map(node=>({...node,network:"link11" as const,
+          role:(node.id===link11Diagnostics.netControlStation?"ncs":"participant") as "ncs"|"participant"})),
+        ...this.link16.participantStates().map(node=>({...node,network:"link16" as const,role:"participant" as const})),
+      ],
+      tracks,
+      activities:[...this.link11.recentActivities(time),...this.link16.recentActivities(time)]
+        .sort((a,b)=>a.time-b.time),
+      link11:link11Diagnostics,
+      link16:this.link16.diagnostics(),
+    };
+  }
 
   private updateFlightVisuals(aircraft: AirPlatformInstance, time: number) {
     const speedRatio = clamp(
