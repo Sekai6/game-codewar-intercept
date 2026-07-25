@@ -3559,7 +3559,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }, 0),
 );
 function classifyAarEvent(text: string): AarCategory {
-  if (/GCI COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2/.test(text))
+  if (/GCI COMMAND|AEW COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2/.test(text))
     return "network";
   if (/POINT DEFENSE FIRE/.test(text)) return "fire";
   if (
@@ -3679,6 +3679,14 @@ function captureAarSnapshot(force = false) {
     })),
     datalink: datalinkSample.snapshot,
     sovietC2: sovietC2Sample.snapshot,
+    aewCommands: airCombat.aewCommands(elapsed).map(command=>({
+      id:command.id,controllerId:command.controllerId,participantId:command.participantId,
+      controllerTrackId:command.controllerTrackId,mode:command.mode,
+      x:command.interceptPoint.x,y:command.interceptPoint.y,z:command.interceptPoint.z,
+      quality:command.quality,uncertainty:command.uncertainty,
+      commandedSpeed:command.commandedSpeed,radarActivationRange:command.radarActivationRange,
+      expiresAt:command.expiresAt,
+    })),
   };
   if (
     force &&
@@ -8136,6 +8144,7 @@ function tick(now: number) {
   canvas.dataset.aarAircraftCount = String(latestAar?.aircraft.length ?? 0);
   canvas.dataset.aarAirWeaponCount = String(latestAar?.airWeapons.length ?? 0);
   canvas.dataset.aarAirDecoyCount = String(latestAar?.airDecoys.length ?? 0);
+  canvas.dataset.aarAewCommandCount = String(latestAar?.aewCommands?.length ?? 0);
   canvas.dataset.airMissionStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.mission}`)
     .join(",");
@@ -8149,6 +8158,12 @@ function tick(now: number) {
   canvas.dataset.link11Ncs = link11Diagnostics.netControlStation ?? "";
   canvas.dataset.link11CycleSeconds = String(link11Diagnostics.cycleSeconds);
   canvas.dataset.link11Participants = airCombat.link11Participants().join("|");
+  canvas.dataset.aewCommandStates = airCombat.aewCommands(elapsed)
+    .map(command=>`${command.participantId}:${command.controllerId}:${command.mode}:${command.controllerTrackId}:${command.quality.toFixed(2)}:${command.uncertainty.toFixed(1)}`)
+    .join("|");
+  canvas.dataset.aewEventLog = airCombat.events
+    .filter(event=>/AEW COMMAND RECEIVED|E-2C Hawkeye DETECT|Tu-126 Moss DETECT/.test(event.text))
+    .map(event=>`${event.time.toFixed(2)}:${event.text}`).join("|");
   canvas.dataset.link16Queued = String(link16Diagnostics.queued);
   canvas.dataset.link16Transmitted = String(link16Diagnostics.transmitted);
   canvas.dataset.link16Delivered = String(link16Diagnostics.delivered);

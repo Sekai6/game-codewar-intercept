@@ -219,6 +219,12 @@ export type AarSovietC2Snapshot = {
   fleetOrders: Array<{ id: string; participantId: string; commandNodeId: string; sourceReportTrackId: string; x: number; y: number; z: number; attackWindowStart: number; attackWindowEnd: number; expiresAt: number }>;
   salvoAssignments: Array<{ id: string; waveId: string; participantId: string; sourceOrderId: string; sourceReportTrackId: string; sequence: number; total: number; releaseAt: number; plannedArrivalAt: number; x: number; y: number; z: number; expiresAt: number }>;
 };
+export type AarAewCommand = {
+  id:string; controllerId:string; participantId:string; controllerTrackId:string;
+  mode:"link4a"|"voice-gci"; x:number; y:number; z:number;
+  quality:number; uncertainty:number; commandedSpeed:number;
+  radarActivationRange:number; expiresAt:number;
+};
 export type AarSnapshot = {
   time: number;
   ship: AarKinematics & { hull: number };
@@ -272,4 +278,5 @@ export type AarSnapshot = {
   })[];
   datalink?: AarDatalinkSnapshot;
   sovietC2?: AarSovietC2Snapshot;
+  aewCommands?: AarAewCommand[];
 };

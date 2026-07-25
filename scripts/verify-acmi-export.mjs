@@ -72,6 +72,7 @@ const snapshots = [
         shooterId: "fighter-1",
       },
     ],
+    aewCommands:[{id:"AEW-CMD-1",controllerId:"blue-E-2C-1",participantId:"fighter-1",controllerTrackId:"AEW-opaque-01",mode:"link4a",x:35,y:70,z:-42,quality:.61,uncertainty:18,commandedSpeed:8.6,radarActivationRange:240,expiresAt:10}],
     missiles: [
       {
         id: 7,
@@ -211,6 +212,7 @@ assert(
   "ordinary weapon removal was falsely reported as destroyed",
 );
 assert(acmi.includes("0,Event=Message|AIM-54A LAUNCH"), "timeline event missing");
+assert(acmi.includes("Name=AEW LINK4A AEW-opaque-01")&&acmi.includes("C2Layer=AEWInterceptControl")&&acmi.includes("WeaponAuthority=No")&&!acmi.includes("ControllerTrack=fighter-1"),"AEW command metadata or truth isolation missing");
 const aircraftLines = acmi.split("\n").filter((line) => line.includes("Name=F-14A Tomcat"));
 assert(aircraftLines.length === 1, "stable aircraft was recreated instead of updated");
 console.log(JSON.stringify({ bytes: acmi.length, frames: 3, aircraftCreates: aircraftLines.length }, null, 2));

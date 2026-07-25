@@ -149,6 +149,14 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
       state: "command-cue-only",
       properties: { C2Layer: "GCI", Participant: command.participantId, CommandMode: command.commandMode, CommandedSpeed: command.commandedSpeed.toFixed(1), RadarActivationRange: command.radarActivationRange.toFixed(0), TrackQuality: command.quality.toFixed(3), Uncertainty: command.uncertainty.toFixed(1), WeaponAuthority: "No" },
     });
+  for(const command of snapshot.aewCommands??[])
+    objects.push({
+      key:`aew-command:${command.id}`,
+      name:`AEW ${command.mode.toUpperCase()} ${command.controllerTrackId}`,
+      type:"Misc+Waypoint",coalition:"Neutral",x:command.x,y:command.y,z:command.z,
+      state:"command-cue-only",
+      properties:{C2Layer:"AEWInterceptControl",Controller:command.controllerId,Participant:command.participantId,CommandMode:command.mode,ControllerTrack:command.controllerTrackId,TrackQuality:command.quality.toFixed(3),Uncertainty:command.uncertainty.toFixed(1),CommandedSpeed:command.commandedSpeed.toFixed(1),RadarActivationRange:command.radarActivationRange.toFixed(0),WeaponAuthority:"No"},
+    });
   for (const area of snapshot.sovietC2?.maritimeAreas ?? [])
     objects.push({
       key: `soviet-target-area:${area.id}`,

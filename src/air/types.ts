@@ -118,11 +118,21 @@ export interface AirPlatformDefinition {
   };
   sensor: AirSensorDefinition;
   datalink?: {
-    link16: true;
-    minimumEra: "jtids-transition" | "link16-modernized";
+    link16?: true;
+    link11?: true;
+    link11NetControlCapable?: boolean;
+    minimumEra?: "jtids-transition" | "link16-modernized";
     terminalName: string;
     terminalReliability: number;
     timeSyncQuality: number;
+  };
+  aewCommand?: {
+    mode: "link4a" | "voice-gci";
+    controllerCapacity: number;
+    commandDelay: number;
+    commandLife: number;
+    reliability: number;
+    fighterPlatformIds: readonly AirPlatformId[];
   };
   ecm: { strength: number; burnThroughRange: number };
   countermeasures: {
