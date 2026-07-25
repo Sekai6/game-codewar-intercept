@@ -8023,6 +8023,12 @@ function tick(now: number) {
     })
     .join("|");
   canvas.dataset.advancedAirPerceptionUpdates = String(air.perceptionUpdates);
+  canvas.dataset.advancedAirMissionUpdates = String(air.missionPlanningUpdates);
+  canvas.dataset.advancedAirMissionPlans = air.missionPlanningStates
+    .map((state) =>
+      `${state.id}:${state.assignedMission}:${state.order}:${state.phase}:${state.reason}:${state.updates}`,
+    )
+    .join("|");
   canvas.dataset.advancedAirPerceivedContacts = air.perceivedContacts
     .flatMap((aircraft) => aircraft.contacts.map((contact) =>
       `${aircraft.id}:${contact.trackNumber}:${contact.source}:${contact.classification}:${contact.quality.toFixed(2)}:${contact.uncertainty.toFixed(1)}:${contact.weaponAuthorization ? "weapon" : "cue"}`,

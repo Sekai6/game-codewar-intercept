@@ -21,6 +21,8 @@
 
 高级编队层以匿名 `F-xxxx` 编队航迹分配长机、射手、支援、掩护、防御和重新集合角色，并限制成员只能接收自己确实观察到的目标。威胁响应按 `monitor -> beam/notch -> break/drag -> recover` 状态机执行，雷达威胁使用箔条、红外威胁使用热焰弹；近距 break 命令仍必须经过滚转率、动压、过载建立和诱导阻力约束。`verify:air-turn-kinematics` 与实际浏览器/ACMI 验证防止再次出现单帧直角转弯。
 
+`src/air/ai/mission-planner.ts` 以独立 `0.4 Hz` 层管理 `on-station / commit / retreat / egress / return` 生命周期。它只消费本机状态、匿名感知航迹、友方保护对象状态、弹药与损伤，不读取敌方实体真值；返航门槛包含当前位置到任务起点的航程、发动机状态和 12% 储备。AEW 在观测到防线穿透时移动巡逻站位，护航对象损失、任务系统损伤、反舰弹药用尽或 Bingo fuel 会触发明确的任务终止原因。由毁伤或武器释放层发出的返航/脱离不可被后续规划周期撤销。关闭 `ADVANCED FLIGHT AI` 时该规划器保持零更新。
+
 场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `TACTICAL DATA LINK ENABLED` 控件。默认 `NTU BASELINE` 使用美军舰载 Link 11/TADIL-A，不启用 Link 16；`JTIDS TRANSITION` 保留舰艇 Link 11，同时只允许达到年代门槛的 F-14A JTIDS 终端进入 Link 16；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰进入 Link 16。总开关会同时断开该年代可用的数据链，并清空参与节点、队列、远程航迹和提示。苏联 Tu-16K、MiG-29A 不进入这两种美军网络。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
 
 Link 11 是独立的轮询式网络：由存活且具备能力的节点选出 Net Control Station，NCS 每次只轮询一个参与者；节点数量会直接拉长完整刷新周期。报告要承受排队、调制解调器延迟、距离/终端健康丢包、较大的不确定度与质量折损，并保持阵营隔离。`AEW` 预设中的 E-2C 以 AN/ARC-158 作为真实 Link 11 报告源，其 AN/APS-125 本机概率探测结果经轮询发送给舰队；F-14A 并未被伪装成 Link 11 节点，而是通过有容量、延迟和寿命限制的 Link 4A 截击命令受控。AI 只把未过期的网络报告用于搜索提示，不能据此建火控航迹、发射武器或更新导弹。

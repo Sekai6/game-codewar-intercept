@@ -26,6 +26,7 @@ try {
   const disabled = await page.locator("#scene").evaluate(canvas => ({
     enabled: canvas.dataset.advancedAirAiEnabled,
     updates: Number(canvas.dataset.advancedAirAiUpdates ?? -1),
+    missionUpdates: Number(canvas.dataset.advancedAirMissionUpdates ?? -1),
   }));
   await page.locator("#sbAdvancedAirAi").evaluate(input => {
     input.checked = true;
@@ -39,6 +40,8 @@ try {
   const enabled = await page.locator("#scene").evaluate(canvas => ({
     enabled: canvas.dataset.advancedAirAiEnabled,
     updates: Number(canvas.dataset.advancedAirAiUpdates ?? 0),
+    missionUpdates: Number(canvas.dataset.advancedAirMissionUpdates ?? 0),
+    missionPlans: canvas.dataset.advancedAirMissionPlans ?? "",
     states: canvas.dataset.advancedAirAiStates ?? "",
   }));
   console.log(JSON.stringify({ disabled, enabled, errors }, null, 2));
@@ -46,8 +49,11 @@ try {
     errors.length ||
     disabled.enabled !== "false" ||
     disabled.updates !== 0 ||
+    disabled.missionUpdates !== 0 ||
     enabled.enabled !== "true" ||
     enabled.updates <= 0 ||
+    enabled.missionUpdates <= 0 ||
+    !enabled.missionPlans.includes(":on-station:") ||
     !enabled.states.includes("normal")
   ) process.exitCode = 1;
 } finally {

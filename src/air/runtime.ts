@@ -25,6 +25,10 @@ import {
 import { STANDARD_ADVANCED_PILOT } from "./ai/pilot-model.js";
 import { planThreatResponse } from "./ai/threat-response.js";
 import {
+  initialMissionPlannerState,
+  planAirMission,
+} from "./ai/mission-planner.js";
+import {
   planFormationTactics,
   type FormationContactObservation,
 } from "./ai/formation-tactics.js";
@@ -259,6 +263,11 @@ function instantiate(
     advancedFlightState: initialAdvancedFlightState(spawn.definition),
     tacticalState: initialAirTacticalState(),
     pilotPerception: initialPilotPerception(),
+    missionPlanningState: initialMissionPlannerState({
+      mission: spawn.mission ?? spawn.definition.mission,
+      position: spawn.position,
+    }),
+    nextMissionPlanningUpdate: 0,
     nextPerceptionUpdate: 0,
     tracks: new Map(),
     networkTracks: new Map(),
@@ -1133,7 +1142,7 @@ export class AirCombatSystem {
   }
 
   private strikeCommandAllowsRelease(a: AirPlatformInstance, time: number) {
-    if (a.definition.id !== "TU-16K" || a.mission !== "anti-ship") return true;
+    if (a.side !== "red" || a.mission !== "anti-ship") return true;
     if (!this.sovietFleetCommand.diagnostics(time).enabled) return true;
     const order = this.fleetOrderForAircraft(a, time);
     if (!order) return time >= 15;
@@ -2005,7 +2014,7 @@ export class AirCombatSystem {
       a.nextPerceptionUpdate = time +
         STANDARD_ADVANCED_PILOT.perceptionRefreshSeconds;
     }
-    if (a.fuel <= 0) a.mission = "return";
+    if (!context.advancedAirAiEnabled && a.fuel <= 0) a.mission = "return";
     const observedTracks = [...a.tracks.values(), ...a.networkTracks.values()].filter(
         (track) => time - track.lastUpdate <= 8 && track.quality >= 0.04,
       ),
@@ -2021,7 +2030,64 @@ export class AirCombatSystem {
     const hasAirborneWeapon = this.missiles.some(
       (missile) => missile.alive && missile.shooterId === a.id,
     );
-    if (
+    if (context.advancedAirAiEnabled && time >= a.nextMissionPlanningUpdate) {
+      const previousPhase = a.missionPlanningState.phase;
+      const previousOrder = a.mission;
+      const protectedAsset = a.protectedId
+        ? this.aircraft.find((candidate) => candidate.id === a.protectedId)
+        : undefined;
+      const escortAvailable = this.aircraft.some((candidate) =>
+        candidate.alive && candidate.side === a.side && candidate.id !== a.id &&
+        candidate.definition.mission !== "aew" &&
+        candidate.position.distanceTo(a.position) <= 220);
+      const missionPlan = planAirMission({
+        time,
+        state: a.missionPlanningState,
+        currentOrder: a.mission,
+        position: a.position,
+        heading: a.heading,
+        fuelRemaining: a.fuel,
+        nominalFuel: a.definition.flight.fuelSeconds,
+        cruiseSpeed: a.definition.flight.cruiseSpeed,
+        engineHealth: ((a.subsystemHealth.get("left-engine") ?? 0) +
+          (a.subsystemHealth.get("right-engine") ?? 0)) / 200,
+        flightControlHealth:
+          (a.subsystemHealth.get("flight-control") ?? 0) / 100,
+        radarHealth: (a.subsystemHealth.get("radar") ?? 0) / 100,
+        weaponSystemHealth: (a.subsystemHealth.get("weapons") ?? 0) / 100,
+        weaponsRemaining: [...a.ammo.values()].reduce(
+          (total, count) => total + count,
+          0,
+        ),
+        hasAirborneWeapon,
+        hasEngaged: a.engagements.size > 0,
+        contactLostSeconds: time - (a.noContactSince ?? time),
+        contacts: [...a.pilotPerception.contacts.values()].map((contact) => ({
+          position: contact.estimatedPosition,
+          quality: contact.quality,
+          classification: contact.classification,
+        })),
+        protectedAssetAlive: !a.protectedId || Boolean(protectedAsset?.alive),
+        escortAvailable,
+      });
+      a.missionPlanningState = missionPlan.state;
+      a.mission = missionPlan.order;
+      a.nextMissionPlanningUpdate = time + 2.5;
+      if (missionPlan.navigationPoint) {
+        const point = new THREE.Vector3(...missionPlan.navigationPoint);
+        if (missionPlan.order === "aew")
+          a.model.userData.aewStation = point;
+        else
+          a.desiredDirection.copy(point).sub(a.position).normalize();
+      }
+      if (previousPhase !== missionPlan.state.phase ||
+          previousOrder !== missionPlan.order)
+        this.emit(
+          time,
+          "maneuver",
+          `${a.definition.name} MISSION ${missionPlan.state.phase.toUpperCase()} / ${missionPlan.state.reason.toUpperCase()}`,
+        );
+    } else if (!context.advancedAirAiEnabled &&
       missionShouldReturn({
         mission: a.mission,
         hasEngaged: a.engagements.size > 0,
@@ -2029,8 +2095,7 @@ export class AirCombatSystem {
         observedThreats,
         contactLostSeconds: time - (a.noContactSince ?? time),
         hasAirborneWeapon,
-      })
-    ) {
+      })) {
       a.mission = "return";
       a.state = "egress";
     }
@@ -2225,19 +2290,19 @@ export class AirCombatSystem {
         const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
         const fleetOrder = this.fleetOrderForAircraft(a, time);
         const salvoPlan = this.sovietSalvoCoordinator.planFor(a.id, time);
-        if (salvoPlan && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+        if (salvoPlan && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(salvoPlan.searchPoint)
             .sub(a.position)
             .normalize();
-        } else if (fleetOrder && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+        } else if (fleetOrder && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(fleetOrder.approachPoint)
             .sub(a.position)
             .normalize();
-        } else if (maritimeCue && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+        } else if (maritimeCue && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(maritimeCue.launchRegionCenter)
@@ -3154,6 +3219,18 @@ export class AirCombatSystem {
             weaponAuthorization: contact.weaponAuthorization,
           }),
         ),
+      })),
+      missionPlanningUpdates: this.aircraft.reduce(
+        (sum, aircraft) => sum + aircraft.missionPlanningState.updates,
+        0,
+      ),
+      missionPlanningStates: this.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        assignedMission: aircraft.missionPlanningState.assignedMission,
+        order: aircraft.mission,
+        phase: aircraft.missionPlanningState.phase,
+        reason: aircraft.missionPlanningState.reason,
+        updates: aircraft.missionPlanningState.updates,
       })),
     };
   }
