@@ -12,6 +12,7 @@ const base = (mission, overrides = {}) => ({
   position,
   heading: { x: 0, y: 0, z: -1 },
   fuelRemaining: 800,
+  fuelLeakPerSecond: 0,
   nominalFuel: 900,
   cruiseSpeed: 5,
   engineHealth: 1,

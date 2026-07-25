@@ -8417,6 +8417,13 @@ function tick(now: number) {
     .filter((event) => event.kind === "damage")
     .map((event) => event.text)
     .join("|");
+  canvas.dataset.advancedAirDamageStates = airCombat
+    .damageManagementDiagnostics()
+    .map((entry) =>
+      `${entry.aircraftId}:${entry.mode}:${entry.trimYawDeg.toFixed(2)}:` +
+      `${entry.maximumBankDeg.toFixed(1)}:${entry.maximumLoadFactor.toFixed(2)}:` +
+      `${entry.fuelLeakPerSecond.toFixed(3)}:${entry.radarOperational}`)
+    .join("|");
   canvas.dataset.airReleaseAuthorizationLog = airCombat.events
     .filter((event) => event.text.includes("RELEASE AUTHORIZED"))
     .map((event) => event.text)

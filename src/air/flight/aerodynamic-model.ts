@@ -63,3 +63,65 @@ export function evaluateAerodynamics(input: {
     stalled,
   };
 }
+
+export interface LongitudinalForceBalance {
+  thrustAcceleration: number;
+  parasiteDragAcceleration: number;
+  inducedDragAcceleration: number;
+  gravityAcceleration: number;
+  netAcceleration: number;
+}
+
+/**
+ * Point-mass force balance in world-speed units. The catalog acceleration and
+ * drag values remain game-scaled, while density, load and flight-path effects
+ * follow the same relationships as dimensional lift/drag equations.
+ */
+export function evaluateLongitudinalForceBalance(input: {
+  speed: number;
+  altitude: number;
+  flightPathDeg: number;
+  loadFactor: number;
+  stallSpeed: number;
+  maximumSpeed: number;
+  baseAcceleration: number;
+  baseDrag: number;
+  thrustModeFactor: number;
+  thrustFraction: number;
+  aerodynamics: ReturnType<typeof evaluateAerodynamics>;
+}): LongitudinalForceBalance {
+  const density = input.aerodynamics.densityRatio;
+  const speedRatio = clamp(
+    input.speed / Math.max(input.stallSpeed, input.maximumSpeed),
+    0,
+    1.25,
+  );
+  // Turbojet/turbofan thrust lapses with density; forward speed restores only
+  // a small part of it through ram pressure.
+  const thrustLapse = clamp(
+    0.34 + density * 0.66 + speedRatio * 0.08,
+    0.32,
+    1.06,
+  );
+  const thrustAcceleration = input.baseAcceleration * input.thrustModeFactor *
+    input.thrustFraction * thrustLapse;
+  const parasiteDragAcceleration = input.baseDrag * input.speed * input.speed *
+    density * (0.82 + input.aerodynamics.dragCoefficient * 5.5);
+  // Induced drag follows n^2 / q. The floor keeps the approximation bounded
+  // during stall recovery, where the envelope protector owns the response.
+  const pressureRatio = Math.max(0.22,
+    input.aerodynamics.dynamicPressureRatio);
+  const inducedDragAcceleration = input.baseDrag * input.stallSpeed ** 2 *
+    0.72 * Math.max(0, input.loadFactor ** 2 - 1) / pressureRatio;
+  const gravityWorld = 9.81 / WORLD_SPEED_TO_METERS_PER_SECOND;
+  const gravityAcceleration = gravityWorld *
+    Math.sin(input.flightPathDeg * Math.PI / 180);
+  return {
+    thrustAcceleration,
+    parasiteDragAcceleration,
+    inducedDragAcceleration,
+    gravityAcceleration,
+    netAcceleration: thrustAcceleration - parasiteDragAcceleration -
+      inducedDragAcceleration - gravityAcceleration,
+  };
+}

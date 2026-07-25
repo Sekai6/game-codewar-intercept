@@ -15,6 +15,7 @@ import { initialAdvancedFlightState } from "./flight/aircraft-performance.js";
 import { initialAirTacticalState, transitionTacticalState } from "./ai/tactical-state.js";
 import { planBvrManeuver } from "./ai/tactical-planner.js";
 import { planBfmManeuver } from "./ai/bfm-planner.js";
+import { planDamageFlight } from "./ai/damage-management.js";
 import {
   WORLD_ALTITUDE_TO_METERS,
   WORLD_SPEED_TO_METERS_PER_SECOND,
@@ -1014,6 +1015,27 @@ export class AirCombatSystem {
   }
 
   link11Diagnostics() { return this.link11.diagnostics(); }
+
+  damageManagementDiagnostics() {
+    if (!this.activeAdvancedAirAi) return [];
+    return this.aircraft.map((aircraft) => {
+      const plan = planDamageFlight({
+        mission: aircraft.mission,
+        maximumLoadFactor: aircraft.definition.flight.maxLoadFactor,
+        structureHealth: aircraft.subsystemHealth.get("structure") ?? 0,
+        leftEngineHealth: aircraft.subsystemHealth.get("left-engine") ?? 0,
+        rightEngineHealth: aircraft.subsystemHealth.get("right-engine") ?? 0,
+        radarHealth: aircraft.subsystemHealth.get("radar") ?? 0,
+        flightControlHealth: aircraft.subsystemHealth.get("flight-control") ?? 0,
+        weaponSystemHealth: aircraft.subsystemHealth.get("weapons") ?? 0,
+        alternativeCloseWeaponAvailable: [...aircraft.ammo.entries()].some(
+          ([weaponId, count]) => count > 0 &&
+            AIR_WEAPONS[weaponId].guidance === "infrared",
+        ),
+      });
+      return { aircraftId: aircraft.id, ...plan };
+    });
+  }
 
   sovietGciDiagnostics(time = this.currentTime) {
     return this.sovietGci.diagnostics(time);
@@ -2066,6 +2088,28 @@ export class AirCombatSystem {
     const hasAirborneWeapon = this.missiles.some(
       (missile) => missile.alive && missile.shooterId === a.id,
     );
+    const damagePlan = context.advancedAirAiEnabled
+      ? planDamageFlight({
+          mission: a.mission,
+          maximumLoadFactor: a.definition.flight.maxLoadFactor,
+          structureHealth: a.subsystemHealth.get("structure") ?? 0,
+          leftEngineHealth: a.subsystemHealth.get("left-engine") ?? 0,
+          rightEngineHealth: a.subsystemHealth.get("right-engine") ?? 0,
+          radarHealth: a.subsystemHealth.get("radar") ?? 0,
+          flightControlHealth: a.subsystemHealth.get("flight-control") ?? 0,
+          weaponSystemHealth: a.subsystemHealth.get("weapons") ?? 0,
+          alternativeCloseWeaponAvailable: [...a.ammo.entries()].some(
+            ([weaponId, count]) => count > 0 &&
+              AIR_WEAPONS[weaponId].guidance === "infrared",
+          ),
+        })
+      : null;
+    if (damagePlan?.recommendedOrder === "return" && a.mission !== "return") {
+      a.mission = "return";
+      a.state = "egress";
+      this.emit(time, "maneuver",
+        `${a.definition.name} DAMAGE MANAGEMENT ABORT / RETURN`);
+    }
     if (context.advancedAirAiEnabled && time >= a.nextMissionPlanningUpdate) {
       const previousPhase = a.missionPlanningState.phase;
       const previousOrder = a.mission;
@@ -2083,6 +2127,7 @@ export class AirCombatSystem {
         position: a.position,
         heading: a.heading,
         fuelRemaining: a.fuel,
+        fuelLeakPerSecond: damagePlan?.fuelLeakPerSecond ?? 0,
         nominalFuel: a.definition.flight.fuelSeconds,
         cruiseSpeed: a.definition.flight.cruiseSpeed,
         engineHealth: ((a.subsystemHealth.get("left-engine") ?? 0) +
@@ -2476,10 +2521,15 @@ export class AirCombatSystem {
       });
       const pilotDirection = a.desiredDirection.clone()
         .applyAxisAngle(UP, THREE.MathUtils.degToRad(controlError.headingDeg));
+      if (damagePlan)
+        pilotDirection.applyAxisAngle(
+          UP,
+          THREE.MathUtils.degToRad(damagePlan.trimYawDeg),
+        );
       pilotDirection.y = clamp(
         pilotDirection.y + THREE.MathUtils.degToRad(controlError.pitchDeg),
         -0.9,
-        0.9,
+        damagePlan?.maximumVerticalCommand ?? 0.9,
       );
       pilotDirection.normalize();
       const advancedStep = stepFlightDirector({
@@ -2496,12 +2546,19 @@ export class AirCombatSystem {
           desiredDirection: pilotDirection,
           thrustMode: a.thrustMode,
           energyPriority: a.tacticalState.energyPriority,
-          bankLimitDeg: a.tacticalState.commandedBankLimitDeg ?? undefined,
+          bankLimitDeg: a.tacticalState.commandedBankLimitDeg === null
+            ? damagePlan?.maximumBankDeg
+            : Math.min(
+                a.tacticalState.commandedBankLimitDeg,
+                damagePlan?.maximumBankDeg ?? 84,
+              ),
           loadFactorCommand: a.tacticalState.commandedLoadFactor === null
             ? undefined
             : Math.min(
                 a.tacticalState.commandedLoadFactor,
                 a.pilotState.gToleranceAvailable,
+                damagePlan?.maximumLoadFactor ??
+                  a.definition.flight.maxLoadFactor,
               ),
         },
         dt,
@@ -2509,7 +2566,10 @@ export class AirCombatSystem {
       a.advancedFlightState = advancedStep.state;
       a.bank = advancedStep.bankRad;
       a.heading.copy(advancedStep.heading);
-      a.fuel = consumeFuel(a.fuel, advancedStep.fuelBurn);
+      a.fuel = consumeFuel(
+        a.fuel,
+        advancedStep.fuelBurn + (damagePlan?.fuelLeakPerSecond ?? 0) * dt,
+      );
       a.thrustMode = advancedStep.thrustMode;
       a.afterburnerRemaining = Math.max(
         0,

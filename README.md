@@ -13,7 +13,7 @@
 
 场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。高级模型使用统一物理单位计算指数大气密度、真实动压、速度/高度相关的可用过载、有限 G 建立率、寄生与诱导阻力、协调转弯率、爬升能量损失、能量高度和比剩余功率 `Ps`。飞机不能由脚本瞬间改变航向；高 G 规避会掉速，高空低动压会压低可用过载，AoA 越界会进入包线保护或失速恢复。每架飞机的上述状态均进入运行时诊断。
 
-高级管线保持单一集成边界：任务层当前仍产生机动意图，`flight-director.ts` 将意图转换为坡度、载荷、迎角和推力命令，`control-law.ts`、`envelope-protection.ts`、`aerodynamic-model.ts` 与 `engine-model.ts` 依次约束并积分输出；`runtime.ts` 只选择高级/兼容路径、应用结果和生成事件。`verify:advanced-air-flight` 验证能量、发动机迟滞、控制限制和失速恢复，单 renderer 的 `verify:advanced-air-ai-toggle` 验证关闭时零高级更新及运行中开启后的状态增长。
+高级管线保持单一集成边界：任务层当前仍产生机动意图，`flight-director.ts` 将意图转换为坡度、载荷、迎角和推力命令，`control-law.ts`、`envelope-protection.ts`、`aerodynamic-model.ts` 与 `engine-model.ts` 依次约束并积分输出；`runtime.ts` 只选择高级/兼容路径、应用结果和生成事件。纵向点质量受力明确拆成发动机推力、寄生阻力、随实际载荷平方增长的诱导阻力和沿航迹方向的重力分量；密度同时影响动压、可用过载、阻力和推力衰减。`verify:advanced-air-aerodynamics` 验证高 G 掉速、爬升/下降能量交换、高空推力/阻力变化和低动压 G 限制，`verify:advanced-air-flight` 验证发动机迟滞、控制限制和失速恢复，单 renderer 的 `verify:advanced-air-ai-toggle` 验证关闭时零高级更新及运行中开启后的状态增长。
 
 高级模式的空空武器使用会根据本机速度/高度、目标估计速度/高度、闭合率、航迹质量和不确定度计算动态 `Rmin / Rne / Rtr / Rmax`，常规射击必须进入 `Rtr`，防御机会射击可放宽到 `Rmax`。发射后，主动弹在导引头自主前维持支援并执行 crank，自主后允许 pump；AIM-7F/R-27R 在全程保持半主动照射。探测到来弹后只依据告警航迹估算 TTI，较远时 notch，近迫时 drag。交战账本仍阻止向在途目标叠射，但支援航迹可继续驱动雷达和机动，且不能重新授予武器权限。对应门槛为 `verify:advanced-air-bvr` 和单 renderer 的 `verify:advanced-air-bvr-runtime`。
 
@@ -24,6 +24,8 @@
 `src/air/ai/mission-planner.ts` 以独立 `0.4 Hz` 层管理 `on-station / commit / retreat / egress / return` 生命周期。它只消费本机状态、匿名感知航迹、友方保护对象状态、弹药与损伤，不读取敌方实体真值；返航门槛包含当前位置到任务起点的航程、发动机状态和 12% 储备。AEW 在观测到防线穿透时移动巡逻站位，护航对象损失、任务系统损伤、反舰弹药用尽或 Bingo fuel 会触发明确的任务终止原因。由毁伤或武器释放层发出的返航/脱离不可被后续规划周期撤销。关闭 `ADVANCED FLIGHT AI` 时该规划器保持零更新。
 
 `pilot-model.ts` 提供 `rookie / regular / veteran / ace` 四档飞行员配置和持续人因状态。技能只影响反应时间、感知刷新、航迹记忆、操纵精度、风险偏好、G 耐受、抗压与工作负荷，不改变飞机推力、气动或传感器真值。导弹告警会先经过压力相关的反应倒计时；多目标、导弹支持、毁伤和高 G 会增加任务饱和、压力与疲劳，继而降低感知频率、记忆、控制精度和可持续 G。操纵误差按飞行员 ID 与仿真时间确定性生成，保证回放可复现。关闭高级 AI 时人因层同样零更新。
+
+`damage-management.ts` 把关键系统毁伤转换为可执行的飞行限制：左右发动机差异产生有限偏航配平，飞控和结构损伤降低坡度/G 包线，发动机损伤限制爬升，结构或发动机舱损伤可产生持续漏油并进入返航燃油解算，雷达失效时仅在确有红外替代武器时允许继续近距任务。不可控状态仍交给标准失控、坠海和 AAR 链处理，不由 AI 旁路删除实体。`verify:advanced-air-damage-management` 覆盖这些判据。
 
 近距空战由 `bfm-planner.ts` 读取匿名估计航迹的距离、闭合率、机鼻偏角、目标方位与双方估计能量，选择一圈、两圈、提前追踪、滞后追踪、剪式或防御盘旋。低空机动带有强制爬升偏置，所有坡度/过载请求继续经过飞行员 G 耐受、飞控、动压、AoA 和失速保护。近距高级武器选择优先红外弹，必须连续保持按导引类型定义的稳定射击窗口；机鼻瞬间扫过或航迹几何中断会把窗口清零。`bfmValidation=1` 仅用于受控浏览器验收，不改变普通场景出生数据。
 

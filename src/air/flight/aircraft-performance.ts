@@ -19,6 +19,10 @@ export interface AdvancedFlightState {
   dynamicPressure: number;
   specificEnergy: number;
   specificExcessPower: number;
+  thrustAcceleration: number;
+  parasiteDragAcceleration: number;
+  inducedDragAcceleration: number;
+  gravityAcceleration: number;
   engineSpool: number;
   stalled: boolean;
   controlMode: "normal" | "angle-of-attack-limit" | "stall-recovery";
@@ -37,6 +41,10 @@ export function initialAdvancedFlightState(
     dynamicPressure: 0.5 * 1.225 * speedMetersPerSecond * speedMetersPerSecond,
     specificEnergy: speedMetersPerSecond * speedMetersPerSecond / (2 * 9.81),
     specificExcessPower: 0,
+    thrustAcceleration: 0,
+    parasiteDragAcceleration: 0,
+    inducedDragAcceleration: 0,
+    gravityAcceleration: 0,
     engineSpool: 0.58,
     stalled: false,
     controlMode: "normal",

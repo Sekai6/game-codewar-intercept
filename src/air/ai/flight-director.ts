@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import type { AirPlatformDefinition, AirThrustMode } from "../types";
-import { evaluateAerodynamics } from "../flight/aerodynamic-model.js";
+import {
+  evaluateAerodynamics,
+  evaluateLongitudinalForceBalance,
+} from "../flight/aerodynamic-model.js";
 import {
   aircraftPerformance,
   type AdvancedFlightState,
@@ -113,15 +116,20 @@ export function stepFlightDirector(input: {
     : engine.thrustMode === "cruise" ? 0.72
     : engine.thrustMode === "military" ? flight.thrust.militaryAccelerationFactor
     : flight.thrust.afterburnerAccelerationFactor;
-  const thrustAcceleration = flight.acceleration * modeFactor * engine.thrustFraction;
-  const dragAcceleration = flight.drag * input.speed * input.speed *
-    (0.7 + aero.dragCoefficient * 8);
-  const climbLoss = Math.max(0, Math.sin(RAD(currentPathDeg))) * 0.45;
-  const inducedLoadLoss = 0.016 *
-    Math.max(0, realizedLoadFactor * realizedLoadFactor - 1) *
-    Math.pow(flight.stallSpeed / Math.max(flight.stallSpeed * 0.72, input.speed), 2);
-  const acceleration = thrustAcceleration - dragAcceleration - climbLoss -
-    inducedLoadLoss;
+  const forceBalance = evaluateLongitudinalForceBalance({
+    speed: input.speed,
+    altitude: input.altitude,
+    flightPathDeg: currentPathDeg,
+    loadFactor: realizedLoadFactor,
+    stallSpeed: flight.stallSpeed,
+    maximumSpeed: flight.maxSpeed,
+    baseAcceleration: flight.acceleration,
+    baseDrag: flight.drag,
+    thrustModeFactor: modeFactor,
+    thrustFraction: engine.thrustFraction,
+    aerodynamics: aero,
+  });
+  const acceleration = forceBalance.netAcceleration;
   const speed = clamp(
     input.speed + acceleration * input.dt,
     flight.stallSpeed * 0.72,
@@ -174,6 +182,10 @@ export function stepFlightDirector(input: {
     dynamicPressure: aero.dynamicPressure,
     specificEnergy,
     specificExcessPower,
+    thrustAcceleration: forceBalance.thrustAcceleration,
+    parasiteDragAcceleration: forceBalance.parasiteDragAcceleration,
+    inducedDragAcceleration: forceBalance.inducedDragAcceleration,
+    gravityAcceleration: forceBalance.gravityAcceleration,
     engineSpool: engine.engineSpool,
     stalled: aero.stalled,
     controlMode: protection.mode,
