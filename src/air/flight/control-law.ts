@@ -17,9 +17,12 @@ export function stepControlLaw(input: {
   flightControlHealth: number;
   dt: number;
   performance: AircraftPerformance;
+  desiredBankLimitDeg?: number;
+  loadFactorCommand?: number;
 }) {
   const headingError = wrapDeg(input.desiredHeadingDeg - input.currentHeadingDeg);
-  const desiredBankDeg = clamp(headingError * 1.35, -72, 72);
+  const bankLimit = clamp(input.desiredBankLimitDeg ?? 72, 35, 84);
+  const desiredBankDeg = clamp(headingError * 1.35, -bankLimit, bankLimit);
   const rollStep = input.maximumRollRateDeg * input.flightControlHealth * input.dt;
   const bankDeg = input.currentBankDeg + clamp(
     desiredBankDeg - input.currentBankDeg,
@@ -28,7 +31,10 @@ export function stepControlLaw(input: {
   );
   const pathError = input.desiredFlightPathDeg - input.currentFlightPathDeg;
   const requestedLoadFactor = clamp(
-    1 + Math.abs(bankDeg) / 34 + Math.max(0, pathError) / 12,
+    Math.max(
+      1 + Math.abs(bankDeg) / 34 + Math.max(0, pathError) / 12,
+      input.loadFactorCommand ?? 1,
+    ),
     0.3,
     input.maximumLoadFactor,
   );

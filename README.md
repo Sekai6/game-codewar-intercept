@@ -11,13 +11,15 @@
 
 ## 联合空中作战
 
-场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。第一阶段已加入发动机推力建立/衰减、动压、迎角、侧滑、载荷、诱导阻力、能量高度、比剩余功率 `Ps`、AoA 限制和失速恢复状态。每架飞机的上述状态均进入运行时诊断，后续动态发射区和 BVR/BFM 决策将消费这些状态，而不是继续直接改变速度或航向。
+场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。高级模型使用统一物理单位计算指数大气密度、真实动压、速度/高度相关的可用过载、有限 G 建立率、寄生与诱导阻力、协调转弯率、爬升能量损失、能量高度和比剩余功率 `Ps`。飞机不能由脚本瞬间改变航向；高 G 规避会掉速，高空低动压会压低可用过载，AoA 越界会进入包线保护或失速恢复。每架飞机的上述状态均进入运行时诊断。
 
 高级管线保持单一集成边界：任务层当前仍产生机动意图，`flight-director.ts` 将意图转换为坡度、载荷、迎角和推力命令，`control-law.ts`、`envelope-protection.ts`、`aerodynamic-model.ts` 与 `engine-model.ts` 依次约束并积分输出；`runtime.ts` 只选择高级/兼容路径、应用结果和生成事件。`verify:advanced-air-flight` 验证能量、发动机迟滞、控制限制和失速恢复，单 renderer 的 `verify:advanced-air-ai-toggle` 验证关闭时零高级更新及运行中开启后的状态增长。
 
 高级模式的空空武器使用会根据本机速度/高度、目标估计速度/高度、闭合率、航迹质量和不确定度计算动态 `Rmin / Rne / Rtr / Rmax`，常规射击必须进入 `Rtr`，防御机会射击可放宽到 `Rmax`。发射后，主动弹在导引头自主前维持支援并执行 crank，自主后允许 pump；AIM-7F/R-27R 在全程保持半主动照射。探测到来弹后只依据告警航迹估算 TTI，较远时 notch，近迫时 drag。交战账本仍阻止向在途目标叠射，但支援航迹可继续驱动雷达和机动，且不能重新授予武器权限。对应门槛为 `verify:advanced-air-bvr` 和单 renderer 的 `verify:advanced-air-bvr-runtime`。
 
 高级模式还为每架飞机维护独立的飞行员感知图。AI 仅接收匿名 `P-xxxx` 航迹、估计位置/速度、分类置信度、质量、不确定度、来源和武器授权；实体 ID 到匿名航迹的绑定只存在于 `runtime.ts` 的私有适配层。丢失观测后航迹按最后估计速度外推、质量衰减且误差增长，记忆航迹不能开火；Link 11/16 提示同样不能授予武器权限。关闭 `ADVANCED FLIGHT AI` 时不更新这套感知模型。`verify:advanced-air-perception` 与单 renderer 的 `verify:advanced-air-perception-runtime` 分别验证真值隔离和运行时零开销门控。
+
+高级编队层以匿名 `F-xxxx` 编队航迹分配长机、射手、支援、掩护、防御和重新集合角色，并限制成员只能接收自己确实观察到的目标。威胁响应按 `monitor -> beam/notch -> break/drag -> recover` 状态机执行，雷达威胁使用箔条、红外威胁使用热焰弹；近距 break 命令仍必须经过滚转率、动压、过载建立和诱导阻力约束。`verify:air-turn-kinematics` 与实际浏览器/ACMI 验证防止再次出现单帧直角转弯。
 
 场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `TACTICAL DATA LINK ENABLED` 控件。默认 `NTU BASELINE` 使用美军舰载 Link 11/TADIL-A，不启用 Link 16；`JTIDS TRANSITION` 保留舰艇 Link 11，同时只允许达到年代门槛的 F-14A JTIDS 终端进入 Link 16；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰进入 Link 16。总开关会同时断开该年代可用的数据链，并清空参与节点、队列、远程航迹和提示。苏联 Tu-16K、MiG-29A 不进入这两种美军网络。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
 

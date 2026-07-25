@@ -8005,6 +8005,16 @@ function tick(now: number) {
   canvas.dataset.advancedAirTacticalStates = air.tacticalStates
     .map((state) => `${state.id}:${state.mode}:${state.supportedWeaponId ?? "none"}`)
     .join("|");
+  canvas.dataset.advancedAirFormationRoles = air.tacticalStates
+    .map((state) =>
+      `${state.id}:${state.formationRole}:C${state.formationCommandSlot}:${state.formationTrackNumber ?? "none"}`,
+    )
+    .join("|");
+  canvas.dataset.advancedAirThreatStates = air.tacticalStates
+    .map((state) =>
+      `${state.id}:${state.threatPhase}:${state.actualTurnRateDeg.toFixed(2)}:${state.maximumTurnRateDeg.toFixed(2)}:${state.threatBeamRadialDot.toFixed(3)}:${state.minimumThreatBeamRadialDot.toFixed(3)}`,
+    )
+    .join("|");
   canvas.dataset.advancedAirLaunchZones = air.tacticalStates
     .filter((state) => state.launchZone)
     .map((state) => {

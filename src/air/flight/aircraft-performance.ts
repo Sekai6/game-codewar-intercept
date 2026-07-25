@@ -1,4 +1,5 @@
 import type { AirPlatformDefinition } from "../types";
+import { WORLD_SPEED_TO_METERS_PER_SECOND } from "./units.js";
 
 export interface AircraftPerformance {
   wingLoadingFactor: number;
@@ -28,12 +29,13 @@ export function initialAdvancedFlightState(
   definition: AirPlatformDefinition,
 ): AdvancedFlightState {
   const speed = definition.flight.cruiseSpeed;
+  const speedMetersPerSecond = speed * WORLD_SPEED_TO_METERS_PER_SECOND;
   return {
     angleOfAttackDeg: 2.5,
     sideslipDeg: 0,
     loadFactor: 1,
-    dynamicPressure: 0.5 * speed * speed,
-    specificEnergy: speed * speed / (2 * 9.81),
+    dynamicPressure: 0.5 * 1.225 * speedMetersPerSecond * speedMetersPerSecond,
+    specificEnergy: speedMetersPerSecond * speedMetersPerSecond / (2 * 9.81),
     specificExcessPower: 0,
     engineSpool: 0.58,
     stalled: false,

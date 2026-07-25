@@ -13,6 +13,12 @@ export interface AirTacticalState {
   targetTrackNumber: string | null;
   supportedWeaponId: string | null;
   energyPriority: "preserve" | "neutral" | "spend";
+  formationRole: import("./formation-tactics.js").FormationTacticalRole;
+  formationCommandSlot: number;
+  formationTrackNumber: string | null;
+  threatPhase: import("./threat-response.js").ThreatResponsePhase;
+  commandedBankLimitDeg: number | null;
+  commandedLoadFactor: number | null;
   lastLaunchZone: {
     rMin: number;
     rNe: number;
@@ -28,6 +34,12 @@ export const initialAirTacticalState = (): AirTacticalState => ({
   targetTrackNumber: null,
   supportedWeaponId: null,
   energyPriority: "neutral",
+  formationRole: "lead",
+  formationCommandSlot: 0,
+  formationTrackNumber: null,
+  threatPhase: "monitor",
+  commandedBankLimitDeg: null,
+  commandedLoadFactor: null,
   lastLaunchZone: null,
 });
 

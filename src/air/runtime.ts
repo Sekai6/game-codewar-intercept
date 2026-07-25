@@ -23,6 +23,11 @@ import {
   type PilotObservation,
 } from "./ai/perception.js";
 import { STANDARD_ADVANCED_PILOT } from "./ai/pilot-model.js";
+import { planThreatResponse } from "./ai/threat-response.js";
+import {
+  planFormationTactics,
+  type FormationContactObservation,
+} from "./ai/formation-tactics.js";
 import { formationSlot, updateFormationStatus } from "./formation";
 import {
   airDamageDisposition,
@@ -89,6 +94,12 @@ import type {
 const UP = new THREE.Vector3(0, 1, 0);
 
 interface PerceptionBindings {
+  targetByTrackNumber: Map<string, string>;
+  trackNumberByTarget: Map<string, string>;
+  nextSerial: number;
+}
+
+interface FormationPerceptionBindings {
   targetByTrackNumber: Map<string, string>;
   trackNumberByTarget: Map<string, string>;
   nextSerial: number;
@@ -294,6 +305,9 @@ export class AirCombatSystem {
   private currentTime = 0;
   private activeAdvancedAirAi = false;
   private readonly perceptionBindings = new Map<string, PerceptionBindings>();
+  private readonly formationPerceptionBindings =
+    new Map<string, FormationPerceptionBindings>();
+  private nextFormationTacticsUpdate = 0;
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
@@ -364,6 +378,8 @@ export class AirCombatSystem {
     this.serial = 0;
     this.standardDamageApplications = 0;
     this.perceptionBindings.clear();
+    this.formationPerceptionBindings.clear();
+    this.nextFormationTacticsUpdate = 0;
     this.link16.reset();
     this.link11.reset();
     this.aewCommandNetwork.reset();
@@ -803,6 +819,10 @@ export class AirCombatSystem {
     }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
+    if (this.activeAdvancedAirAi && time >= this.nextFormationTacticsUpdate) {
+      this.updateFormationTactics(time);
+      this.nextFormationTacticsUpdate = time + 0.75;
+    }
     for (const a of this.aircraft) {
       this.updateFormationState(a);
       this.updateAircraft(a, time, dt, context);
@@ -811,6 +831,110 @@ export class AirCombatSystem {
     }
     this.updateHardpointReleases(time);
     for (const m of this.missiles) this.updateMissile(m, time, dt, context);
+  }
+
+  private updateFormationTactics(_time: number) {
+    const formationIds = new Set(
+      this.aircraft.filter((aircraft) => aircraft.alive)
+        .map((aircraft) => aircraft.formationId),
+    );
+    for (const formationId of formationIds) {
+      const members = this.aircraft
+        .filter((aircraft) => aircraft.formationId === formationId)
+        .sort((left, right) => left.formationIndex - right.formationIndex);
+      const assignedClassification = members.some((member) =>
+        member.mission === "anti-ship") ? "ship" : "aircraft";
+      let bindings = this.formationPerceptionBindings.get(formationId);
+      if (!bindings) {
+        bindings = {
+          targetByTrackNumber: new Map(),
+          trackNumberByTarget: new Map(),
+          nextSerial: 1,
+        };
+        this.formationPerceptionBindings.set(formationId, bindings);
+      }
+      const contactsByNumber = new Map<string, FormationContactObservation>();
+      for (const member of members) {
+        const pilotBindings = this.perceptionBindings.get(member.id);
+        if (!pilotBindings) continue;
+        for (const contact of member.pilotPerception.contacts.values()) {
+          if (contact.classification !== assignedClassification ||
+              contact.source === "memory")
+            continue;
+          const targetId = pilotBindings.targetByTrackNumber.get(contact.trackNumber);
+          if (!targetId) continue;
+          let formationTrack = bindings.trackNumberByTarget.get(targetId);
+          if (!formationTrack) {
+            formationTrack = `F-${String(bindings.nextSerial++).padStart(4, "0")}`;
+            bindings.trackNumberByTarget.set(targetId, formationTrack);
+            bindings.targetByTrackNumber.set(formationTrack, targetId);
+          }
+          const previous = contactsByNumber.get(formationTrack);
+          const candidate = {
+            trackNumber: formationTrack,
+            quality: contact.quality,
+            uncertainty: contact.uncertainty,
+            threat: Math.max(0.1, contact.quality *
+              (1 - Math.min(0.8, contact.uncertainty / 100))),
+            observerSlots: [member.formationIndex],
+          };
+          if (!previous || candidate.quality > previous.quality)
+            contactsByNumber.set(formationTrack, {
+              ...candidate,
+              observerSlots: [...new Set([
+                ...(previous?.observerSlots ?? []),
+                member.formationIndex,
+              ])],
+            });
+          else if (!previous.observerSlots.includes(member.formationIndex))
+            contactsByNumber.set(formationTrack, {
+              ...previous,
+              observerSlots: [...previous.observerSlots, member.formationIndex],
+            });
+        }
+      }
+      const plan = planFormationTactics({
+        members: members.map((member) => {
+          const supportedWeapon = this.missiles.find((missile) =>
+            missile.alive && missile.shooterId === member.id &&
+            (!missile.seekerAcquired ||
+              missile.definition.guidance === "semi-active-radar"));
+          return {
+            slot: member.formationIndex,
+            alive: member.alive,
+            threatened: member.missileWarnings.size > 0 ||
+              member.state === "defending",
+            joined: member.formationIndex === 0 ||
+              member.formationStatus === "joined",
+            weaponReady: [...member.ammo.values()].some((count) => count > 0) &&
+              (member.subsystemHealth.get("weapons") ?? 0) > 20,
+            supportingWeapon: Boolean(supportedWeapon),
+            supportedTrackNumber: supportedWeapon
+              ? bindings.trackNumberByTarget.get(supportedWeapon.targetId) ?? null
+              : null,
+            visibleTrackNumbers: [...contactsByNumber.values()]
+              .filter((contact) =>
+                contact.observerSlots.includes(member.formationIndex))
+              .map((contact) => contact.trackNumber),
+          };
+        }),
+        contacts: [...contactsByNumber.values()],
+        allowCoordinatedSalvo: members.some((member) =>
+          member.mission === "anti-ship"),
+      });
+      for (const assignment of plan.assignments) {
+        const member = members.find((candidate) =>
+          candidate.formationIndex === assignment.slot);
+        if (!member) continue;
+        member.tacticalState.formationRole = assignment.role;
+        member.tacticalState.formationCommandSlot = assignment.commandSlot;
+        member.tacticalState.formationTrackNumber = assignment.assignedTrackNumber;
+        const commander = members.find((candidate) =>
+          candidate.formationIndex === assignment.commandSlot && candidate.alive);
+        if (member.formationIndex !== assignment.commandSlot && commander)
+          member.leaderId = commander.id;
+      }
+    }
   }
 
   private receiveLink16Tracks(aircraft: AirPlatformInstance, time: number) {
@@ -1748,6 +1872,7 @@ export class AirCombatSystem {
     a: AirPlatformInstance,
     context: AirScenarioContext,
     time = this.currentTime,
+    respectFormationAssignment = false,
   ) {
     const protectedEntity = a.protectedId
       ? this.targetById(a.protectedId, context)
@@ -1766,20 +1891,34 @@ export class AirCombatSystem {
     let selected: AirTrack | undefined;
     if (this.activeAdvancedAirAi) {
       const bindings = this.perceptionBindings.get(a.id);
+      const formationBindings = this.formationPerceptionBindings.get(a.formationId);
+      const assignedTargetId = a.tacticalState.formationTrackNumber
+        ? formationBindings?.targetByTrackNumber.get(
+            a.tacticalState.formationTrackNumber,
+          )
+        : undefined;
       const eligibleContacts = [...a.pilotPerception.contacts.values()].filter(
         (contact) => {
           const targetId = bindings?.targetByTrackNumber.get(contact.trackNumber);
           if (!targetId) return false;
+          if (respectFormationAssignment && assignedTargetId &&
+              targetId !== assignedTargetId)
+            return false;
           const engagement = a.engagements.get(targetId);
           return !engagement ||
             (engagement.pending === 0 && time - engagement.lastResolution >= 2);
         },
       );
-      const contact = selectPilotContact({
-        mission: a.mission,
-        contacts: eligibleContacts,
-        origin: protectedEntity?.position ?? a.position,
-      });
+      const roleMayEngage = !respectFormationAssignment ||
+        a.tacticalState.formationRole === "shooter" ||
+        a.tacticalState.formationRole === "supporter";
+      const contact = roleMayEngage
+        ? selectPilotContact({
+            mission: a.mission,
+            contacts: eligibleContacts,
+            origin: protectedEntity?.position ?? a.position,
+          })
+        : undefined;
       const binding = contact
         ? bindings?.targetByTrackNumber.get(contact.trackNumber)
         : undefined;
@@ -1900,6 +2039,13 @@ export class AirCombatSystem {
       a.desiredDirection.set(a.side === "blue" ? -1 : 1, 0.04, 1).normalize();
     }
     const incoming = this.incomingFor(a, time);
+    if (!incoming && context.advancedAirAiEnabled &&
+        a.tacticalState.threatPhase !== "monitor") {
+      a.tacticalState.threatPhase = a.tacticalState.threatPhase === "recover"
+        ? "monitor" : "recover";
+      a.tacticalState.commandedBankLimitDeg = null;
+      a.tacticalState.commandedLoadFactor = null;
+    }
     if (incoming) {
       const defense = defensiveManeuverFromWarning({
         aircraftPosition: a.position,
@@ -1914,24 +2060,42 @@ export class AirCombatSystem {
         defense.direction.z,
       );
       if (context.advancedAirAiEnabled) {
-        const plan = planBvrManeuver({
+        const response = planThreatResponse({
           ownPosition: a.position,
           currentHeading: a.heading,
-          formationSide: a.formationIndex ? 1 : -1,
-          warningTrack: incoming.warning,
-          warningTti: defense.timeToImpact,
+          warning: incoming.warning,
+          estimatedTti: defense.timeToImpact,
+          guidance: incoming.missile.definition.guidance,
+          preferredSide: a.formationIndex ? 1 : -1,
+          altitude: a.position.y,
+          speedRatio: a.velocity.length() /
+            Math.max(0.1, a.definition.flight.maxSpeed),
+          previousPhase: a.tacticalState.threatPhase,
         });
         const previousMode = a.tacticalState.mode;
+        const previousThreatPhase = a.tacticalState.threatPhase;
+        const responseMode = response.phase === "break" ? "drag" :
+          response.phase === "drag" ? "drag" : "notch";
         a.tacticalState = transitionTacticalState(
           a.tacticalState,
-          plan.mode,
+          responseMode,
           time,
           0.3,
         );
-        a.tacticalState.energyPriority = plan.energyPriority;
-        a.desiredDirection.copy(plan.desiredDirection);
+        a.tacticalState.threatPhase = response.phase;
+        a.tacticalState.energyPriority = response.energyPriority;
+        a.tacticalState.commandedBankLimitDeg = response.bankLimitDeg;
+        a.tacticalState.commandedLoadFactor =
+          a.definition.flight.maxLoadFactor * response.loadFactorFraction;
+        a.desiredDirection.copy(response.desiredDirection);
         if (a.tacticalState.mode !== previousMode)
           this.emit(time, "maneuver", `${a.definition.name} BVR ${a.tacticalState.mode.toUpperCase()}`);
+        if (response.phase !== previousThreatPhase)
+          this.emit(
+            time,
+            "maneuver",
+            `${a.definition.name} THREAT RESPONSE ${response.phase.toUpperCase()} / TTI ${defense.timeToImpact.toFixed(1)}S / ${response.bankLimitDeg.toFixed(0)} DEG BANK`,
+          );
       }
       const illuminatingMissile = this.missiles.find(
         (missile) =>
@@ -2001,7 +2165,7 @@ export class AirCombatSystem {
       time >= a.nextOoda
     ) {
       a.nextOoda = time + 1.0;
-      const missionTrack = this.missionTrackFor(a, context),
+      const missionTrack = this.missionTrackFor(a, context, time, true),
         supportingWeapon = this.missiles.find(
           (missile) => missile.alive && missile.shooterId === a.id &&
             (!missile.seekerAcquired ||
@@ -2150,6 +2314,7 @@ export class AirCombatSystem {
         200,
       flight = a.definition.flight,
       speed = a.velocity.length();
+    const headingBeforeFlight = a.heading.clone();
     let newSpeed: number;
     if (context.advancedAirAiEnabled) {
       const advancedStep = stepFlightDirector({
@@ -2166,6 +2331,8 @@ export class AirCombatSystem {
           desiredDirection: a.desiredDirection,
           thrustMode: a.thrustMode,
           energyPriority: a.tacticalState.energyPriority,
+          bankLimitDeg: a.tacticalState.commandedBankLimitDeg ?? undefined,
+          loadFactorCommand: a.tacticalState.commandedLoadFactor ?? undefined,
         },
         dt,
       });
@@ -2235,6 +2402,29 @@ export class AirCombatSystem {
         a.afterburnerRemaining - flightStep.afterburnerUsed,
       );
       newSpeed = flightStep.speed;
+    }
+    const actualTurnRateDeg = dt > 0
+      ? THREE.MathUtils.radToDeg(headingBeforeFlight.angleTo(a.heading)) / dt
+      : 0;
+    a.model.userData.actualTurnRateDeg = actualTurnRateDeg;
+    a.model.userData.maximumTurnRateDeg = Math.max(
+      Number(a.model.userData.maximumTurnRateDeg ?? 0),
+      actualTurnRateDeg,
+    );
+    if (incoming && context.advancedAirAiEnabled) {
+      const threatRadial = incoming.warning.position.clone()
+        .sub(a.position).setY(0);
+      const horizontalHeading = a.heading.clone().setY(0);
+      if (threatRadial.lengthSq() > 1e-6 && horizontalHeading.lengthSq() > 1e-6) {
+        const beamRadialDot = Math.abs(
+          threatRadial.normalize().dot(horizontalHeading.normalize()),
+        );
+        a.model.userData.threatBeamRadialDot = beamRadialDot;
+        a.model.userData.minimumThreatBeamRadialDot = Math.min(
+          Number(a.model.userData.minimumThreatBeamRadialDot ?? 1),
+          beamRadialDot,
+        );
+      }
     }
     const thrustIr = a.thrustMode === "afterburner"
       ? flight.thrust.afterburnerInfraredMultiplier
@@ -2935,6 +3125,18 @@ export class AirCombatSystem {
         mode: aircraft.tacticalState.mode,
         supportedWeaponId: aircraft.tacticalState.supportedWeaponId,
         launchZone: aircraft.tacticalState.lastLaunchZone,
+        formationRole: aircraft.tacticalState.formationRole,
+        formationCommandSlot: aircraft.tacticalState.formationCommandSlot,
+        formationTrackNumber: aircraft.tacticalState.formationTrackNumber,
+        threatPhase: aircraft.tacticalState.threatPhase,
+        actualTurnRateDeg: Number(aircraft.model.userData.actualTurnRateDeg ?? 0),
+        maximumTurnRateDeg: Number(aircraft.model.userData.maximumTurnRateDeg ?? 0),
+        threatBeamRadialDot: Number(
+          aircraft.model.userData.threatBeamRadialDot ?? 1,
+        ),
+        minimumThreatBeamRadialDot: Number(
+          aircraft.model.userData.minimumThreatBeamRadialDot ?? 1,
+        ),
       })),
       perceptionUpdates: this.aircraft.reduce(
         (sum, aircraft) => sum + aircraft.pilotPerception.updateCount,

@@ -1,4 +1,5 @@
 import type { AirThrustDefinition, AirThrustMode } from "./types";
+import { coordinatedTurnRateDegPerSecond } from "./flight/units.js";
 
 export interface FlightEnvelope {
   cruiseSpeed: number;
@@ -43,13 +44,20 @@ export function stepFlightDynamics(input: {
   );
   const availableLoadFactor = 1 +
     (input.envelope.maxLoadFactor - 1) * speedAuthority * controlHealth;
-  const maximumTurnRateDeg = input.envelope.maxPitchRateDeg *
-    (availableLoadFactor / input.envelope.maxLoadFactor);
   const rollLimit = input.envelope.maxRollRateDeg * controlHealth * input.dt;
   const bank = input.currentBank + clamp(
     input.desiredBank - input.currentBank,
     -rollLimit,
     rollLimit,
+  );
+  const physicalTurnRateDeg = Math.abs(coordinatedTurnRateDegPerSecond({
+    speedWorld: input.speed,
+    bankDeg: bank,
+  }));
+  const maximumTurnRateDeg = Math.min(
+    physicalTurnRateDeg,
+    input.envelope.maxPitchRateDeg *
+      (availableLoadFactor / input.envelope.maxLoadFactor),
   );
   const pitchLimit = Math.min(
     input.envelope.maxAngleOfAttackDeg ?? 16,

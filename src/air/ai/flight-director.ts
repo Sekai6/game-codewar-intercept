@@ -8,6 +8,11 @@ import {
 import { stepControlLaw } from "../flight/control-law.js";
 import { stepEngine } from "../flight/engine-model.js";
 import { protectFlightEnvelope } from "../flight/envelope-protection.js";
+import {
+  coordinatedTurnRateDegPerSecond,
+  WORLD_SPEED_TO_METERS_PER_SECOND,
+  WORLD_ALTITUDE_TO_METERS,
+} from "../flight/units.js";
 
 const clamp = THREE.MathUtils.clamp;
 const DEG = THREE.MathUtils.radToDeg;
@@ -17,6 +22,8 @@ export interface FlightDirectorIntent {
   desiredDirection: THREE.Vector3;
   thrustMode: AirThrustMode;
   energyPriority: "preserve" | "neutral" | "spend";
+  bankLimitDeg?: number;
+  loadFactorCommand?: number;
 }
 
 export function stepFlightDirector(input: {
@@ -54,6 +61,8 @@ export function stepFlightDirector(input: {
     flightControlHealth: input.flightControlHealth,
     dt: input.dt,
     performance,
+    desiredBankLimitDeg: input.intent.bankLimitDeg,
+    loadFactorCommand: input.intent.loadFactorCommand,
   });
   const preliminary = evaluateAerodynamics({
     speed: input.speed,
@@ -93,6 +102,12 @@ export function stepFlightDirector(input: {
     dt: input.dt,
     performance,
   });
+  const loadStep = Math.max(0.5, 3.5 * input.flightControlHealth) * input.dt;
+  const realizedLoadFactor = input.state.loadFactor + clamp(
+    protection.loadFactor - input.state.loadFactor,
+    -loadStep,
+    loadStep,
+  );
   const flight = input.definition.flight;
   const modeFactor = engine.thrustMode === "idle" ? 0.18
     : engine.thrustMode === "cruise" ? 0.72
@@ -102,15 +117,32 @@ export function stepFlightDirector(input: {
   const dragAcceleration = flight.drag * input.speed * input.speed *
     (0.7 + aero.dragCoefficient * 8);
   const climbLoss = Math.max(0, Math.sin(RAD(currentPathDeg))) * 0.45;
-  const loadLoss = Math.max(0, protection.loadFactor - 1) * 0.055;
-  const acceleration = thrustAcceleration - dragAcceleration - climbLoss - loadLoss;
+  const inducedLoadLoss = 0.016 *
+    Math.max(0, realizedLoadFactor * realizedLoadFactor - 1) *
+    Math.pow(flight.stallSpeed / Math.max(flight.stallSpeed * 0.72, input.speed), 2);
+  const acceleration = thrustAcceleration - dragAcceleration - climbLoss -
+    inducedLoadLoss;
   const speed = clamp(
     input.speed + acceleration * input.dt,
     flight.stallSpeed * 0.72,
     flight.maxSpeed,
   );
-  const turnRateDeg = DEG(9.81 * Math.tan(RAD(controls.bankDeg)) /
-    Math.max(0.5, input.speed));
+  const bankTurnRateDeg = coordinatedTurnRateDegPerSecond({
+    speedWorld: input.speed,
+    bankDeg: controls.bankDeg,
+  });
+  const turnSpeedMetersPerSecond = Math.max(
+    1,
+    input.speed * WORLD_SPEED_TO_METERS_PER_SECOND,
+  );
+  const loadLimitedRateDeg = DEG(
+    9.81 * Math.sqrt(Math.max(0, realizedLoadFactor ** 2 - 1)) /
+      turnSpeedMetersPerSecond,
+  );
+  const turnRateDeg = Math.sign(bankTurnRateDeg) * Math.min(
+    Math.abs(bankTurnRateDeg),
+    loadLimitedRateDeg,
+  );
   const headingDeg = currentHeadingDeg + turnRateDeg * input.dt;
   const pitchResponse = protection.mode === "stall-recovery" ? -8 :
     clamp(controls.pathError, -flight.maxPitchRateDeg, flight.maxPitchRateDeg);
@@ -125,8 +157,11 @@ export function stepFlightDirector(input: {
     Math.sin(RAD(pathDeg)),
     -Math.cos(RAD(headingDeg)) * horizontal,
   ).normalize();
-  const specificEnergy = input.altitude + speed * speed / (2 * 9.81);
-  const specificExcessPower = acceleration * speed / 9.81;
+  const speedMetersPerSecond = speed * WORLD_SPEED_TO_METERS_PER_SECOND;
+  const specificEnergy = input.altitude * WORLD_ALTITUDE_TO_METERS +
+    speedMetersPerSecond * speedMetersPerSecond / (2 * 9.81);
+  const specificExcessPower = acceleration * WORLD_SPEED_TO_METERS_PER_SECOND *
+    speedMetersPerSecond / 9.81;
   const multiplier = engine.thrustMode === "idle" ? 0.28
     : engine.thrustMode === "cruise" ? 1
     : engine.thrustMode === "military" ? flight.thrust.militaryFuelMultiplier
@@ -135,7 +170,7 @@ export function stepFlightDirector(input: {
   const state: AdvancedFlightState = {
     angleOfAttackDeg: protection.angleOfAttackDeg,
     sideslipDeg: clamp((desiredHeadingDeg - currentHeadingDeg) * 0.025, -5, 5),
-    loadFactor: protection.loadFactor,
+    loadFactor: realizedLoadFactor,
     dynamicPressure: aero.dynamicPressure,
     specificEnergy,
     specificExcessPower,

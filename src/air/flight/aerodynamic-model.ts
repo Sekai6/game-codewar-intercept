@@ -1,4 +1,8 @@
 import type { AircraftPerformance } from "./aircraft-performance";
+import {
+  WORLD_ALTITUDE_TO_METERS,
+  WORLD_SPEED_TO_METERS_PER_SECOND,
+} from "./units.js";
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -13,28 +17,33 @@ export function evaluateAerodynamics(input: {
   flightControlHealth: number;
   performance: AircraftPerformance;
 }) {
-  const densityRatio = clamp(1 - input.altitude / 2200, 0.32, 1);
-  const dynamicPressure = 0.5 * densityRatio * input.speed * input.speed;
+  const altitudeMeters = Math.max(0, input.altitude) *
+    WORLD_ALTITUDE_TO_METERS;
+  const densityRatio = clamp(Math.exp(-altitudeMeters / 8500), 0.18, 1);
+  const speedMetersPerSecond = input.speed * WORLD_SPEED_TO_METERS_PER_SECOND;
+  const stallMetersPerSecond = input.stallSpeed *
+    WORLD_SPEED_TO_METERS_PER_SECOND;
+  const dynamicPressure = 0.5 * 1.225 * densityRatio *
+    speedMetersPerSecond * speedMetersPerSecond;
+  const stallDynamicPressure = 0.5 * 1.225 *
+    stallMetersPerSecond * stallMetersPerSecond;
+  const dynamicPressureRatio = dynamicPressure /
+    Math.max(1, stallDynamicPressure);
   const liftCoefficient = Math.max(
     0,
     input.performance.liftCurveSlope * input.angleOfAttackDeg,
   );
   const dragCoefficient = input.performance.zeroLiftDrag +
     input.performance.inducedDragFactor * liftCoefficient * liftCoefficient;
-  const speedAuthority = clamp(
-    (input.speed / Math.max(0.1, input.stallSpeed) - 0.72) / 0.9,
-    0,
-    1,
-  );
-  const availableLoadFactor = Math.max(
-    1,
-    input.maximumLoadFactor * speedAuthority * input.flightControlHealth /
+  const availableLoadFactor = clamp(
+    dynamicPressureRatio * input.flightControlHealth /
       input.performance.wingLoadingFactor,
+    1,
+    input.maximumLoadFactor,
   );
   const liftLoad = Math.max(
     0.25,
-    liftCoefficient * dynamicPressure /
-      Math.max(0.1, input.stallSpeed * input.stallSpeed * 0.05),
+    liftCoefficient * dynamicPressureRatio / 0.42,
   );
   const loadFactor = clamp(
     liftLoad * Math.max(0.2, Math.cos(input.bankDeg * Math.PI / 180)),
@@ -47,6 +56,7 @@ export function evaluateAerodynamics(input: {
   return {
     densityRatio,
     dynamicPressure,
+    dynamicPressureRatio,
     dragCoefficient,
     availableLoadFactor,
     loadFactor,
