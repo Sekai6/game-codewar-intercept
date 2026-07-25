@@ -66,3 +66,19 @@ export function dynamicShotAllowed(input: {
   return input.zone.range >= input.zone.rMin &&
     input.zone.range <= (input.defensive ? input.zone.rMax : input.zone.rTr);
 }
+
+export function updateStableShotWindow(input: {
+  previousSeconds: number;
+  opportunity: boolean;
+  elapsedSeconds: number;
+}) {
+  return input.opportunity
+    ? input.previousSeconds + clamp(input.elapsedSeconds, 0, 1)
+    : 0;
+}
+
+export function minimumStableShotSeconds(guidance: AirWeaponDefinition["guidance"]) {
+  if (guidance === "infrared") return 1.2;
+  if (guidance === "semi-active-radar") return 1.0;
+  return 0.6;
+}

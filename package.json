@@ -43,6 +43,8 @@
     "verify:advanced-air-threat-runtime": "node scripts/verify-advanced-air-threat-runtime.mjs",
     "verify:advanced-air-mission": "tsc src/air/ai/mission-planner.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-advanced-air-mission.mjs",
     "verify:advanced-air-pilot": "tsc src/air/ai/pilot-model.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-advanced-air-pilot.mjs",
+    "verify:advanced-air-bfm": "tsc src/air/ai/bfm-planner.ts src/air/ai/flight-director.ts src/air/ai/weapon-employment.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-advanced-air-bfm.mjs",
+    "verify:advanced-air-bfm-runtime": "node scripts/verify-advanced-air-bfm-runtime.mjs",
     "verify:advanced-air-acmi-kinematics": "node scripts/verify-advanced-air-acmi-kinematics.mjs",
     "verify:air-countermeasures": "node scripts/verify-air-countermeasures.mjs",
     "verify:air-asm-ecm": "node scripts/verify-air-asm-ecm.mjs",

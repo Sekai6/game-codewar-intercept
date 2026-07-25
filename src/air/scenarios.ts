@@ -140,8 +140,21 @@ export function airScenarioSpawns(
   id: AirScenarioPresetId,
   shortValidation = false,
   sovietSalvoValidation = false,
+  bfmValidation = false,
 ): AirSpawn[] {
   const spawns = AIR_SCENARIO_PRESETS[id].createSpawns();
+  if (bfmValidation && id === "fighter") {
+    for (const spawn of spawns) {
+      const blue = spawn.side === "blue";
+      spawn.position.set(
+        (spawn.formationIndex ? 1 : -1) * 10 + (blue ? -12 : 12),
+        40 + spawn.formationIndex * 2,
+        blue ? -500 + spawn.formationIndex * 5 : -570 - spawn.formationIndex * 5,
+      );
+      spawn.heading.set(blue ? 0.04 : -0.04, 0, blue ? -1 : 1).normalize();
+    }
+    return spawns;
+  }
   if (!shortValidation) return spawns;
   if (id === "fighter") {
     for (const spawn of spawns)

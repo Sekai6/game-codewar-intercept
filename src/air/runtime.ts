@@ -14,7 +14,16 @@ import { stepFlightDirector } from "./ai/flight-director.js";
 import { initialAdvancedFlightState } from "./flight/aircraft-performance.js";
 import { initialAirTacticalState, transitionTacticalState } from "./ai/tactical-state.js";
 import { planBvrManeuver } from "./ai/tactical-planner.js";
-import { calculateDynamicLaunchZone } from "./ai/weapon-employment.js";
+import { planBfmManeuver } from "./ai/bfm-planner.js";
+import {
+  WORLD_ALTITUDE_TO_METERS,
+  WORLD_SPEED_TO_METERS_PER_SECOND,
+} from "./flight/units.js";
+import {
+  calculateDynamicLaunchZone,
+  minimumStableShotSeconds,
+  updateStableShotWindow,
+} from "./ai/weapon-employment.js";
 import {
   initialPilotPerception,
   selectPilotContact,
@@ -2278,19 +2287,39 @@ export class AirCombatSystem {
       if (track) {
         a.state = "engaging";
         if (context.advancedAirAiEnabled) {
-          const plan = planBvrManeuver({
-            ownPosition: a.position,
-            currentHeading: a.heading,
-            formationSide: a.formationIndex ? 1 : -1,
-            targetTrack: track,
-            supportingWeapon: supportingWeapon &&
-                supportingWeapon.targetId === track.targetId
-              ? {
-                  seekerAcquired: supportingWeapon.seekerAcquired,
-                  guidance: supportingWeapon.definition.guidance,
-                }
-              : undefined,
-          });
+          const targetSpeedMeters = track.velocity.length() *
+            WORLD_SPEED_TO_METERS_PER_SECOND;
+          const targetSpecificEnergy = track.position.y *
+              WORLD_ALTITUDE_TO_METERS +
+            targetSpeedMeters * targetSpeedMeters / (2 * 9.81);
+          const bfmPlan = track.classification === "aircraft"
+            ? planBfmManeuver({
+                ownPosition: a.position,
+                ownVelocity: a.velocity,
+                currentHeading: a.heading,
+                targetTrack: track,
+                formationSide: a.formationIndex ? 1 : -1,
+                altitude: a.position.y,
+                speedRatio: a.velocity.length() /
+                  Math.max(0.1, a.definition.flight.maxSpeed),
+                specificEnergyAdvantage:
+                  a.advancedFlightState.specificEnergy - targetSpecificEnergy,
+                time,
+              })
+            : null;
+          const plan = bfmPlan ?? planBvrManeuver({
+              ownPosition: a.position,
+              currentHeading: a.heading,
+              formationSide: a.formationIndex ? 1 : -1,
+              targetTrack: track,
+              supportingWeapon: supportingWeapon &&
+                  supportingWeapon.targetId === track.targetId
+                ? {
+                    seekerAcquired: supportingWeapon.seekerAcquired,
+                    guidance: supportingWeapon.definition.guidance,
+                  }
+                : undefined,
+            });
           const previousMode = a.tacticalState.mode;
           a.tacticalState = transitionTacticalState(
             a.tacticalState,
@@ -2300,13 +2329,40 @@ export class AirCombatSystem {
           a.tacticalState.energyPriority = plan.energyPriority;
           a.tacticalState.targetTrackNumber = track.targetId;
           a.tacticalState.supportedWeaponId = supportingWeapon?.id ?? null;
+          const tacticalStep = Math.min(
+            1,
+            Math.max(0, time - a.tacticalState.lastTacticalEvaluationAt),
+          );
+          a.tacticalState.bfmShotWindowSeconds = updateStableShotWindow({
+            previousSeconds: a.tacticalState.bfmShotWindowSeconds,
+            opportunity: bfmPlan?.shotOpportunity ?? false,
+            elapsedSeconds: tacticalStep,
+          });
+          a.tacticalState.lastTacticalEvaluationAt = time;
+          a.tacticalState.commandedBankLimitDeg =
+            bfmPlan?.bankLimitDeg ?? null;
+          a.tacticalState.commandedLoadFactor = bfmPlan
+            ? a.definition.flight.maxLoadFactor * bfmPlan.loadFactorFraction
+            : null;
           a.desiredDirection.copy(plan.desiredDirection);
           if (a.tacticalState.mode !== previousMode)
-            this.emit(time, "maneuver", `${a.definition.name} BVR ${a.tacticalState.mode.toUpperCase()}`);
+            this.emit(
+              time,
+              "maneuver",
+              `${a.definition.name} ${a.tacticalState.mode.startsWith("bfm-") ? "BFM" : "BVR"} ${a.tacticalState.mode.toUpperCase()}`,
+            );
         } else
           a.desiredDirection.copy(track.position).sub(a.position).normalize();
+        const plannedWeapon = target && missionTrack
+          ? this.chooseWeapon(a, missionTrack, false,
+              context.advancedAirAiEnabled ?? false)
+          : undefined;
         if (
           target && missionTrack &&
+          (!a.tacticalState.mode.startsWith("bfm-") ||
+            Boolean(plannedWeapon) &&
+            a.tacticalState.bfmShotWindowSeconds >=
+              minimumStableShotSeconds(plannedWeapon!.guidance)) &&
           trackSupportsWeaponAuthorization(missionTrack) &&
           missionTrack.quality >= 0.22 &&
           this.strikeCommandAllowsRelease(a, time)
@@ -3251,6 +3307,7 @@ export class AirCombatSystem {
         minimumThreatBeamRadialDot: Number(
           aircraft.model.userData.minimumThreatBeamRadialDot ?? 1,
         ),
+        bfmShotWindowSeconds: aircraft.tacticalState.bfmShotWindowSeconds,
       })),
       perceptionUpdates: this.aircraft.reduce(
         (sum, aircraft) => sum + aircraft.pilotPerception.updateCount,

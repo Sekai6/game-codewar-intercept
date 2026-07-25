@@ -86,6 +86,15 @@ export function chooseAirWeapon(input: {
         );
     })
     .sort((left, right) => {
+      if (input.advancedAi && input.classification === "aircraft" &&
+          input.range <= 70) {
+        const leftCloseWeapon = left.guidance === "infrared" ? 2 :
+          left.guidance === "semi-active-radar" ? 1 : 0;
+        const rightCloseWeapon = right.guidance === "infrared" ? 2 :
+          right.guidance === "semi-active-radar" ? 1 : 0;
+        if (leftCloseWeapon !== rightCloseWeapon)
+          return rightCloseWeapon - leftCloseWeapon;
+      }
       if (input.defensive) {
         const leftFireAndForget = left.guidance === "infrared" ? 1 : 0;
         const rightFireAndForget = right.guidance === "infrared" ? 1 : 0;

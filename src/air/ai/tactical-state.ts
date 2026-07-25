@@ -5,7 +5,12 @@ export type AirTacticalMode =
   | "crank"
   | "notch"
   | "drag"
-  | "pump";
+  | "pump"
+  | "bfm-one-circle"
+  | "bfm-two-circle"
+  | "bfm-lag-pursuit"
+  | "bfm-scissors"
+  | "bfm-defensive-turn";
 
 export interface AirTacticalState {
   mode: AirTacticalMode;
@@ -19,6 +24,8 @@ export interface AirTacticalState {
   threatPhase: import("./threat-response.js").ThreatResponsePhase;
   commandedBankLimitDeg: number | null;
   commandedLoadFactor: number | null;
+  bfmShotWindowSeconds: number;
+  lastTacticalEvaluationAt: number;
   lastLaunchZone: {
     rMin: number;
     rNe: number;
@@ -40,6 +47,8 @@ export const initialAirTacticalState = (): AirTacticalState => ({
   threatPhase: "monitor",
   commandedBankLimitDeg: null,
   commandedLoadFactor: null,
+  bfmShotWindowSeconds: 0,
+  lastTacticalEvaluationAt: 0,
   lastLaunchZone: null,
 });
 

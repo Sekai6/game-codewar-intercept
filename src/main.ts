@@ -3368,6 +3368,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
         presetId,
         new URLSearchParams(location.search).get("shortAirValidation") === "1",
         new URLSearchParams(location.search).get("sovietSalvoValidation") === "1",
+        new URLSearchParams(location.search).get("bfmValidation") === "1",
       ),
     );
     airCombat.countermeasuresEnabled =
@@ -8003,7 +8004,9 @@ function tick(now: number) {
     )
     .join("|");
   canvas.dataset.advancedAirTacticalStates = air.tacticalStates
-    .map((state) => `${state.id}:${state.mode}:${state.supportedWeaponId ?? "none"}`)
+    .map((state) =>
+      `${state.id}:${state.mode}:${state.supportedWeaponId ?? "none"}:${state.bfmShotWindowSeconds.toFixed(2)}`,
+    )
     .join("|");
   canvas.dataset.advancedAirFormationRoles = air.tacticalStates
     .map((state) =>
