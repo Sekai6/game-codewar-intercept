@@ -48,6 +48,7 @@ import type { TacticalNetworkDecisionView, TacticalNetworkObservation, TacticalN
 import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
 import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
+import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -217,6 +218,9 @@ export class AirCombatSystem {
   private readonly link11 = new Link11Network();
   private readonly sovietGci = new SovietGciNetwork();
   private readonly seenGciCommands = new Set<string>();
+  private readonly sovietMaritimeTargeting = new SovietMaritimeTargetingNetwork();
+  private readonly seenMaritimeCues = new Set<string>();
+  private readonly maritimeEmconParticipants = new Set<string>();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
@@ -274,6 +278,9 @@ export class AirCombatSystem {
     this.link11.reset();
     this.sovietGci.reset();
     this.seenGciCommands.clear();
+    this.sovietMaritimeTargeting.reset();
+    this.seenMaritimeCues.clear();
+    this.maritimeEmconParticipants.clear();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
     this.activeLink16ParticipantIds.clear();
@@ -370,6 +377,10 @@ export class AirCombatSystem {
       datalinkEnabled = context.datalinkEnabled ?? context.link16Enabled ?? true,
       link16Enabled = datalinkEnabled && (context.link16Enabled ?? true);
     this.sovietGci.configure(
+      context.sovietCommandEra ?? "ntu-1980s",
+      context.sovietCommandEnabled ?? true,
+    );
+    this.sovietMaritimeTargeting.configure(
       context.sovietCommandEra ?? "ntu-1980s",
       context.sovietCommandEnabled ?? true,
     );
@@ -570,6 +581,36 @@ export class AirCombatSystem {
         `${aircraft.definition.name} GCI COMMAND RECEIVED / ${command.controllerTrackId} / Q ${Math.round(command.quality * 100)}% / ALT ${Math.round(command.commandedAltitude * 50)}M / VALID ${(command.expiresAt - time).toFixed(1)}S`,
       );
     }
+    this.sovietMaritimeTargeting.update(
+      time,
+      this.aircraft
+        .filter((aircraft) => aircraft.side === "red" && aircraft.formationIndex === 0)
+        .map((aircraft) => ({
+          id: aircraft.id,
+          platformId: aircraft.definition.id,
+          position: aircraft.position,
+          alive: aircraft.alive,
+        })),
+      (context.targets ?? [context.blueShip])
+        .filter((target) => target.side === "blue" && target.kind === "ship")
+        .map((target) => ({
+          id: target.id,
+          position: target.position,
+          velocity: target.velocity,
+          radarCrossSection: target.radarCrossSection,
+          alive: target.alive,
+        })),
+    );
+    for (const aircraft of this.aircraft) {
+      const cue = this.sovietMaritimeTargeting.cueFor(aircraft.id, time);
+      if (!cue || this.seenMaritimeCues.has(cue.id)) continue;
+      this.seenMaritimeCues.add(cue.id);
+      this.emit(
+        time,
+        "guidance",
+        `${aircraft.definition.name} ${cue.source.toUpperCase()} TARGET AREA RECEIVED / ${cue.reportTrackId} / Q ${Math.round(cue.quality * 100)}% / ERROR ${Math.round(cue.uncertaintyMajor)}x${Math.round(cue.uncertaintyMinor)} / CUE ONLY`,
+      );
+    }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -637,6 +678,18 @@ export class AirCombatSystem {
 
   gciCommandFor(participantId: string, time = this.currentTime) {
     return this.sovietGci.commandFor(participantId, time);
+  }
+
+  sovietMaritimeTargetingDiagnostics(time = this.currentTime) {
+    return this.sovietMaritimeTargeting.diagnostics(time);
+  }
+
+  maritimeTargetAreaCueFor(participantId: string, time = this.currentTime) {
+    return this.sovietMaritimeTargeting.cueFor(participantId, time);
+  }
+
+  sovietMaritimeEmconParticipants() {
+    return [...this.maritimeEmconParticipants];
   }
 
   tacticalCuesFor(participantId:string) {
@@ -898,12 +951,34 @@ export class AirCombatSystem {
     context: AirScenarioContext,
   ) {
     advanceAirTracks(a.tracks, dt, time);
+    const awaitingMaritimeCue =
+      a.definition.id === "TU-16K" &&
+      a.mission === "anti-ship" &&
+      this.sovietMaritimeTargeting.diagnostics(time).enabled &&
+      !this.sovietMaritimeTargeting.cueFor(a.id, time) &&
+      a.tracks.size === 0 &&
+      time < 12;
+    if (awaitingMaritimeCue) {
+      this.maritimeEmconParticipants.add(a.id);
+      return;
+    }
     const gciCommand = this.sovietGci.commandFor(a.id, time);
     if (
       a.definition.id === "MIG-29A" &&
       gciCommand &&
       a.tracks.size === 0 &&
       a.position.distanceTo(gciCommand.interceptPoint) > 300
+    ) {
+      this.maritimeEmconParticipants.add(a.id);
+      return;
+    }
+    const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
+    if (
+      a.definition.id === "TU-16K" &&
+      a.mission === "anti-ship" &&
+      maritimeCue &&
+      a.tracks.size === 0 &&
+      a.position.distanceTo(maritimeCue.launchRegionCenter) > 160
     ) return;
     if (time < a.nextScan || !a.alive) return;
     a.nextScan = time + a.definition.sensor.updateInterval;
@@ -1461,7 +1536,14 @@ export class AirCombatSystem {
           (x) => x.id === a.leaderId && x.alive,
         );
         const gciCommand = this.sovietGci.commandFor(a.id, time);
-        if (gciCommand) {
+        const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
+        if (maritimeCue && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+          a.state = "engaging";
+          a.desiredDirection
+            .copy(maritimeCue.launchRegionCenter)
+            .sub(a.position)
+            .normalize();
+        } else if (gciCommand) {
           a.state = "engaging";
           a.desiredDirection
             .copy(gciCommand.interceptPoint)

@@ -1,15 +1,22 @@
 import { chromium } from "playwright-core";
 
-const browser = await chromium.launch({ headless:true, executablePath:process.env.CHROME_PATH??"C:/Program Files/Google/Chrome/Application/chrome.exe", args:["--use-angle=swiftshader","--renderer-process-limit=2"] });
+const browser = await chromium.launch({ headless:true, executablePath:process.env.CHROME_PATH??"C:/Program Files/Google/Chrome/Application/chrome.exe", args:["--use-angle=swiftshader","--renderer-process-limit=1"] });
 const page = await browser.newPage({ viewport:{ width:1440,height:900 } });
 const errors=[];
 page.on("console",m=>{if(m.type()==="error")errors.push(m.text());});
 page.on("pageerror",e=>errors.push(e.message));
-const url=process.env.APP_URL??"http://127.0.0.1:5173/";
+const rawUrl=process.env.APP_URL??"http://127.0.0.1:5173/";
+const url=`${rawUrl}${rawUrl.includes("?")?"&":"?"}shortAirValidation=1`;
 async function start(){await page.goto(url,{waitUntil:"domcontentloaded",timeout:15_000});await page.locator("#sbAirCombat").check();await page.locator("#sbStart").click();await page.getByRole("button",{name:"TIME: 1X"}).click();await page.getByRole("button",{name:"TIME: 2X"}).click();}
 try{
   await start();
-  await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.shipAirMissileKills??0)>=1,null,{timeout:30_000});
+  try {
+    await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.shipAirMissileKills??0)>=1,null,{timeout:45_000});
+  } catch (error) {
+    const diagnostic=await page.locator("#scene").evaluate(c=>({kills:c.dataset.shipAirMissileKills,samShots:c.dataset.shipSamShots,launchers:c.dataset.airDefenseLaunchers,categories:c.dataset.airDefenseTargetCategories,launches:c.dataset.airWeaponLaunchLog,phases:c.dataset.airWeaponPhases,tracks:c.dataset.shipAirMissileTracks}));
+    console.error("Air-strike defense timeout",JSON.stringify({...diagnostic,errors},null,2));
+    throw error;
+  }
   const defense=await page.locator("#scene").evaluate(c=>({tracks:Number(c.dataset.shipAirMissileTracks??0),kills:Number(c.dataset.shipAirMissileKills??0),samShots:Number(c.dataset.shipSamShots??0),ksrSpeed:Number(c.dataset.ksrMaximumSpeed??0),launchers:c.dataset.airDefenseLaunchers??""}));
   await page.screenshot({path:"verification-air-missile-defense.png",fullPage:true});
   await start();

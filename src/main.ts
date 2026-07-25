@@ -8152,6 +8152,35 @@ function tick(now: number) {
     .filter((event) => /GCI COMMAND|MiG-29A Fulcrum-A DETECT|MiG-29A Fulcrum-A LAUNCH/.test(event.text))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)
     .join("|");
+  const maritimeTargeting = airCombat.sovietMaritimeTargetingDiagnostics(elapsed);
+  canvas.dataset.sovietMaritimeOperational = String(maritimeTargeting.enabled);
+  canvas.dataset.sovietMaritimeSource = maritimeTargeting.sourceAvailable;
+  canvas.dataset.sovietLegendaPassActive = String(maritimeTargeting.passActive);
+  canvas.dataset.sovietMaritimeTransmitted = String(maritimeTargeting.transmitted);
+  canvas.dataset.sovietMaritimeDelivered = String(maritimeTargeting.delivered);
+  canvas.dataset.sovietMaritimeDropped = String(maritimeTargeting.dropped);
+  canvas.dataset.sovietMaritimeActiveCues = String(maritimeTargeting.activeCues);
+  canvas.dataset.sovietMaritimeMeanDelay = maritimeTargeting.meanDelay.toFixed(3);
+  canvas.dataset.sovietMaritimeEmconObserved = airCombat.sovietMaritimeEmconParticipants().join("|");
+  canvas.dataset.sovietMaritimeCueStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "TU-16K")
+    .map((aircraft) => {
+      const cue = airCombat.maritimeTargetAreaCueFor(aircraft.id, elapsed);
+      return `${aircraft.id}:${cue ? `${cue.source}:${cue.reportTrackId}:${cue.quality.toFixed(2)}:${cue.uncertaintyMajor.toFixed(1)}:${aircraft.position.distanceTo(cue.launchRegionCenter).toFixed(1)}` : "none"}`;
+    })
+    .join("|");
+  canvas.dataset.sovietMaritimeRadarStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "TU-16K")
+    .map((aircraft) => {
+      const cue = airCombat.maritimeTargetAreaCueFor(aircraft.id, elapsed);
+      const standby = aircraft.mission === "anti-ship" && !!cue && aircraft.tracks.size === 0 && aircraft.position.distanceTo(cue.launchRegionCenter) > 160;
+      return `${aircraft.id}:${standby ? "standby" : "search"}`;
+    })
+    .join("|");
+  canvas.dataset.sovietMaritimeEventLog = airCombat.events
+    .filter((event) => /TARGET AREA RECEIVED|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
+    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
+    .join("|");
   const networkObservation = airCombat.tacticalNetworkObservation(elapsed);
   canvas.dataset.datalinkDecisionLog = networkObservation.decisions
     .map((decision) => `${decision.time.toFixed(2)}:${decision.network}:${decision.kind}:${decision.participantId}:${decision.trackId}`)
