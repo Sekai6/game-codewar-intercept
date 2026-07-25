@@ -6,6 +6,10 @@ import type {
   AirWeaponDefinition,
   AirWeaponId,
 } from "./types";
+import {
+  calculateDynamicLaunchZone,
+  dynamicShotAllowed,
+} from "./ai/weapon-employment.js";
 
 const usesDatalink = (guidance: AirGuidance) =>
   guidance === "active-radar" || guidance === "anti-ship-radar";
@@ -52,6 +56,8 @@ export function chooseAirWeapon(input: {
   missiles: readonly AirMissileInstance[];
   classification: AirTrack["classification"];
   range: number;
+  track?: AirTrack;
+  advancedAi?: boolean;
   defensive?: boolean;
   weaponCatalog: Readonly<Record<AirWeaponId, AirWeaponDefinition>>;
 }) {
@@ -59,16 +65,26 @@ export function chooseAirWeapon(input: {
   return ([...input.aircraft.ammo] as [AirWeaponId, number][])
     .filter(([, count]) => count > 0)
     .map(([id]) => input.weaponCatalog[id])
-    .filter(
-      (weapon) =>
-        weapon.targets.includes(input.classification as "aircraft" | "ship") &&
-        input.range >= weapon.minRange &&
-        input.range <= weapon.maxRange &&
+    .filter((weapon) => {
+      const rangeAllowed = input.advancedAi && input.track
+        ? dynamicShotAllowed({
+            zone: calculateDynamicLaunchZone({
+              weapon,
+              shooterPosition: input.aircraft.position,
+              shooterVelocity: input.aircraft.velocity,
+              shooterMaximumSpeed: input.aircraft.definition.flight.maxSpeed,
+              track: input.track,
+            }),
+            defensive: input.defensive ?? false,
+          })
+        : input.range >= weapon.minRange && input.range <= weapon.maxRange;
+      return weapon.targets.includes(input.classification as "aircraft" | "ship") &&
+        rangeAllowed &&
         fireControlAvailable({ ...input, weapon }) &&
         input.aircraft.hardpoints.some(
           (hardpoint) => hardpoint.state === "ready" && hardpoint.weaponId === weapon.id,
-        ),
-    )
+        );
+    })
     .sort((left, right) => {
       if (input.defensive) {
         const leftFireAndForget = left.guidance === "infrared" ? 1 : 0;

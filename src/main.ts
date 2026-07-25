@@ -8002,6 +8002,16 @@ function tick(now: number) {
       `${state.id}:${state.angleOfAttackDeg.toFixed(2)}:${state.loadFactor.toFixed(2)}:${state.specificEnergy.toFixed(2)}:${state.specificExcessPower.toFixed(2)}:${state.controlMode}:${state.updates}`,
     )
     .join("|");
+  canvas.dataset.advancedAirTacticalStates = air.tacticalStates
+    .map((state) => `${state.id}:${state.mode}:${state.supportedWeaponId ?? "none"}`)
+    .join("|");
+  canvas.dataset.advancedAirLaunchZones = air.tacticalStates
+    .filter((state) => state.launchZone)
+    .map((state) => {
+      const zone = state.launchZone!;
+      return `${state.id}:${zone.range.toFixed(1)}:${zone.rMin.toFixed(1)}:${zone.rNe.toFixed(1)}:${zone.rTr.toFixed(1)}:${zone.rMax.toFixed(1)}`;
+    })
+    .join("|");
   canvas.dataset.highQualityEnvironment = String(highQualityEnvironmentEnabled);
   auroraRuntime.writeDiagnostics(canvas);
   tacticalNetworkRuntime.writeDiagnostics(canvas);
@@ -8338,6 +8348,10 @@ function tick(now: number) {
     .join("|");
   canvas.dataset.airThrustEventLog = airCombat.events
     .filter((event) => event.kind === "maneuver" && event.text.includes("THRUST"))
+    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
+    .join("|");
+  canvas.dataset.advancedAirManeuverLog = airCombat.events
+    .filter((event) => event.kind === "maneuver" && event.text.includes(" BVR "))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)
     .join("|");
   canvas.dataset.airEscortAssignments = airCombat.aircraft

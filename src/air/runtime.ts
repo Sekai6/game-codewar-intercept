@@ -12,6 +12,9 @@ import {
 import { consumeFuel, stepFlightDynamics } from "./flight-dynamics";
 import { stepFlightDirector } from "./ai/flight-director.js";
 import { initialAdvancedFlightState } from "./flight/aircraft-performance.js";
+import { initialAirTacticalState, transitionTacticalState } from "./ai/tactical-state.js";
+import { planBvrManeuver } from "./ai/tactical-planner.js";
+import { calculateDynamicLaunchZone } from "./ai/weapon-employment.js";
 import { formationSlot, updateFormationStatus } from "./formation";
 import {
   airDamageDisposition,
@@ -180,6 +183,7 @@ function instantiate(
     desiredDirection: spawn.heading.clone().normalize(),
     bank: 0,
     advancedFlightState: initialAdvancedFlightState(spawn.definition),
+    tacticalState: initialAirTacticalState(),
     tracks: new Map(),
     networkTracks: new Map(),
     missileWarnings: new Map(),
@@ -223,6 +227,7 @@ export class AirCombatSystem {
   private serial = 0;
   private lastEventIndex = 0;
   private currentTime = 0;
+  private activeAdvancedAirAi = false;
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
@@ -396,6 +401,7 @@ export class AirCombatSystem {
   update(time: number, dt: number, context: AirScenarioContext) {
     if (!this.enabled) return;
     this.currentTime = time;
+    this.activeAdvancedAirAi = context.advancedAirAiEnabled ?? false;
     this.group.userData.context = context;
     const datalinkEra = context.datalinkEra ?? "link16-modernized",
       datalinkEnabled = context.datalinkEnabled ?? context.link16Enabled ?? true,
@@ -1362,16 +1368,18 @@ export class AirCombatSystem {
   }
   private chooseWeapon(
     a: AirPlatformInstance,
-    classification: AirTrack["classification"],
-    range: number,
+    track: AirTrack,
     defensive = false,
+    advancedAi = false,
   ) {
     return chooseAirWeapon({
       aircraft: a,
       missiles: this.missiles,
-      classification,
-      range,
+      classification: track.classification,
+      range: a.position.distanceTo(track.position),
+      track,
       defensive,
+      advancedAi,
       weaponCatalog: AIR_WEAPONS,
     });
   }
@@ -1382,8 +1390,12 @@ export class AirCombatSystem {
     time: number,
     defensive = false,
   ) {
-    const range = a.position.distanceTo(track.position),
-      weapon = this.chooseWeapon(a, track.classification, range, defensive),
+    const weapon = this.chooseWeapon(
+        a,
+        track,
+        defensive,
+        this.activeAdvancedAirAi,
+      ),
       hardpoint = weapon
         ? a.hardpoints.find(
             (candidate) =>
@@ -1392,6 +1404,22 @@ export class AirCombatSystem {
         : undefined;
     if (!weapon || !hardpoint || (a.subsystemHealth.get("weapons") ?? 0) <= 5)
       return false;
+    if (this.activeAdvancedAirAi) {
+      const zone = calculateDynamicLaunchZone({
+        weapon,
+        shooterPosition: a.position,
+        shooterVelocity: a.velocity,
+        shooterMaximumSpeed: a.definition.flight.maxSpeed,
+        track,
+      });
+      a.tacticalState.lastLaunchZone = {
+        rMin: zone.rMin,
+        rNe: zone.rNe,
+        rTr: zone.rTr,
+        rMax: zone.rMax,
+        range: zone.range,
+      };
+    }
     const authorization = commitEngagementAuthorization({
       engagements: a.engagements,
       target: target.id,
@@ -1771,6 +1799,26 @@ export class AirCombatSystem {
         defense.direction.y,
         defense.direction.z,
       );
+      if (context.advancedAirAiEnabled) {
+        const plan = planBvrManeuver({
+          ownPosition: a.position,
+          currentHeading: a.heading,
+          formationSide: a.formationIndex ? 1 : -1,
+          warningTrack: incoming.warning,
+          warningTti: defense.timeToImpact,
+        });
+        const previousMode = a.tacticalState.mode;
+        a.tacticalState = transitionTacticalState(
+          a.tacticalState,
+          plan.mode,
+          time,
+          0.3,
+        );
+        a.tacticalState.energyPriority = plan.energyPriority;
+        a.desiredDirection.copy(plan.desiredDirection);
+        if (a.tacticalState.mode !== previousMode)
+          this.emit(time, "maneuver", `${a.definition.name} BVR ${a.tacticalState.mode.toUpperCase()}`);
+      }
       const illuminatingMissile = this.missiles.find(
         (missile) =>
           missile.alive &&
@@ -1802,7 +1850,12 @@ export class AirCombatSystem {
           commandAllowsRelease = a.mission !== "anti-ship" ||
             this.strikeCommandAllowsRelease(a, time);
         const defensiveWeapon = target && track
-          ? this.chooseWeapon(a, track.classification, a.position.distanceTo(track.position), true)
+          ? this.chooseWeapon(
+              a,
+              track,
+              true,
+              context.advancedAirAiEnabled ?? false,
+            )
           : undefined;
         if (target && track && defensiveWeapon && defensiveShotAllowed({
           missileTti: defense.timeToImpact,
@@ -1834,19 +1887,57 @@ export class AirCombatSystem {
       time >= a.nextOoda
     ) {
       a.nextOoda = time + 1.0;
-      const track = this.missionTrackFor(a, context),
-        target = track ? this.targetById(track.targetId, context) : undefined;
+      const missionTrack = this.missionTrackFor(a, context),
+        supportingWeapon = this.missiles.find(
+          (missile) => missile.alive && missile.shooterId === a.id &&
+            (!missile.seekerAcquired ||
+              missile.definition.guidance === "semi-active-radar"),
+        ),
+        supportTrack = supportingWeapon
+          ? a.tracks.get(supportingWeapon.targetId)
+          : undefined,
+        track = missionTrack ?? supportTrack,
+        target = missionTrack
+          ? this.targetById(missionTrack.targetId, context)
+          : undefined;
       a.targetId = track?.targetId ?? null;
       if (track) {
         a.state = "engaging";
-        a.desiredDirection.copy(track.position).sub(a.position).normalize();
+        if (context.advancedAirAiEnabled) {
+          const plan = planBvrManeuver({
+            ownPosition: a.position,
+            currentHeading: a.heading,
+            formationSide: a.formationIndex ? 1 : -1,
+            targetTrack: track,
+            supportingWeapon: supportingWeapon &&
+                supportingWeapon.targetId === track.targetId
+              ? {
+                  seekerAcquired: supportingWeapon.seekerAcquired,
+                  guidance: supportingWeapon.definition.guidance,
+                }
+              : undefined,
+          });
+          const previousMode = a.tacticalState.mode;
+          a.tacticalState = transitionTacticalState(
+            a.tacticalState,
+            plan.mode,
+            time,
+          );
+          a.tacticalState.energyPriority = plan.energyPriority;
+          a.tacticalState.targetTrackNumber = track.targetId;
+          a.tacticalState.supportedWeaponId = supportingWeapon?.id ?? null;
+          a.desiredDirection.copy(plan.desiredDirection);
+          if (a.tacticalState.mode !== previousMode)
+            this.emit(time, "maneuver", `${a.definition.name} BVR ${a.tacticalState.mode.toUpperCase()}`);
+        } else
+          a.desiredDirection.copy(track.position).sub(a.position).normalize();
         if (
-          target &&
-          trackSupportsWeaponAuthorization(track) &&
-          track.quality >= 0.22 &&
+          target && missionTrack &&
+          trackSupportsWeaponAuthorization(missionTrack) &&
+          missionTrack.quality >= 0.22 &&
           this.strikeCommandAllowsRelease(a, time)
         )
-          this.launch(a, target, track, time);
+          this.launch(a, target, missionTrack, time);
       } else {
         const leader = this.aircraft.find(
           (x) => x.id === a.leaderId && x.alive,
@@ -1960,7 +2051,7 @@ export class AirCombatSystem {
         intent: {
           desiredDirection: a.desiredDirection,
           thrustMode: a.thrustMode,
-          energyPriority: a.state === "defending" ? "spend" : "preserve",
+          energyPriority: a.tacticalState.energyPriority,
         },
         dt,
       });
@@ -2724,6 +2815,12 @@ export class AirCombatSystem {
         stalled: aircraft.advancedFlightState.stalled,
         controlMode: aircraft.advancedFlightState.controlMode,
         updates: aircraft.advancedFlightState.updateCount,
+      })),
+      tacticalStates: this.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        mode: aircraft.tacticalState.mode,
+        supportedWeaponId: aircraft.tacticalState.supportedWeaponId,
+        launchZone: aircraft.tacticalState.lastLaunchZone,
       })),
     };
   }
