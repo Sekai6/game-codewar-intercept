@@ -10,6 +10,8 @@ import {
   semiActiveIlluminationValid,
 } from "./guidance";
 import { consumeFuel, stepFlightDynamics } from "./flight-dynamics";
+import { stepFlightDirector } from "./ai/flight-director.js";
+import { initialAdvancedFlightState } from "./flight/aircraft-performance.js";
 import { formationSlot, updateFormationStatus } from "./formation";
 import {
   airDamageDisposition,
@@ -177,6 +179,7 @@ function instantiate(
     heading: spawn.heading.clone().normalize(),
     desiredDirection: spawn.heading.clone().normalize(),
     bank: 0,
+    advancedFlightState: initialAdvancedFlightState(spawn.definition),
     tracks: new Map(),
     networkTracks: new Map(),
     missileWarnings: new Map(),
@@ -1941,16 +1944,47 @@ export class AirCombatSystem {
           (a.subsystemHealth.get("right-engine") ?? 0)) /
         200,
       flight = a.definition.flight,
-      speed = a.velocity.length(),
-      desiredBank = clamp(
+      speed = a.velocity.length();
+    let newSpeed: number;
+    if (context.advancedAirAiEnabled) {
+      const advancedStep = stepFlightDirector({
+        definition: a.definition,
+        state: a.advancedFlightState,
+        heading: a.heading,
+        speed,
+        altitude: a.position.y,
+        bankRad: a.bank,
+        flightControlHealth: fc,
+        engineHealth: eng,
+        afterburnerRemaining: a.afterburnerRemaining,
+        intent: {
+          desiredDirection: a.desiredDirection,
+          thrustMode: a.thrustMode,
+          energyPriority: a.state === "defending" ? "spend" : "preserve",
+        },
+        dt,
+      });
+      a.advancedFlightState = advancedStep.state;
+      a.bank = advancedStep.bankRad;
+      a.heading.copy(advancedStep.heading);
+      a.fuel = consumeFuel(a.fuel, advancedStep.fuelBurn);
+      a.thrustMode = advancedStep.thrustMode;
+      a.afterburnerRemaining = Math.max(
+        0,
+        a.afterburnerRemaining - advancedStep.afterburnerUsed,
+      );
+      if (advancedStep.state.stalled) a.state = "defending";
+      newSpeed = advancedStep.speed;
+    } else {
+      const desiredBank = clamp(
         Math.atan2(
           a.heading.clone().cross(a.desiredDirection).y,
           a.heading.dot(a.desiredDirection),
         ) * 3,
         -1.15,
         1.15,
-      ),
-      flightStep = stepFlightDynamics({
+      );
+      const flightStep = stepFlightDynamics({
         speed,
         currentBank: THREE.MathUtils.radToDeg(a.bank),
         desiredBank: THREE.MathUtils.radToDeg(desiredBank),
@@ -1967,38 +2001,42 @@ export class AirCombatSystem {
         dt,
         envelope: flight,
       });
-    a.bank = THREE.MathUtils.degToRad(flightStep.bank);
-    const pitchLimited = a.heading.clone();
-    pitchLimited.y = Math.sin(
-      THREE.MathUtils.degToRad(
-        THREE.MathUtils.radToDeg(Math.asin(clamp(a.heading.y, -1, 1))) +
-          flightStep.pitchDelta,
-      ),
-    );
-    pitchLimited.normalize();
-    const horizontalDesired = a.desiredDirection.clone();
-    horizontalDesired.y = pitchLimited.y;
-    horizontalDesired.normalize();
-    const next = rotateToward(
-      a.heading,
-      horizontalDesired,
-      THREE.MathUtils.degToRad(flightStep.maximumTurnRateDeg) * dt,
-    );
-    a.heading.copy(next);
-    if (flightStep.stalled) {
-      a.heading.y = Math.max(-0.18, a.heading.y - 0.25 * dt);
-      a.state = "defending";
+      a.bank = THREE.MathUtils.degToRad(flightStep.bank);
+      const pitchLimited = a.heading.clone();
+      pitchLimited.y = Math.sin(
+        THREE.MathUtils.degToRad(
+          THREE.MathUtils.radToDeg(Math.asin(clamp(a.heading.y, -1, 1))) +
+            flightStep.pitchDelta,
+        ),
+      );
+      pitchLimited.normalize();
+      const horizontalDesired = a.desiredDirection.clone();
+      horizontalDesired.y = pitchLimited.y;
+      horizontalDesired.normalize();
+      const next = rotateToward(
+        a.heading,
+        horizontalDesired,
+        THREE.MathUtils.degToRad(flightStep.maximumTurnRateDeg) * dt,
+      );
+      a.heading.copy(next);
+      if (flightStep.stalled) {
+        a.heading.y = Math.max(-0.18, a.heading.y - 0.25 * dt);
+        a.state = "defending";
+      }
+      a.fuel = consumeFuel(a.fuel, flightStep.fuelBurn);
+      a.thrustMode = flightStep.thrustMode;
+      a.afterburnerRemaining = Math.max(
+        0,
+        a.afterburnerRemaining - flightStep.afterburnerUsed,
+      );
+      newSpeed = flightStep.speed;
     }
-    a.fuel = consumeFuel(a.fuel, flightStep.fuelBurn);
-    a.thrustMode = flightStep.thrustMode;
-    a.afterburnerRemaining = Math.max(0, a.afterburnerRemaining - flightStep.afterburnerUsed);
     const thrustIr = a.thrustMode === "afterburner"
       ? flight.thrust.afterburnerInfraredMultiplier
       : a.thrustMode === "military"
         ? flight.thrust.militaryInfraredMultiplier
         : a.thrustMode === "idle" ? 0.45 : 1;
     a.infraredSignature = a.definition.infraredSignature * thrustIr;
-    const newSpeed = flightStep.speed;
     a.velocity.copy(a.heading).multiplyScalar(newSpeed);
     a.position.addScaledVector(a.velocity, dt);
     a.position.y = Math.max(0.25, a.position.y);
@@ -2672,6 +2710,21 @@ export class AirCombatSystem {
       kills: this.events.filter((e) => e.kind === "kill").length,
       standardDamageApplications: this.standardDamageApplications,
       ksrMaximumSpeed: Math.max(0, ...ksr.map((m) => m.velocity.length())),
+      advancedFlightUpdates: this.aircraft.reduce(
+        (sum, aircraft) => sum + aircraft.advancedFlightState.updateCount,
+        0,
+      ),
+      advancedFlightStates: this.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        angleOfAttackDeg: aircraft.advancedFlightState.angleOfAttackDeg,
+        loadFactor: aircraft.advancedFlightState.loadFactor,
+        dynamicPressure: aircraft.advancedFlightState.dynamicPressure,
+        specificEnergy: aircraft.advancedFlightState.specificEnergy,
+        specificExcessPower: aircraft.advancedFlightState.specificExcessPower,
+        stalled: aircraft.advancedFlightState.stalled,
+        controlMode: aircraft.advancedFlightState.controlMode,
+        updates: aircraft.advancedFlightState.updateCount,
+      })),
     };
   }
   visualDiagnostics() {

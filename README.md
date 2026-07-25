@@ -11,6 +11,10 @@
 
 ## 联合空中作战
 
+场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。第一阶段已加入发动机推力建立/衰减、动压、迎角、侧滑、载荷、诱导阻力、能量高度、比剩余功率 `Ps`、AoA 限制和失速恢复状态。每架飞机的上述状态均进入运行时诊断，后续动态发射区和 BVR/BFM 决策将消费这些状态，而不是继续直接改变速度或航向。
+
+高级管线保持单一集成边界：任务层当前仍产生机动意图，`flight-director.ts` 将意图转换为坡度、载荷、迎角和推力命令，`control-law.ts`、`envelope-protection.ts`、`aerodynamic-model.ts` 与 `engine-model.ts` 依次约束并积分输出；`runtime.ts` 只选择高级/兼容路径、应用结果和生成事件。`verify:advanced-air-flight` 验证能量、发动机迟滞、控制限制和失速恢复，单 renderer 的 `verify:advanced-air-ai-toggle` 验证关闭时零高级更新及运行中开启后的状态增长。
+
 场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `TACTICAL DATA LINK ENABLED` 控件。默认 `NTU BASELINE` 使用美军舰载 Link 11/TADIL-A，不启用 Link 16；`JTIDS TRANSITION` 保留舰艇 Link 11，同时只允许达到年代门槛的 F-14A JTIDS 终端进入 Link 16；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰进入 Link 16。总开关会同时断开该年代可用的数据链，并清空参与节点、队列、远程航迹和提示。苏联 Tu-16K、MiG-29A 不进入这两种美军网络。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
 
 Link 11 是独立的轮询式网络：由存活且具备能力的节点选出 Net Control Station，NCS 每次只轮询一个参与者；节点数量会直接拉长完整刷新周期。报告要承受排队、调制解调器延迟、距离/终端健康丢包、较大的不确定度与质量折损，并保持阵营隔离。`AEW` 预设中的 E-2C 以 AN/ARC-158 作为真实 Link 11 报告源，其 AN/APS-125 本机概率探测结果经轮询发送给舰队；F-14A 并未被伪装成 Link 11 节点，而是通过有容量、延迟和寿命限制的 Link 4A 截击命令受控。AI 只把未过期的网络报告用于搜索提示，不能据此建火控航迹、发射武器或更新导弹。

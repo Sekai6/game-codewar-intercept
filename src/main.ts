@@ -2408,6 +2408,14 @@ sandbox.insertBefore(airScenarioField, sandbox.querySelector("#sbStart"));
 const airScenarioInput = airScenarioField.querySelector(
   "input",
 ) as HTMLInputElement;
+const advancedAirAiField = document.createElement("label");
+advancedAirAiField.className = "sandbox-toggle";
+advancedAirAiField.innerHTML =
+  '<input id="sbAdvancedAirAi" type="checkbox" checked> ADVANCED FLIGHT AI / ENERGY + ENVELOPE MODEL';
+sandbox.insertBefore(advancedAirAiField, sandbox.querySelector("#sbStart"));
+const advancedAirAiInput = advancedAirAiField.querySelector(
+  "input",
+) as HTMLInputElement;
 const datalinkEraField = document.createElement("label");
 datalinkEraField.className = "sandbox-field";
 datalinkEraField.innerHTML = `<span>TACTICAL NETWORK ERA</span><select id="sbDatalinkEra">${Object.values(
@@ -2700,6 +2708,7 @@ const airScenarioContext = createAirScenarioContext(() => {
     link16Enabled: link16Input.checked,
     sovietCommandEra: sovietCommandEraInput.value as SovietCommandEra,
     sovietCommandEnabled: sovietCommandInput.checked,
+    advancedAirAiEnabled: advancedAirAiInput.checked,
     applyBlueDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
       airShipHits++;
@@ -7986,6 +7995,13 @@ function tick(now: number) {
   const air = airCombat.diagnostics();
   const airVisuals = airCombat.visualDiagnostics();
   canvas.dataset.airCombatEnabled = String(airCombat.enabled);
+  canvas.dataset.advancedAirAiEnabled = String(advancedAirAiInput.checked);
+  canvas.dataset.advancedAirAiUpdates = String(air.advancedFlightUpdates);
+  canvas.dataset.advancedAirAiStates = air.advancedFlightStates
+    .map((state) =>
+      `${state.id}:${state.angleOfAttackDeg.toFixed(2)}:${state.loadFactor.toFixed(2)}:${state.specificEnergy.toFixed(2)}:${state.specificExcessPower.toFixed(2)}:${state.controlMode}:${state.updates}`,
+    )
+    .join("|");
   canvas.dataset.highQualityEnvironment = String(highQualityEnvironmentEnabled);
   auroraRuntime.writeDiagnostics(canvas);
   tacticalNetworkRuntime.writeDiagnostics(canvas);

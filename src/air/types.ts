@@ -12,6 +12,7 @@ import type { EnemyType } from "../threats/catalog";
 import type { FormationStatus } from "./formation";
 import type { DatalinkEra } from "../datalink/era.js";
 import type { SovietCommandEra } from "../soviet-c2/era.js";
+import type { AdvancedFlightState } from "./flight/aircraft-performance";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
@@ -192,6 +193,7 @@ export interface AirPlatformInstance extends TargetableEntity {
   heading: THREE.Vector3;
   desiredDirection: THREE.Vector3;
   bank: number;
+  advancedFlightState: AdvancedFlightState;
   tracks: Map<string, AirTrack>;
   networkTracks: Map<string, AirTrack>;
   ammo: Map<AirWeaponId, number>;
@@ -267,6 +269,7 @@ export interface AirScenarioContext {
   link16Enabled?: boolean;
   sovietCommandEra?: SovietCommandEra;
   sovietCommandEnabled?: boolean;
+  advancedAirAiEnabled?: boolean;
   targets?: readonly TargetableEntity[];
   countermeasures?: (targetId: string) => {
     ecmEnabled: boolean;
