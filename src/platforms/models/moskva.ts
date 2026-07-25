@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createLoftedHullGeometry, createSheerDeckGeometry, createWaterlineBandGeometry, type HullStation } from "../../models/hull-geometry";
 import { addModelStrut as addStrut, createChamferedSlopedBoxGeometry, createSlopedBoxGeometry as slopedBox } from "../../models/model-primitives";
 import { applySurfaceDetail } from "../../visual/material-textures";
+import { registerAssetDetailLod } from "../../visual/asset-detail-lod";
 import { addPointDefenseMount, addSensorAnchor, addWeaponHardpoint, createPlatformModelSlots } from "../model-slots";
 import type { EnemyPlatformDefinition } from "../types";
 
@@ -281,11 +282,58 @@ function createMoskvaModel() {
       );
     }
 
+  const highDetail = new THREE.Group();
+  highDetail.name = "Moskva high-detail representation";
+  while (ship.children.length) highDetail.add(ship.children[0]);
+  const createProxy = (medium: boolean) => {
+    const proxy = new THREE.Group();
+    proxy.name = `Moskva ${medium ? "medium" : "low"}-detail representation`;
+    proxy.add(
+      new THREE.Mesh(createLoftedHullGeometry(MOSKVA_HULL), hullMaterial),
+      new THREE.Mesh(createSheerDeckGeometry(MOSKVA_HULL), deckMaterial),
+    );
+    const houseSpecs = medium
+      ? [[8, 9.65, 23, 7.2, 7.4], [14, 15.2, 11.5, 6.7, 4], [-13, 9.2, 20, 7.25, 6.2]]
+      : [[3, 10.4, 43, 7.1, 8.8], [11, 16.1, 15, 5.8, 3.8]];
+    for (const [x, y, length, beam, height] of houseSpecs) {
+      const house = new THREE.Mesh(new THREE.BoxGeometry(length, height, beam), superMaterial);
+      house.position.set(x, y, 0);
+      proxy.add(house);
+    }
+    for (const x of medium ? [-2.5, -8.2] : [-5.4]) {
+      const funnel = new THREE.Mesh(new THREE.BoxGeometry(medium ? 4 : 6.4, medium ? 6 : 5.5, medium ? 4.5 : 4.8), darkMaterial);
+      funnel.position.set(x, medium ? 16.8 : 16.2, 0);
+      proxy.add(funnel);
+    }
+    for (const [x, height] of [[7, 27], [-10.5, 24]] as const) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(medium ? .16 : .28, medium ? .25 : .4, height - 14, 6), darkMaterial);
+      mast.position.set(x, (height + 14) * .5, 0);
+      proxy.add(mast);
+    }
+    if (medium) {
+      for (const side of [-1, 1]) {
+        const canisters = new THREE.Mesh(new THREE.BoxGeometry(22, 2.4, 1.8), missileMaterial);
+        canisters.position.set(4.5, 8.4, side * 4.7);
+        canisters.rotation.y = -side * .1;
+        proxy.add(canisters);
+      }
+    }
+    return proxy;
+  };
+  const mediumDetail = createProxy(true), lowDetail = createProxy(false);
+  mediumDetail.visible = false;
+  lowDetail.visible = false;
+  ship.add(highDetail, mediumDetail, lowDetail);
+  registerAssetDetailLod(ship, { nearDistance: 270, mediumDistance: 340, high:[highDetail], medium:[mediumDetail], low:[lowDetail], exclusiveTiers:true });
+
   ship.userData.platformSlots = slots;
   ship.userData.hullMaterial = hullMaterial;
   ship.userData.hullLength = 83;
   ship.userData.hullBeam = 9.24;
   ship.userData.hullLengthBeamRatio = 83 / 9.24;
+  ship.userData.highDetail = highDetail;
+  ship.userData.mediumDetail = mediumDetail;
+  ship.userData.lowDetail = lowDetail;
   ship.userData.detail = [forwardHouse, bridge, aftHouse, forwardMast, aftMast, ...slots.weaponHardpoints.map((hardpoint) => hardpoint.mount.parent!), ...slots.pointDefenseMounts.map((mount) => mount.traverse)];
   return ship;
 }

@@ -36,6 +36,14 @@ async function capture(path, ultra) {
     diagnostics.errors = errors;
     if (errors.length || diagnostics.platform !== "slava-moskva" || diagnostics.mappedMaterials < 3) throw new Error(JSON.stringify(diagnostics));
     await page.locator("#scene").screenshot({ path });
+    if (ultra) {
+      await page.mouse.wheel(0, 1800);
+      await page.waitForTimeout(300);
+      await page.locator("#scene").screenshot({ path: "verification-moskva-asset-medium-ultra.png" });
+      await page.mouse.wheel(0, 1000);
+      await page.waitForTimeout(300);
+      await page.locator("#scene").screenshot({ path: "verification-moskva-asset-low-ultra.png" });
+    }
     return diagnostics;
   } finally {
     await browser.close();
