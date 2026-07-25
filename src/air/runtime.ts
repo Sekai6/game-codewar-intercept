@@ -49,6 +49,7 @@ import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
 import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
+import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -221,6 +222,8 @@ export class AirCombatSystem {
   private readonly sovietMaritimeTargeting = new SovietMaritimeTargetingNetwork();
   private readonly seenMaritimeCues = new Set<string>();
   private readonly maritimeEmconParticipants = new Set<string>();
+  private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
+  private readonly seenFleetOrders = new Set<string>();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
@@ -281,6 +284,8 @@ export class AirCombatSystem {
     this.sovietMaritimeTargeting.reset();
     this.seenMaritimeCues.clear();
     this.maritimeEmconParticipants.clear();
+    this.sovietFleetCommand.reset();
+    this.seenFleetOrders.clear();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
     this.activeLink16ParticipantIds.clear();
@@ -381,6 +386,10 @@ export class AirCombatSystem {
       context.sovietCommandEnabled ?? true,
     );
     this.sovietMaritimeTargeting.configure(
+      context.sovietCommandEra ?? "ntu-1980s",
+      context.sovietCommandEnabled ?? true,
+    );
+    this.sovietFleetCommand.configure(
       context.sovietCommandEra ?? "ntu-1980s",
       context.sovietCommandEnabled ?? true,
     );
@@ -611,6 +620,53 @@ export class AirCombatSystem {
         `${aircraft.definition.name} ${cue.source.toUpperCase()} TARGET AREA RECEIVED / ${cue.reportTrackId} / Q ${Math.round(cue.quality * 100)}% / ERROR ${Math.round(cue.uncertaintyMajor)}x${Math.round(cue.uncertaintyMinor)} / CUE ONLY`,
       );
     }
+    const fleetParticipants = this.aircraft
+      .filter((aircraft) => aircraft.side === "red" && aircraft.formationIndex === 0)
+      .map((aircraft) => ({
+        id: aircraft.id,
+        platformId: aircraft.definition.id,
+        position: aircraft.position,
+        alive: aircraft.alive,
+      }));
+    const fleetTargetAreas = new Map(fleetParticipants.flatMap((participant) => {
+      const cue = this.sovietMaritimeTargeting.cueFor(participant.id, time);
+      return cue ? [[participant.id, {
+        reportTrackId: cue.reportTrackId,
+        estimatedPosition: cue.estimatedPosition,
+        launchRegionCenter: cue.launchRegionCenter,
+        quality: cue.quality,
+        observedAt: cue.observedAt,
+        expiresAt: cue.expiresAt,
+      }] as const] : [];
+    }));
+    this.sovietFleetCommand.update(
+      time,
+      context.redShip
+        ? {
+            id: context.redShip.id,
+            label: "SURFACE FLAG RELAY",
+            alive: context.redShip.alive,
+            health: context.redShip.alive ? 1 : 0,
+          }
+        : {
+            id: "soviet-fleet-command-post",
+            label: "FLEET COMMAND POST",
+            alive: true,
+            health: 1,
+          },
+      fleetParticipants,
+      fleetTargetAreas,
+    );
+    for (const aircraft of this.aircraft) {
+      const order = this.sovietFleetCommand.orderFor(aircraft.id, time);
+      if (!order || this.seenFleetOrders.has(order.id)) continue;
+      this.seenFleetOrders.add(order.id);
+      this.emit(
+        time,
+        "guidance",
+        `${aircraft.definition.name} FLEET STRIKE ORDER RECEIVED / ${order.id} / SOURCE ${order.sourceReportTrackId} / ATTACK ${order.attackWindowStart.toFixed(1)}-${order.attackWindowEnd.toFixed(1)} / NO WEAPON AUTHORITY`,
+      );
+    }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -690,6 +746,27 @@ export class AirCombatSystem {
 
   sovietMaritimeEmconParticipants() {
     return [...this.maritimeEmconParticipants];
+  }
+
+  sovietFleetCommandDiagnostics(time = this.currentTime) {
+    return this.sovietFleetCommand.diagnostics(time);
+  }
+
+  sovietFleetOrderFor(participantId: string, time = this.currentTime) {
+    return this.sovietFleetCommand.orderFor(participantId, time);
+  }
+
+  private fleetOrderForAircraft(a: AirPlatformInstance, time: number) {
+    return this.sovietFleetCommand.orderFor(a.id, time) ??
+      (a.leaderId ? this.sovietFleetCommand.orderFor(a.leaderId, time) : undefined);
+  }
+
+  private strikeCommandAllowsRelease(a: AirPlatformInstance, time: number) {
+    if (a.definition.id !== "TU-16K" || a.mission !== "anti-ship") return true;
+    if (!this.sovietFleetCommand.diagnostics(time).enabled) return true;
+    const order = this.fleetOrderForAircraft(a, time);
+    if (!order) return time >= 15;
+    return time >= order.attackWindowStart && time <= order.attackWindowEnd;
   }
 
   tacticalCuesFor(participantId:string) {
@@ -1510,7 +1587,8 @@ export class AirCombatSystem {
         a.nextOoda = time + 1;
         const track = this.missionTrackFor(a, context),
           ship = track ? this.targetById(track.targetId, context) : undefined;
-        if (ship && track && trackSupportsWeaponAuthorization(track))
+        if (ship && track && trackSupportsWeaponAuthorization(track) &&
+          this.strikeCommandAllowsRelease(a, time))
           this.launch(a, ship, track, time);
       }
     } else if (
@@ -1528,7 +1606,8 @@ export class AirCombatSystem {
         if (
           target &&
           trackSupportsWeaponAuthorization(track) &&
-          track.quality >= 0.22
+          track.quality >= 0.22 &&
+          this.strikeCommandAllowsRelease(a, time)
         )
           this.launch(a, target, track, time);
       } else {
@@ -1537,7 +1616,14 @@ export class AirCombatSystem {
         );
         const gciCommand = this.sovietGci.commandFor(a.id, time);
         const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
-        if (maritimeCue && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+        const fleetOrder = this.fleetOrderForAircraft(a, time);
+        if (fleetOrder && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
+          a.state = "engaging";
+          a.desiredDirection
+            .copy(fleetOrder.approachPoint)
+            .sub(a.position)
+            .normalize();
+        } else if (maritimeCue && a.definition.id === "TU-16K" && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(maritimeCue.launchRegionCenter)

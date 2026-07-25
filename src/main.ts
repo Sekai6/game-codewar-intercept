@@ -8181,6 +8181,26 @@ function tick(now: number) {
     .filter((event) => /TARGET AREA RECEIVED|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)
     .join("|");
+  const fleetCommand = airCombat.sovietFleetCommandDiagnostics(elapsed);
+  canvas.dataset.sovietFleetCommandOperational = String(fleetCommand.enabled);
+  canvas.dataset.sovietFleetCommandNode = `${fleetCommand.nodeId}:${fleetCommand.nodeLabel}`;
+  canvas.dataset.sovietFleetCommandNodeAlive = String(fleetCommand.nodeAlive);
+  canvas.dataset.sovietFleetCommandTransmitted = String(fleetCommand.transmitted);
+  canvas.dataset.sovietFleetCommandDelivered = String(fleetCommand.delivered);
+  canvas.dataset.sovietFleetCommandDropped = String(fleetCommand.dropped);
+  canvas.dataset.sovietFleetCommandActiveOrders = String(fleetCommand.activeOrders);
+  canvas.dataset.sovietFleetCommandMeanDelay = fleetCommand.meanDelay.toFixed(3);
+  canvas.dataset.sovietFleetCommandOrders = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "TU-16K" && aircraft.formationIndex === 0)
+    .map((aircraft) => {
+      const order = airCombat.sovietFleetOrderFor(aircraft.id, elapsed);
+      return `${aircraft.id}:${order ? `${order.id}:${order.sourceReportTrackId}:${order.attackWindowStart.toFixed(2)}:${order.attackWindowEnd.toFixed(2)}:${order.commandNodeId}` : "none"}`;
+    })
+    .join("|");
+  canvas.dataset.sovietFleetCommandEventLog = airCombat.events
+    .filter((event) => /TARGET AREA RECEIVED|FLEET STRIKE ORDER|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
+    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
+    .join("|");
   const networkObservation = airCombat.tacticalNetworkObservation(elapsed);
   canvas.dataset.datalinkDecisionLog = networkObservation.decisions
     .map((decision) => `${decision.time.toFixed(2)}:${decision.network}:${decision.kind}:${decision.participantId}:${decision.trackId}`)

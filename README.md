@@ -23,6 +23,8 @@ Link 11 是独立的轮询式网络：由存活且具备能力的节点选出 Ne
 
 海上远程目标指示是另一条独立链路。1970 年代层使用 Uspekh-U，NTU/苏联晚期在短暂卫星过境窗口内优先使用 Legenda，窗口外回退 Uspekh-U；两者分别具有更新周期、传输延迟、可靠性、报告寿命和误差椭圆。报告只含匿名航迹号、估计位置/速度、报告时间和建议发射区域，不进入 `AirTrack`，也不能解析到敌舰实体。Tu-16K 长机先在有限时间内保持 EMCON，并按报告飞向发射区域；报告丢失或超时后回退 Rubin-1K 自主搜索。KSR-5 仍须本机雷达把目标分类为舰船并通过武器级航迹、火控通道和 `centerline-ksr` 实体挂点释放。对应门槛为 `verify:soviet-maritime` 与单 renderer 的 `verify:soviet-maritime-runtime`。
 
+舰队集中指挥网建立在目标区域报告之上，但仍不产生共享火控图。存活的红方水面平台可作为 SURFACE FLAG RELAY，纯空中场景则使用抽象 FLEET COMMAND POST；节点健康影响可靠性，节点失效会停止新命令，但已经送达的命令会保持到自身过期。命令向 Tu-16K 编队分配主攻优先级、偏置接近点、攻击时间窗和脱离方向，并只引用匿名的 Uspekh/Legenda 报告号。飞机即使提前用 Rubin-1K 获得舰船航迹，也要等攻击窗口开启才允许进入 KSR-5 发射流程；长期收不到命令会按预定时限回退自主条令。verify:soviet-fleet-command 覆盖节点死亡与命令惯性，verify:soviet-fleet-command-runtime 验证“区域报告/本机发现 -> 集中命令 -> 时间窗内合法离架”。
+
 场景面板的 `AIR PRESET` 提供 `JOINT`、`INTERCEPT`、`STRIKE` 与 `FIGHTER`：联合场景加入 F-14A、Tu-16K 与 A-6E 三个双机编队，拦截场景保留 F-14A/Tu-16K，反舰场景只保留 A-6E，战斗机场景让 F-14A CAP 对抗 MiG-29A 双机截击。编组、坐标、任务覆盖和护航关系位于 `src/air/scenarios.ts`，核心运行时只接收 `AirSpawn[]`。燃油按动力学返回的单 tick 消耗量扣减，`consumeFuel` 保证不会重复应用时间步或出现负值。
 
 F-14A 使用 AIM-54A、AIM-7F 与 AIM-9L；Tu-16K 使用 KSR-5；A-6E 使用 AGM-84A Harpoon。KSR-5 的游戏缩放极速约为 Mach 3.1。敌机与空射反舰弹都会进入舰载搜索雷达、三维航迹、火控解算、交战队列和现有 Mk 10/Mk 41 实体发射链；反舰弹优先于载机，防止载机交战占满通道。飞机命中进入系统毁伤，反舰弹命中执行硬杀；空中模块无权直接生成舰载 SAM。空中武器的发射射程与初始中制导点来自 `AirTrack` 估计而非目标真值。漏防弹会触发舰体、子系统、爆炸和持续烟火损伤。数字键 `6` 跟随当前空中武器或飞机。
@@ -571,7 +573,8 @@ game-codewar-intercept/
    ├─ soviet-c2/
    │  ├─ era.ts                  # 苏联指挥年代与能力矩阵
    │  ├─ gci-network.ts          # 有延迟、误差和寿命的截击指挥命令链
-   │  └─ maritime-targeting.ts   # Uspekh-U/Legenda 匿名目标区域报告
+   │  ├─ maritime-targeting.ts   # Uspekh-U/Legenda 匿名目标区域报告
+   │  └─ fleet-command.ts        # 节点化集中任务命令、攻击窗口与命令惯性
    ├─ ship-defense/
    │  ├─ defense-targets.ts      # 通用防空目标与来源映射
    │  ├─ engagement-runtime.ts   # 观察评分、武器计划与照射器资源分配
