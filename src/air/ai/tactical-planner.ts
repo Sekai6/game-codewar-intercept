@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import type { AirTrack } from "../types";
 import type { AirTacticalMode } from "./tactical-state.js";
 import {
   crankManeuver,
@@ -14,12 +13,19 @@ export interface BvrPlan {
   energyPriority: "preserve" | "neutral" | "spend";
 }
 
+export interface TacticalTrackObservation {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  quality: number;
+  uncertainty: number;
+}
+
 export function planBvrManeuver(input: {
   ownPosition: THREE.Vector3;
   currentHeading: THREE.Vector3;
   formationSide: -1 | 1;
-  targetTrack?: AirTrack;
-  warningTrack?: AirTrack;
+  targetTrack?: TacticalTrackObservation;
+  warningTrack?: TacticalTrackObservation;
   warningTti?: number;
   supportingWeapon?: { seekerAcquired: boolean; guidance: string };
   timeSinceLaunch?: number;

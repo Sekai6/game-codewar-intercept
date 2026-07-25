@@ -8012,6 +8012,12 @@ function tick(now: number) {
       return `${state.id}:${zone.range.toFixed(1)}:${zone.rMin.toFixed(1)}:${zone.rNe.toFixed(1)}:${zone.rTr.toFixed(1)}:${zone.rMax.toFixed(1)}`;
     })
     .join("|");
+  canvas.dataset.advancedAirPerceptionUpdates = String(air.perceptionUpdates);
+  canvas.dataset.advancedAirPerceivedContacts = air.perceivedContacts
+    .flatMap((aircraft) => aircraft.contacts.map((contact) =>
+      `${aircraft.id}:${contact.trackNumber}:${contact.source}:${contact.classification}:${contact.quality.toFixed(2)}:${contact.uncertainty.toFixed(1)}:${contact.weaponAuthorization ? "weapon" : "cue"}`,
+    ))
+    .join("|");
   canvas.dataset.highQualityEnvironment = String(highQualityEnvironmentEnabled);
   auroraRuntime.writeDiagnostics(canvas);
   tacticalNetworkRuntime.writeDiagnostics(canvas);

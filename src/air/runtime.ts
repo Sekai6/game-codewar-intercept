@@ -15,6 +15,14 @@ import { initialAdvancedFlightState } from "./flight/aircraft-performance.js";
 import { initialAirTacticalState, transitionTacticalState } from "./ai/tactical-state.js";
 import { planBvrManeuver } from "./ai/tactical-planner.js";
 import { calculateDynamicLaunchZone } from "./ai/weapon-employment.js";
+import {
+  initialPilotPerception,
+  selectPilotContact,
+  updatePilotPerception,
+  type PilotContact,
+  type PilotObservation,
+} from "./ai/perception.js";
+import { STANDARD_ADVANCED_PILOT } from "./ai/pilot-model.js";
 import { formationSlot, updateFormationStatus } from "./formation";
 import {
   airDamageDisposition,
@@ -79,6 +87,61 @@ import type {
 } from "./types";
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+interface PerceptionBindings {
+  targetByTrackNumber: Map<string, string>;
+  trackNumberByTarget: Map<string, string>;
+  nextSerial: number;
+}
+
+const initialPerceptionBindings = (): PerceptionBindings => ({
+  targetByTrackNumber: new Map(),
+  trackNumberByTarget: new Map(),
+  nextSerial: 1,
+});
+
+function observationSource(track: AirTrack): PilotObservation["source"] {
+  return track.source === "link11" || track.source === "link16"
+    ? "tactical-network"
+    : "organic-radar";
+}
+
+function perceptionObservation(
+  track: AirTrack,
+  bindings: PerceptionBindings,
+): PilotObservation {
+  let trackNumber = bindings.trackNumberByTarget.get(track.targetId);
+  if (!trackNumber) {
+    trackNumber = `P-${String(bindings.nextSerial++).padStart(4, "0")}`;
+    bindings.trackNumberByTarget.set(track.targetId, trackNumber);
+    bindings.targetByTrackNumber.set(trackNumber, track.targetId);
+  }
+  const networkCue = track.source === "link11" || track.source === "link16";
+  return {
+    trackNumber,
+    estimatedPosition: track.position.clone(),
+    estimatedVelocity: track.velocity.clone(),
+    classification: track.classification,
+    quality: track.quality,
+    uncertainty: track.uncertainty,
+    observedAt: track.lastUpdate,
+    source: observationSource(track),
+    weaponAuthorization: !networkCue && track.engagementQuality !== "cue",
+  };
+}
+
+function contactAsRuntimeTrack(contact: PilotContact, targetId: string): AirTrack {
+  return {
+    targetId,
+    position: contact.estimatedPosition.clone(),
+    velocity: contact.estimatedVelocity.clone(),
+    quality: contact.quality,
+    uncertainty: contact.uncertainty,
+    lastUpdate: contact.observedAt,
+    classification: contact.classification,
+    engagementQuality: contact.weaponAuthorization ? "weapon" : "cue",
+  };
+}
 const clamp = THREE.MathUtils.clamp;
 type AirRuntimeTarget = TargetableEntity | AirDecoyInstance;
 const resultRangeFor = (
@@ -184,6 +247,8 @@ function instantiate(
     bank: 0,
     advancedFlightState: initialAdvancedFlightState(spawn.definition),
     tacticalState: initialAirTacticalState(),
+    pilotPerception: initialPilotPerception(),
+    nextPerceptionUpdate: 0,
     tracks: new Map(),
     networkTracks: new Map(),
     missileWarnings: new Map(),
@@ -228,6 +293,7 @@ export class AirCombatSystem {
   private lastEventIndex = 0;
   private currentTime = 0;
   private activeAdvancedAirAi = false;
+  private readonly perceptionBindings = new Map<string, PerceptionBindings>();
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
@@ -297,6 +363,7 @@ export class AirCombatSystem {
     this.disposeObjects();
     this.serial = 0;
     this.standardDamageApplications = 0;
+    this.perceptionBindings.clear();
     this.link16.reset();
     this.link11.reset();
     this.aewCommandNetwork.reset();
@@ -332,6 +399,7 @@ export class AirCombatSystem {
       if (spawn.protectedFormationId)
         protectedFormations.set(p.id, spawn.protectedFormationId);
       this.aircraft.push(p);
+      this.perceptionBindings.set(p.id, initialPerceptionBindings());
       this.group.add(p.model);
     }
     for (const p of this.aircraft) {
@@ -1695,14 +1763,39 @@ export class AirCombatSystem {
       ),
     );
     for (const [id, local] of a.tracks) fused.set(id, local);
-    const selected = selectMissionTrack({
-      mission: a.mission,
-      tracks: [...fused.values()],
-      origin: protectedEntity?.position ?? a.position,
-      engagements: a.engagements,
-      time,
-      reassessDelay: 2,
-    });
+    let selected: AirTrack | undefined;
+    if (this.activeAdvancedAirAi) {
+      const bindings = this.perceptionBindings.get(a.id);
+      const eligibleContacts = [...a.pilotPerception.contacts.values()].filter(
+        (contact) => {
+          const targetId = bindings?.targetByTrackNumber.get(contact.trackNumber);
+          if (!targetId) return false;
+          const engagement = a.engagements.get(targetId);
+          return !engagement ||
+            (engagement.pending === 0 && time - engagement.lastResolution >= 2);
+        },
+      );
+      const contact = selectPilotContact({
+        mission: a.mission,
+        contacts: eligibleContacts,
+        origin: protectedEntity?.position ?? a.position,
+      });
+      const binding = contact
+        ? bindings?.targetByTrackNumber.get(contact.trackNumber)
+        : undefined;
+      selected = contact && binding
+        ? contactAsRuntimeTrack(contact, binding)
+        : undefined;
+    } else {
+      selected = selectMissionTrack({
+        mission: a.mission,
+        tracks: [...fused.values()],
+        origin: protectedEntity?.position ?? a.position,
+        engagements: a.engagements,
+        time,
+        reassessDelay: 2,
+      });
+    }
     if (selected?.source === "link11" || selected?.source === "link16") {
       this.recordTacticalNetworkDecision({
         network: selected.source,
@@ -1752,6 +1845,27 @@ export class AirCombatSystem {
       return;
     }
     this.updateTracks(a, time, dt, context);
+    if (context.advancedAirAiEnabled && time >= a.nextPerceptionUpdate) {
+      const bindings = this.perceptionBindings.get(a.id) ??
+        initialPerceptionBindings();
+      const perception = updatePilotPerception({
+        state: a.pilotPerception,
+        observations: [...a.tracks.values(), ...a.networkTracks.values()]
+          .map((track) => perceptionObservation(track, bindings)),
+        time,
+        memorySeconds: STANDARD_ADVANCED_PILOT.trackMemorySeconds,
+      });
+      a.pilotPerception = perception.state;
+      const liveNumbers = new Set(a.pilotPerception.contacts.keys());
+      for (const [number, targetId] of bindings.targetByTrackNumber) {
+        if (liveNumbers.has(number)) continue;
+        bindings.targetByTrackNumber.delete(number);
+        bindings.trackNumberByTarget.delete(targetId);
+      }
+      this.perceptionBindings.set(a.id, bindings);
+      a.nextPerceptionUpdate = time +
+        STANDARD_ADVANCED_PILOT.perceptionRefreshSeconds;
+    }
     if (a.fuel <= 0) a.mission = "return";
     const observedTracks = [...a.tracks.values(), ...a.networkTracks.values()].filter(
         (track) => time - track.lastUpdate <= 8 && track.quality >= 0.04,
@@ -2821,6 +2935,23 @@ export class AirCombatSystem {
         mode: aircraft.tacticalState.mode,
         supportedWeaponId: aircraft.tacticalState.supportedWeaponId,
         launchZone: aircraft.tacticalState.lastLaunchZone,
+      })),
+      perceptionUpdates: this.aircraft.reduce(
+        (sum, aircraft) => sum + aircraft.pilotPerception.updateCount,
+        0,
+      ),
+      perceivedContacts: this.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        contacts: [...aircraft.pilotPerception.contacts.values()].map(
+          (contact) => ({
+            trackNumber: contact.trackNumber,
+            source: contact.source,
+            classification: contact.classification,
+            quality: contact.quality,
+            uncertainty: contact.uncertainty,
+            weaponAuthorization: contact.weaponAuthorization,
+          }),
+        ),
       })),
     };
   }

@@ -14,6 +14,7 @@ import type { DatalinkEra } from "../datalink/era.js";
 import type { SovietCommandEra } from "../soviet-c2/era.js";
 import type { AdvancedFlightState } from "./flight/aircraft-performance";
 import type { AirTacticalState } from "./ai/tactical-state";
+import type { PilotPerceptionState } from "./ai/perception";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
@@ -196,6 +197,8 @@ export interface AirPlatformInstance extends TargetableEntity {
   bank: number;
   advancedFlightState: AdvancedFlightState;
   tacticalState: AirTacticalState;
+  pilotPerception: PilotPerceptionState;
+  nextPerceptionUpdate: number;
   tracks: Map<string, AirTrack>;
   networkTracks: Map<string, AirTrack>;
   ammo: Map<AirWeaponId, number>;

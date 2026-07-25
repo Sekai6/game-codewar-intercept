@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import type { AirTrack, AirWeaponDefinition } from "../types";
+import type { AirWeaponDefinition } from "../types";
+import type { TacticalTrackObservation } from "./tactical-planner.js";
 
 const clamp = THREE.MathUtils.clamp;
 
@@ -19,7 +20,7 @@ export function calculateDynamicLaunchZone(input: {
   shooterPosition: THREE.Vector3;
   shooterVelocity: THREE.Vector3;
   shooterMaximumSpeed: number;
-  track: AirTrack;
+  track: TacticalTrackObservation;
 }) : DynamicLaunchZone {
   const line = input.track.position.clone().sub(input.shooterPosition);
   const range = Math.max(0.001, line.length());
