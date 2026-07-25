@@ -33,7 +33,7 @@ export class SovietC2AarRecorder {
     };
     for (const command of observation.gciCommands)
       emitOnce(`gci:${command.id}`, command.deliveredAt,
-        `SOVIET GCI COMMAND / ${command.participantId} / CONTROLLER TRACK ${command.controllerTrackId} / CUE ONLY`);
+        `SOVIET GCI COMMAND / ${command.participantId} / CONTROLLER TRACK ${command.controllerTrackId} / ${command.commandMode.toUpperCase()} / SPEED ${command.commandedSpeed.toFixed(1)} / RADAR ${command.radarActivationRange.toFixed(0)} / CUE ONLY`);
     for (const area of observation.maritimeAreas)
       emitOnce(`area:${area.id}`, area.deliveredAt,
         `SOVIET STRATEGIC TARGET-AREA CUE / ${area.source.toUpperCase()} / REPORT ${area.reportTrackId} / ${area.participantId} / NO WEAPON AUTHORITY`);
@@ -49,7 +49,7 @@ export class SovietC2AarRecorder {
         era: observation.era,
         enabled: observation.enabled,
         nodes: observation.nodes.map((node) => ({ id: node.id, kind: node.kind, label: node.label, x: node.position.x, y: node.position.y, z: node.position.z, operational: node.operational })),
-        gciCommands: observation.gciCommands.map((command) => ({ id: command.id, participantId: command.participantId, controllerTrackId: command.controllerTrackId, x: command.interceptPoint.x, y: command.interceptPoint.y, z: command.interceptPoint.z, quality: command.quality, uncertainty: command.uncertainty, expiresAt: command.expiresAt })),
+        gciCommands: observation.gciCommands.map((command) => ({ id: command.id, participantId: command.participantId, controllerTrackId: command.controllerTrackId, x: command.interceptPoint.x, y: command.interceptPoint.y, z: command.interceptPoint.z, quality: command.quality, uncertainty: command.uncertainty, commandedSpeed: command.commandedSpeed, radarActivationRange: command.radarActivationRange, commandMode: command.commandMode, expiresAt: command.expiresAt })),
         maritimeAreas: observation.maritimeAreas.map((area) => ({ id: area.id, participantId: area.participantId, reportTrackId: area.reportTrackId, source: area.source, x: area.estimatedPosition.x, y: area.estimatedPosition.y, z: area.estimatedPosition.z, uncertaintyMajor: area.uncertaintyMajor, uncertaintyMinor: area.uncertaintyMinor, uncertaintyBearing: area.uncertaintyBearing, quality: area.quality, expiresAt: area.expiresAt })),
         fleetOrders: observation.fleetOrders.map((order) => ({ id: order.id, participantId: order.participantId, commandNodeId: order.commandNodeId, sourceReportTrackId: order.sourceReportTrackId, x: order.approachPoint.x, y: order.approachPoint.y, z: order.approachPoint.z, attackWindowStart: order.attackWindowStart, attackWindowEnd: order.attackWindowEnd, expiresAt: order.expiresAt })),
         salvoAssignments: observation.salvoAssignments.map((assignment) => ({ id: assignment.id, waveId: assignment.waveId, participantId: assignment.participantId, sourceOrderId: assignment.sourceOrderId, sourceReportTrackId: assignment.sourceReportTrackId, sequence: assignment.sequence, total: assignment.total, releaseAt: assignment.releaseAt, plannedArrivalAt: assignment.plannedArrivalAt, x: assignment.participantPosition.x, y: assignment.participantPosition.y, z: assignment.participantPosition.z, expiresAt: assignment.expiresAt })),

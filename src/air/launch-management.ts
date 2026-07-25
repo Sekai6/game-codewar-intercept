@@ -52,6 +52,7 @@ export function chooseAirWeapon(input: {
   missiles: readonly AirMissileInstance[];
   classification: AirTrack["classification"];
   range: number;
+  defensive?: boolean;
   weaponCatalog: Readonly<Record<AirWeaponId, AirWeaponDefinition>>;
 }) {
   if (input.classification === "unknown") return undefined;
@@ -68,5 +69,13 @@ export function chooseAirWeapon(input: {
           (hardpoint) => hardpoint.state === "ready" && hardpoint.weaponId === weapon.id,
         ),
     )
-    .sort((left, right) => right.maxRange - left.maxRange)[0];
+    .sort((left, right) => {
+      if (input.defensive) {
+        const leftFireAndForget = left.guidance === "infrared" ? 1 : 0;
+        const rightFireAndForget = right.guidance === "infrared" ? 1 : 0;
+        if (leftFireAndForget !== rightFireAndForget)
+          return rightFireAndForget - leftFireAndForget;
+      }
+      return right.maxRange - left.maxRange;
+    })[0];
 }

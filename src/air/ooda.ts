@@ -126,6 +126,7 @@ export function selectThrustMode(input: {
   targetRange: number | null;
   weaponMaxRange: number;
   speedRatio: number;
+  desiredSpeedRatio?: number | null;
   climbDemand: number;
 }): AirThrustMode {
   if (input.state === "disabled" || input.state === "crashed") return "idle";
@@ -137,11 +138,32 @@ export function selectThrustMode(input: {
     return input.fuelRatio > 0.18 && canUseAfterburner ? "afterburner" : "military";
   const outsideLaunchEnvelope = input.targetRange !== null &&
     input.weaponMaxRange > 0 && input.targetRange > input.weaponMaxRange * 0.82;
-  const energyDeficit = input.speedRatio < 0.68 || input.climbDemand > 0.18;
+  const commandedSpeedDeficit = input.desiredSpeedRatio !== null &&
+    input.desiredSpeedRatio !== undefined &&
+    input.speedRatio < input.desiredSpeedRatio * .92;
+  const commandedSpeedSatisfied = input.desiredSpeedRatio !== null &&
+    input.desiredSpeedRatio !== undefined &&
+    input.speedRatio >= input.desiredSpeedRatio * 1.04;
+  const energyDeficit = input.speedRatio < 0.68 || input.climbDemand > 0.18 || commandedSpeedDeficit;
   if (input.state === "engaging" && (outsideLaunchEnvelope || energyDeficit)) {
     if (canUseAfterburner && input.fuelRatio > 0.28) return "afterburner";
     return "military";
   }
+  if (input.state === "engaging" && commandedSpeedSatisfied && input.climbDemand < .12)
+    return "cruise";
   if (input.state === "engaging" || input.state === "defending") return "military";
   return "cruise";
+}
+
+export function defensiveShotAllowed(input: {
+  missileTti: number;
+  trackQuality: number;
+  organicWeaponAuthorization: boolean;
+  missionCommandAllowsRelease: boolean;
+  fireAndForget: boolean;
+}) {
+  return input.missileTti > (input.fireAndForget ? 3 : 8) &&
+    input.trackQuality >= .22 &&
+    input.organicWeaponAuthorization &&
+    input.missionCommandAllowsRelease;
 }

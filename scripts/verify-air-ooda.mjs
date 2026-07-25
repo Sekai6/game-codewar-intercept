@@ -1,5 +1,6 @@
 import {
   defensiveManeuverFromWarning,
+  defensiveShotAllowed,
   missionShouldReturn,
   noContactMissionDirection,
   selectMissionTrack,
@@ -149,6 +150,16 @@ const result = {
     threat: selectThrustMode({mission:"return",state:"defending",fuelRatio:.1,afterburnerAvailable:true,afterburnerRemaining:10,missileTti:8,targetRange:null,weaponMaxRange:0,speedRatio:.5,climbDemand:0}),
     bomber: selectThrustMode({mission:"anti-ship",state:"engaging",fuelRatio:.8,afterburnerAvailable:false,afterburnerRemaining:0,missileTti:null,targetRange:500,weaponMaxRange:400,speedRatio:.5,climbDemand:.3}),
     returnMode: selectThrustMode({mission:"return",state:"egress",fuelRatio:.8,afterburnerAvailable:true,afterburnerRemaining:100,missileTti:null,targetRange:null,weaponMaxRange:0,speedRatio:.8,climbDemand:0}),
+    gciAccelerate: selectThrustMode({mission:"intercept",state:"engaging",fuelRatio:.8,afterburnerAvailable:true,afterburnerRemaining:100,missileTti:null,targetRange:null,weaponMaxRange:400,speedRatio:.55,desiredSpeedRatio:.75,climbDemand:0}),
+    gciAtSpeed: selectThrustMode({mission:"intercept",state:"engaging",fuelRatio:.8,afterburnerAvailable:true,afterburnerRemaining:100,missileTti:null,targetRange:null,weaponMaxRange:400,speedRatio:.79,desiredSpeedRatio:.75,climbDemand:0}),
+  },
+  defensiveShot: {
+    valid: defensiveShotAllowed({missileTti:12,trackQuality:.4,organicWeaponAuthorization:true,missionCommandAllowsRelease:true,fireAndForget:false}),
+    imminent: defensiveShotAllowed({missileTti:7.9,trackQuality:.4,organicWeaponAuthorization:true,missionCommandAllowsRelease:true,fireAndForget:false}),
+    infraredOpportunity: defensiveShotAllowed({missileTti:4,trackQuality:.4,organicWeaponAuthorization:true,missionCommandAllowsRelease:true,fireAndForget:true}),
+    weakTrack: defensiveShotAllowed({missileTti:12,trackQuality:.21,organicWeaponAuthorization:true,missionCommandAllowsRelease:true,fireAndForget:false}),
+    remoteCue: defensiveShotAllowed({missileTti:12,trackQuality:.4,organicWeaponAuthorization:false,missionCommandAllowsRelease:true,fireAndForget:false}),
+    held: defensiveShotAllowed({missileTti:12,trackQuality:.4,organicWeaponAuthorization:true,missionCommandAllowsRelease:false,fireAndForget:false}),
   },
 };
 console.log(JSON.stringify(result, null, 2));
@@ -170,6 +181,9 @@ if (
   result.returnDuringGrace ||
   result.returnWithWeapon || result.thrust.patrol!=="cruise" ||
   result.thrust.intercept!=="afterburner" || result.thrust.threat!=="afterburner" ||
-  result.thrust.bomber!=="military" || result.thrust.returnMode!=="cruise"
+  result.thrust.bomber!=="military" || result.thrust.returnMode!=="cruise" ||
+  result.thrust.gciAccelerate!=="afterburner" || result.thrust.gciAtSpeed!=="cruise"
+  || !result.defensiveShot.valid || result.defensiveShot.imminent || !result.defensiveShot.infraredOpportunity ||
+  result.defensiveShot.weakTrack || result.defensiveShot.remoteCue || result.defensiveShot.held
 )
   process.exitCode = 1;

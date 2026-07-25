@@ -18,6 +18,9 @@ export interface SovietGciCommandView {
   interceptPoint: THREE.Vector3;
   quality: number;
   uncertainty: number;
+  commandedSpeed: number;
+  radarActivationRange: number;
+  commandMode: "voice" | "automated";
   deliveredAt: number;
   expiresAt: number;
 }

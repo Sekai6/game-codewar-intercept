@@ -12,7 +12,9 @@ page.on("pageerror", (error) => errors.push(error.message));
 const baseUrl = process.env.APP_URL ?? "http://127.0.0.1:5173/";
 
 async function start(enabled) {
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  const url = new URL(baseUrl);
+  url.searchParams.set("shortAirValidation", "1");
+  await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.locator("#sbPlatform").selectOption("AIRBORNE");
   await page.locator("#sbAirPreset").selectOption("fighter");
   await page.locator("#sbAirCombat").check();
@@ -28,7 +30,12 @@ try {
   await start(true);
   await page.waitForFunction(() => {
     const data = document.querySelector("#scene")?.dataset;
-    return Number(data?.gciDelivered ?? 0) > 0 && (data?.gciRadarStates ?? "").includes("standby");
+    return Number(data?.gciDelivered ?? 0) === 0 && (data?.gciRadarStates ?? "").includes("standby");
+  }, null, { timeout: 8_000 });
+  const preCommandRadar = await page.locator("#scene").evaluate((scene) => scene.dataset.gciRadarStates ?? "");
+  await page.waitForFunction(() => {
+    const data = document.querySelector("#scene")?.dataset;
+    return Number(data?.gciDelivered ?? 0) > 0;
   }, null, { timeout: 20_000 });
   const guided = await page.locator("#scene").evaluate((scene) => ({
     era: scene.dataset.sovietCommandEra,
@@ -40,8 +47,16 @@ try {
     radar: scene.dataset.gciRadarStates ?? "",
     localTracks: scene.dataset.gciAirLocalTracks ?? "",
   }));
-  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("R-27R"), null, { timeout: 35_000 });
+  let launchObserved = true;
+  try {
+    await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("R-27R"), null, { timeout: 35_000 });
+  } catch {
+    launchObserved = false;
+  }
   guided.events = await page.locator("#scene").evaluate((scene) => scene.dataset.gciEventLog ?? "");
+  guided.finalRadar = await page.locator("#scene").evaluate((scene) => scene.dataset.gciRadarStates ?? "");
+  guided.finalCommands = await page.locator("#scene").evaluate((scene) => scene.dataset.gciCommandStates ?? "");
+  guided.finalTracks = await page.locator("#scene").evaluate((scene) => scene.dataset.gciTrackStates ?? "");
   const commandAt = Number(guided.events.split("|").find((event) => event.includes("GCI COMMAND"))?.split(":")[0] ?? Infinity);
   const detectAt = Number(guided.events.split("|").find((event) => event.includes(" DETECT"))?.split(":")[0] ?? Infinity);
   const launchAt = Number(guided.events.split("|").find((event) => event.includes(" LAUNCH"))?.split(":")[0] ?? Infinity);
@@ -54,13 +69,16 @@ try {
     active: Number(scene.dataset.gciActiveCommands ?? 0),
     commands: scene.dataset.gciCommandStates ?? "",
   }));
-  const result = { guided, disabled, ordering: { commandAt, detectAt, launchAt }, errors };
+  const result = { preCommandRadar, guided, disabled, ordering: { commandAt, detectAt, launchAt }, errors };
   console.log(JSON.stringify(result, null, 2));
   if (
     errors.length || guided.era !== "ntu-1980s" || guided.operational !== "true" ||
     guided.delivered <= 0 || guided.active <= 0 || guided.delay <= 0 ||
     !guided.commands.includes("GCI-") || guided.commands.includes("blue-F-14A") ||
-    !guided.radar.includes("standby") || !guided.localTracks.split("|").some((state) => state.endsWith(":0")) ||
+    !preCommandRadar.includes("standby") || !guided.localTracks.split("|").some((state) => state.endsWith(":0")) ||
+    !launchObserved ||
+    !guided.finalRadar.includes("search") || !guided.finalCommands.includes(":automated:") ||
+    !guided.events.includes("/ AUTOMATED /") || !guided.events.includes("/ SPD ") || !guided.events.includes("/ RADAR ") ||
     !(commandAt < detectAt && detectAt <= launchAt) ||
     disabled.operational !== "false" || disabled.delivered !== 0 || disabled.active !== 0 ||
     !disabled.commands.split("|").every((state) => state.endsWith(":none"))

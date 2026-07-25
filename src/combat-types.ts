@@ -214,7 +214,7 @@ export type AarSovietC2Snapshot = {
   era: string;
   enabled: boolean;
   nodes: Array<{ id: string; kind: "gci-controller" | "fleet-command"; label: string; x: number; y: number; z: number; operational: boolean }>;
-  gciCommands: Array<{ id: string; participantId: string; controllerTrackId: string; x: number; y: number; z: number; quality: number; uncertainty: number; expiresAt: number }>;
+  gciCommands: Array<{ id: string; participantId: string; controllerTrackId: string; x: number; y: number; z: number; quality: number; uncertainty: number; commandedSpeed: number; radarActivationRange: number; commandMode: "voice" | "automated"; expiresAt: number }>;
   maritimeAreas: Array<{ id: string; participantId: string; reportTrackId: string; source: "uspekh-u" | "legenda"; x: number; y: number; z: number; uncertaintyMajor: number; uncertaintyMinor: number; uncertaintyBearing: number; quality: number; expiresAt: number }>;
   fleetOrders: Array<{ id: string; participantId: string; commandNodeId: string; sourceReportTrackId: string; x: number; y: number; z: number; attackWindowStart: number; attackWindowEnd: number; expiresAt: number }>;
   salvoAssignments: Array<{ id: string; waveId: string; participantId: string; sourceOrderId: string; sourceReportTrackId: string; sequence: number; total: number; releaseAt: number; plannedArrivalAt: number; x: number; y: number; z: number; expiresAt: number }>;

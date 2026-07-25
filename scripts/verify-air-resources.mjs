@@ -1,4 +1,4 @@
-import { calculateFireControlUsage } from "../dist-test/air/launch-management.js";
+import { calculateFireControlUsage, chooseAirWeapon } from "../dist-test/air/launch-management.js";
 import { advanceCountermeasurePrograms } from "../dist-test/air/countermeasure-program.js";
 
 const usage=calculateFireControlUsage({
@@ -20,6 +20,20 @@ const early=advanceCountermeasurePrograms(first.programs,first.inventory,10.1);
 const earlySnapshot={releaseCount:early.releases.length,chaff:early.inventory.chaff};
 const second=advanceCountermeasurePrograms(early.programs,early.inventory,10.2);
 const secondSnapshot={releaseCount:second.releases.length,chaff:second.inventory.chaff};
-const result={usage,first:firstSnapshot,early:earlySnapshot,second:secondSnapshot};
+const weaponCatalog={
+  "R-27R":{id:"R-27R",targets:["aircraft"],guidance:"semi-active-radar",minRange:6,maxRange:240},
+  "R-73":{id:"R-73",targets:["aircraft"],guidance:"infrared",minRange:1.5,maxRange:65},
+};
+const aircraft={
+  ammo:new Map([["R-27R",2],["R-73",2]]),
+  definition:{fireControlChannels:{datalink:0,illumination:1}},
+  hardpoints:[
+    {state:"ready",weaponId:"R-27R"},
+    {state:"ready",weaponId:"R-73"},
+  ],
+};
+const normalWeapon=chooseAirWeapon({aircraft,missiles:[],classification:"aircraft",range:50,weaponCatalog});
+const defensiveWeapon=chooseAirWeapon({aircraft,missiles:[],classification:"aircraft",range:50,weaponCatalog,defensive:true});
+const result={usage,first:firstSnapshot,early:earlySnapshot,second:secondSnapshot,normalWeapon:normalWeapon?.id,defensiveWeapon:defensiveWeapon?.id};
 console.log(JSON.stringify(result,null,2));
-if(usage.datalink!==2||usage.illumination!==2||firstSnapshot.releaseCount!==1||firstSnapshot.chaff!==2||earlySnapshot.releaseCount!==0||secondSnapshot.releaseCount!==1||secondSnapshot.chaff!==1)process.exitCode=1;
+if(usage.datalink!==2||usage.illumination!==2||firstSnapshot.releaseCount!==1||firstSnapshot.chaff!==2||earlySnapshot.releaseCount!==0||secondSnapshot.releaseCount!==1||secondSnapshot.chaff!==1||normalWeapon?.id!=="R-27R"||defensiveWeapon?.id!=="R-73")process.exitCode=1;

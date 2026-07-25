@@ -25,6 +25,8 @@ export interface GciInterceptCommand {
   interceptPoint: THREE.Vector3;
   commandedAltitude: number;
   commandedSpeed: number;
+  radarActivationRange: number;
+  commandMode: "voice" | "automated";
   quality: number;
   uncertainty: number;
   observedAt: number;
@@ -68,13 +70,26 @@ function controllerTrackId(targetId: string) {
 
 const PARAMETERS: Record<SovietCommandEra, {
   scanInterval: number; delay: number; commandLife: number; uncertainty: number;
-  reliability: number; range: number;
+  reliability: number; range: number; controlledFormations: number;
+  commandedSpeed: number; radarActivationRange: number;
 }> = {
-  "early-cold-war": { scanInterval: 9, delay: 5.2, commandLife: 18, uncertainty: 48, reliability: .76, range: 900 },
-  "ocean-navy": { scanInterval: 6, delay: 3.4, commandLife: 16, uncertainty: 34, reliability: .84, range: 980 },
-  "ntu-1980s": { scanInterval: 4, delay: 1.8, commandLife: 13, uncertainty: 21, reliability: .9, range: 1100 },
-  "late-soviet": { scanInterval: 2.8, delay: 1.1, commandLife: 10, uncertainty: 14, reliability: .93, range: 1180 },
+  "early-cold-war": { scanInterval: 9, delay: 5.2, commandLife: 18, uncertainty: 48, reliability: .76, range: 900, controlledFormations: 1, commandedSpeed: 7.2, radarActivationRange: 380 },
+  "ocean-navy": { scanInterval: 6, delay: 3.4, commandLife: 16, uncertainty: 34, reliability: .84, range: 980, controlledFormations: 2, commandedSpeed: 7.8, radarActivationRange: 340 },
+  "ntu-1980s": { scanInterval: 4, delay: 1.8, commandLife: 13, uncertainty: 21, reliability: .9, range: 1100, controlledFormations: 3, commandedSpeed: 8.4, radarActivationRange: 300 },
+  "late-soviet": { scanInterval: 2.8, delay: 1.1, commandLife: 10, uncertainty: 14, reliability: .93, range: 1180, controlledFormations: 4, commandedSpeed: 8.8, radarActivationRange: 260 },
 };
+
+function quantizeVoiceIntercept(participant: GciParticipant, interceptPoint: THREE.Vector3) {
+  const offset = interceptPoint.clone().sub(participant.position);
+  const bearingStep = THREE.MathUtils.degToRad(10);
+  const bearing = Math.round(Math.atan2(offset.x, -offset.z) / bearingStep) * bearingStep;
+  const range = Math.max(20, Math.round(Math.hypot(offset.x, offset.z) / 25) * 25);
+  return participant.position.clone().add(new THREE.Vector3(
+    Math.sin(bearing) * range,
+    Math.round(offset.y / 10) * 10,
+    -Math.cos(bearing) * range,
+  ));
+}
 
 export class SovietGciNetwork {
   private era: SovietCommandEra = "ntu-1980s";
@@ -136,7 +151,15 @@ export class SovietGciNetwork {
       const probability = Math.max(.18, .96 - Math.pow(range / effectiveRange, 2) * .72);
       return deterministic(`${this.era}:${target.id}:${Math.floor(time / parameters.scanInterval)}`) < probability;
     });
-    for (const participant of participants.filter((candidate) => candidate.alive && candidate.platformId === "MIG-29A")) {
+    const controlledParticipants = participants
+      .filter((candidate) => candidate.alive && candidate.platformId === "MIG-29A")
+      .sort((left, right) => {
+        const leftRange = detected.length ? Math.min(...detected.map((target) => target.position.distanceTo(left.position))) : Infinity;
+        const rightRange = detected.length ? Math.min(...detected.map((target) => target.position.distanceTo(right.position))) : Infinity;
+        return leftRange - rightRange || left.id.localeCompare(right.id);
+      })
+      .slice(0, parameters.controlledFormations);
+    for (const participant of controlledParticipants) {
       const target = detected
         .map((candidate) => ({ candidate, distance: candidate.position.distanceTo(participant.position) }))
         .sort((left, right) => left.distance - right.distance)[0]?.candidate;
@@ -153,7 +176,9 @@ export class SovietGciNetwork {
       ));
       const relativeSpeed = Math.max(3, participant.velocity.length() + target.velocity.length());
       const leadTime = THREE.MathUtils.clamp(participant.position.distanceTo(measured) / relativeSpeed, 8, 55);
-      const interceptPoint = measured.addScaledVector(target.velocity, leadTime * .72);
+      let interceptPoint = measured.addScaledVector(target.velocity, leadTime * .72);
+      const commandMode = SOVIET_COMMAND_ERAS[this.era].automaticGci ? "automated" : "voice";
+      if (commandMode === "voice") interceptPoint = quantizeVoiceIntercept(participant, interceptPoint);
       const jitter = (deterministic(`${noiseSeed}:delay`) - .5) * parameters.delay * .3;
       const delay = Math.max(.4, parameters.delay + jitter);
       if (deterministic(`${noiseSeed}:link`) > parameters.reliability) {
@@ -168,8 +193,14 @@ export class SovietGciNetwork {
           participantId: participant.id,
           controllerTrackId: controllerTrackId(target.id),
           interceptPoint,
-          commandedAltitude: THREE.MathUtils.clamp(interceptPoint.y + 4, 24, 110),
-          commandedSpeed: 8.4,
+          commandedAltitude: THREE.MathUtils.clamp(
+            commandMode === "voice" ? Math.round((interceptPoint.y + 4) / 10) * 10 : interceptPoint.y + 4,
+            24,
+            110,
+          ),
+          commandedSpeed: parameters.commandedSpeed,
+          radarActivationRange: parameters.radarActivationRange,
+          commandMode,
           quality,
           uncertainty,
           observedAt: time,

@@ -26,6 +26,7 @@ import {
   missionShouldReturn,
   noContactMissionDirection,
   selectThrustMode,
+  defensiveShotAllowed,
   selectMissionTrack,
   trackSupportsWeaponAuthorization,
 } from "./ooda";
@@ -224,7 +225,7 @@ export class AirCombatSystem {
   private readonly seenGciCommands = new Set<string>();
   private readonly sovietMaritimeTargeting = new SovietMaritimeTargetingNetwork();
   private readonly seenMaritimeCues = new Set<string>();
-  private readonly maritimeEmconParticipants = new Set<string>();
+  private readonly radarStandbyParticipants = new Set<string>();
   private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
   private readonly seenFleetOrders = new Set<string>();
   private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
@@ -290,7 +291,7 @@ export class AirCombatSystem {
     this.seenGciCommands.clear();
     this.sovietMaritimeTargeting.reset();
     this.seenMaritimeCues.clear();
-    this.maritimeEmconParticipants.clear();
+    this.radarStandbyParticipants.clear();
     this.sovietFleetCommand.reset();
     this.seenFleetOrders.clear();
     this.sovietSalvoCoordinator.reset();
@@ -595,7 +596,7 @@ export class AirCombatSystem {
       this.emit(
         time,
         "guidance",
-        `${aircraft.definition.name} GCI COMMAND RECEIVED / ${command.controllerTrackId} / Q ${Math.round(command.quality * 100)}% / ALT ${Math.round(command.commandedAltitude * 50)}M / VALID ${(command.expiresAt - time).toFixed(1)}S`,
+        `${aircraft.definition.name} GCI COMMAND RECEIVED / ${command.controllerTrackId} / ${command.commandMode.toUpperCase()} / Q ${Math.round(command.quality * 100)}% / ALT ${Math.round(command.commandedAltitude * 50)}M / SPD ${Math.round(command.commandedSpeed * 360)}KMH / RADAR ${Math.round(command.radarActivationRange * 100)}M / VALID ${(command.expiresAt - time).toFixed(1)}S`,
       );
     }
     this.sovietMaritimeTargeting.update(
@@ -786,8 +787,8 @@ export class AirCombatSystem {
     return this.sovietMaritimeTargeting.cueFor(participantId, time);
   }
 
-  sovietMaritimeEmconParticipants() {
-    return [...this.maritimeEmconParticipants];
+  sovietRadarStandbyParticipants() {
+    return [...this.radarStandbyParticipants];
   }
 
   sovietFleetCommandDiagnostics(time = this.currentTime) {
@@ -837,6 +838,9 @@ export class AirCombatSystem {
         interceptPoint: command.interceptPoint.clone(),
         quality: command.quality,
         uncertainty: command.uncertainty,
+        commandedSpeed: command.commandedSpeed,
+        radarActivationRange: command.radarActivationRange,
+        commandMode: command.commandMode,
         deliveredAt: command.deliveredAt,
         expiresAt: command.expiresAt,
       }] : [];
@@ -1181,6 +1185,7 @@ export class AirCombatSystem {
     dt: number,
     context: AirScenarioContext,
   ) {
+    this.radarStandbyParticipants.delete(a.id);
     advanceAirTracks(a.tracks, dt, time);
     const awaitingMaritimeCue =
       a.definition.id === "TU-16K" &&
@@ -1191,17 +1196,28 @@ export class AirCombatSystem {
       a.tracks.size === 0 &&
       time < 12;
     if (awaitingMaritimeCue) {
-      this.maritimeEmconParticipants.add(a.id);
+      this.radarStandbyParticipants.add(a.id);
       return;
     }
     const gciCommand = this.sovietGci.commandFor(a.id, time);
+    const awaitingGciCommand =
+      a.definition.id === "MIG-29A" &&
+      a.mission === "intercept" &&
+      this.sovietGci.diagnostics(time).enabled &&
+      !gciCommand &&
+      a.tracks.size === 0 &&
+      time < 12;
+    if (awaitingGciCommand) {
+      this.radarStandbyParticipants.add(a.id);
+      return;
+    }
     if (
       a.definition.id === "MIG-29A" &&
       gciCommand &&
       a.tracks.size === 0 &&
-      a.position.distanceTo(gciCommand.interceptPoint) > 300
+      a.position.distanceTo(gciCommand.interceptPoint) > gciCommand.radarActivationRange
     ) {
-      this.maritimeEmconParticipants.add(a.id);
+      this.radarStandbyParticipants.add(a.id);
       return;
     }
     const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
@@ -1213,13 +1229,20 @@ export class AirCombatSystem {
       a.position.distanceTo(maritimeCue.launchRegionCenter) > 160
     ) return;
     if (time < a.nextScan || !a.alive) return;
-    a.nextScan = time + a.definition.sensor.updateInterval;
+    a.nextScan = time + a.definition.sensor.updateInterval * (gciCommand ? .75 : 1);
     const radarHealth = (a.subsystemHealth.get("radar") ?? 0) / 100;
     for (const target of this.entities(context)) {
       if (!opposingSides(a, target) || target.id === a.id || !target.alive)
         continue;
       const offset = target.position.clone().sub(a.position),
         range = offset.length(),
+        gciSearchDirection = gciCommand?.interceptPoint.clone().sub(a.position),
+        gciFocused = !!gciSearchDirection &&
+          angle(gciSearchDirection, offset) <= 24 + (1 - (gciCommand?.quality ?? 0)) * 12,
+        focusedPrecision = Math.min(
+          1,
+          a.definition.sensor.precision * (gciFocused ? 1 + (gciCommand?.quality ?? 0) * .16 : 1),
+        ),
         ecm =
           target.kind === "aircraft"
             ? (target as AirPlatformInstance).definition.ecm
@@ -1231,7 +1254,7 @@ export class AirCombatSystem {
           nominalRange: a.definition.sensor.range,
           targetRcs: target.radarCrossSection,
           radarHealth,
-          precision: a.definition.sensor.precision,
+          precision: focusedPrecision,
           ecmStrength: ecm?.strength,
           burnThroughRange: ecm?.burnThroughRange,
         }),
@@ -1253,7 +1276,7 @@ export class AirCombatSystem {
             position: target.position,
             velocity: target.velocity,
             quality: factors.quality,
-            precision: a.definition.sensor.precision,
+            precision: focusedPrecision,
             time,
             noise: [roll(key + 2), roll(key + 3), roll(key + 4)],
           });
@@ -1301,7 +1324,7 @@ export class AirCombatSystem {
           this.emit(
             time,
             "detect",
-            `${a.definition.name} DETECT / ${measurement.classification.toUpperCase()} / TQ ${Math.round(measurement.quality * 100)}%${range > factors.horizon ? " / HORIZON DEGRADED" : ""}${ecm && !factors.burned ? " / ECM" : ""}`,
+            `${a.definition.name} DETECT / ${measurement.classification.toUpperCase()} / TQ ${Math.round(measurement.quality * 100)}%${gciFocused ? " / GCI FOCUSED SEARCH" : ""}${range > factors.horizon ? " / HORIZON DEGRADED" : ""}${ecm && !factors.burned ? " / ECM" : ""}`,
           );
       }
     }
@@ -1310,12 +1333,14 @@ export class AirCombatSystem {
     a: AirPlatformInstance,
     classification: AirTrack["classification"],
     range: number,
+    defensive = false,
   ) {
     return chooseAirWeapon({
       aircraft: a,
       missiles: this.missiles,
       classification,
       range,
+      defensive,
       weaponCatalog: AIR_WEAPONS,
     });
   }
@@ -1324,9 +1349,10 @@ export class AirCombatSystem {
     target: CombatEntity,
     track: AirTrack,
     time: number,
+    defensive = false,
   ) {
     const range = a.position.distanceTo(track.position),
-      weapon = this.chooseWeapon(a, track.classification, range),
+      weapon = this.chooseWeapon(a, track.classification, range, defensive),
       hardpoint = weapon
         ? a.hardpoints.find(
             (candidate) =>
@@ -1738,13 +1764,23 @@ export class AirCombatSystem {
         defense.timeToImpact < a.definition.countermeasures.program.triggerTti
       )
         this.deployCountermeasures(a, incoming.missile, time);
-      if (a.mission === "anti-ship" && time >= a.nextOoda) {
+      if (time >= a.nextOoda) {
         a.nextOoda = time + 1;
         const track = this.missionTrackFor(a, context),
-          ship = track ? this.targetById(track.targetId, context) : undefined;
-        if (ship && track && trackSupportsWeaponAuthorization(track) &&
-          this.strikeCommandAllowsRelease(a, time))
-          this.launch(a, ship, track, time);
+          target = track ? this.targetById(track.targetId, context) : undefined,
+          commandAllowsRelease = a.mission !== "anti-ship" ||
+            this.strikeCommandAllowsRelease(a, time);
+        const defensiveWeapon = target && track
+          ? this.chooseWeapon(a, track.classification, a.position.distanceTo(track.position), true)
+          : undefined;
+        if (target && track && defensiveWeapon && defensiveShotAllowed({
+          missileTti: defense.timeToImpact,
+          trackQuality: track.quality,
+          organicWeaponAuthorization: trackSupportsWeaponAuthorization(track),
+          missionCommandAllowsRelease: commandAllowsRelease,
+          fireAndForget: defensiveWeapon.guidance === "infrared",
+        }))
+          this.launch(a, target, track, time, true);
       }
     } else if (
       a.mission !== "egress" &&
@@ -1822,7 +1858,8 @@ export class AirCombatSystem {
         }
       }
     }
-    const targetTrack = a.targetId ? a.tracks.get(a.targetId) : undefined,
+    const activeGciCommand = this.sovietGci.commandFor(a.id, time),
+      targetTrack = a.targetId ? a.tracks.get(a.targetId) : undefined,
       targetRange = targetTrack ? targetTrack.position.distanceTo(a.position) : null,
       weaponMaxRange = Math.max(0, ...[...a.ammo.entries()]
         .filter(([, count]) => count > 0)
@@ -1841,6 +1878,9 @@ export class AirCombatSystem {
       targetRange,
       weaponMaxRange,
       speedRatio: a.velocity.length() / a.definition.flight.maxSpeed,
+      desiredSpeedRatio: activeGciCommand
+        ? activeGciCommand.commandedSpeed / a.definition.flight.maxSpeed
+        : null,
       climbDemand,
     });
     if (a.thrustMode !== previousThrustMode) {

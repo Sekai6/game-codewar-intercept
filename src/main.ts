@@ -8187,20 +8187,25 @@ function tick(now: number) {
     .filter((aircraft) => aircraft.definition.id === "MIG-29A")
     .map((aircraft) => {
       const command = airCombat.gciCommandFor(aircraft.id, elapsed);
-      return `${aircraft.id}:${command ? `${command.controllerTrackId}:${command.quality.toFixed(2)}:${aircraft.position.distanceTo(command.interceptPoint).toFixed(1)}` : "none"}`;
+      return `${aircraft.id}:${command ? `${command.controllerTrackId}:${command.commandMode}:${command.quality.toFixed(2)}:${command.commandedSpeed.toFixed(1)}:${command.radarActivationRange.toFixed(0)}:${aircraft.position.distanceTo(command.interceptPoint).toFixed(1)}` : "none"}`;
     })
     .join("|");
+  const sovietRadarStandby = new Set(airCombat.sovietRadarStandbyParticipants());
   canvas.dataset.gciRadarStates = airCombat.aircraft
     .filter((aircraft) => aircraft.definition.id === "MIG-29A")
     .map((aircraft) => {
-      const command = airCombat.gciCommandFor(aircraft.id, elapsed);
-      const standby = !!command && aircraft.tracks.size === 0 && aircraft.position.distanceTo(command.interceptPoint) > 300;
+      const standby = sovietRadarStandby.has(aircraft.id);
       return `${aircraft.id}:${standby ? "standby" : "search"}`;
     })
     .join("|");
   canvas.dataset.gciAirLocalTracks = airCombat.aircraft
     .filter((aircraft) => aircraft.definition.id === "MIG-29A")
     .map((aircraft) => `${aircraft.id}:${aircraft.tracks.size}`)
+    .join("|");
+  canvas.dataset.gciTrackStates = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
+    .flatMap((aircraft) => [...aircraft.tracks.values()].map((track) =>
+      `${aircraft.id}:${track.targetId}:${track.classification}:${aircraft.position.distanceTo(track.position).toFixed(1)}:${track.quality.toFixed(2)}:${(elapsed - track.lastUpdate).toFixed(1)}`))
     .join("|");
   canvas.dataset.gciEventLog = airCombat.events
     .filter((event) => /GCI COMMAND|MiG-29A Fulcrum-A DETECT|MiG-29A Fulcrum-A LAUNCH/.test(event.text))
@@ -8215,7 +8220,7 @@ function tick(now: number) {
   canvas.dataset.sovietMaritimeDropped = String(maritimeTargeting.dropped);
   canvas.dataset.sovietMaritimeActiveCues = String(maritimeTargeting.activeCues);
   canvas.dataset.sovietMaritimeMeanDelay = maritimeTargeting.meanDelay.toFixed(3);
-  canvas.dataset.sovietMaritimeEmconObserved = airCombat.sovietMaritimeEmconParticipants().join("|");
+  canvas.dataset.sovietMaritimeEmconObserved = airCombat.sovietRadarStandbyParticipants().join("|");
   canvas.dataset.sovietMaritimeCueStates = airCombat.aircraft
     .filter((aircraft) => aircraft.definition.id === "TU-16K")
     .map((aircraft) => {

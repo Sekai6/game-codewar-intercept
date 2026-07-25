@@ -12,7 +12,9 @@ try {
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/", {
+  const url = new URL(process.env.APP_URL ?? "http://127.0.0.1:5173/");
+  url.searchParams.set("shortAirValidation", "1");
+  await page.goto(url.toString(), {
     waitUntil: "domcontentloaded",
     timeout: 15_000,
   });

@@ -147,7 +147,7 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
       coalition: "Neutral",
       x: command.x, y: command.y, z: command.z,
       state: "command-cue-only",
-      properties: { C2Layer: "GCI", Participant: command.participantId, TrackQuality: command.quality.toFixed(3), Uncertainty: command.uncertainty.toFixed(1), WeaponAuthority: "No" },
+      properties: { C2Layer: "GCI", Participant: command.participantId, CommandMode: command.commandMode, CommandedSpeed: command.commandedSpeed.toFixed(1), RadarActivationRange: command.radarActivationRange.toFixed(0), TrackQuality: command.quality.toFixed(3), Uncertainty: command.uncertainty.toFixed(1), WeaponAuthority: "No" },
     });
   for (const area of snapshot.sovietC2?.maritimeAreas ?? [])
     objects.push({

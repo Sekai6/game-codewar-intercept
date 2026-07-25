@@ -129,7 +129,13 @@ export function airScenarioSpawns(
   sovietSalvoValidation = false,
 ): AirSpawn[] {
   const spawns = AIR_SCENARIO_PRESETS[id].createSpawns();
-  if (!shortValidation || (id !== "joint" && id !== "intercept")) return spawns;
+  if (!shortValidation) return spawns;
+  if (id === "fighter") {
+    for (const spawn of spawns)
+      if (spawn.definition.id === "MIG-29A") spawn.position.z += 350;
+    return spawns;
+  }
+  if (id !== "joint" && id !== "intercept") return spawns;
   for (const spawn of spawns) {
     if (spawn.definition.id === "TU-16K") spawn.position.z += 800;
     if (spawn.definition.id === "F-14A") spawn.position.z += 280;
