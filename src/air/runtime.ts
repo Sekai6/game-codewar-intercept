@@ -43,8 +43,9 @@ import {
 } from "../defense/engagement.js";
 import { opposingSides } from "../defense/allegiance.js";
 import { Link16Network } from "../datalink/link16-network.js";
+import { Link11Network } from "../datalink/link11-network.js";
 import type { Link16TrackReport } from "../datalink/types.js";
-import { aircraftLink16Eligible, shipLink16Eligible } from "../datalink/era.js";
+import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -211,9 +212,13 @@ export class AirCombatSystem {
   private currentTime = 0;
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
+  private readonly link11 = new Link11Network();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly activeLink16ParticipantIds = new Set<string>();
+  private readonly activeLink11ParticipantIds = new Set<string>();
+  private readonly externalLink11Published = new Map<string, number>();
+  private readonly externalLink11Cues = new Map<string, AirTrack[]>();
   private datalinkConfigurationKey: string | null = null;
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
@@ -259,9 +264,13 @@ export class AirCombatSystem {
     this.serial = 0;
     this.standardDamageApplications = 0;
     this.link16.reset();
+    this.link11.reset();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
     this.activeLink16ParticipantIds.clear();
+    this.activeLink11ParticipantIds.clear();
+    this.externalLink11Published.clear();
+    this.externalLink11Cues.clear();
     this.datalinkConfigurationKey = null;
     const protectedFormations = new Map<string, string>();
     for (const spawn of spawns) {
@@ -346,16 +355,23 @@ export class AirCombatSystem {
     this.currentTime = time;
     this.group.userData.context = context;
     const datalinkEra = context.datalinkEra ?? "link16-modernized",
-      link16Enabled = context.link16Enabled ?? true;
-    const datalinkConfigurationKey = `${datalinkEra}:${link16Enabled}`;
+      datalinkEnabled = context.datalinkEnabled ?? context.link16Enabled ?? true,
+      link16Enabled = datalinkEnabled && (context.link16Enabled ?? true);
+    const datalinkConfigurationKey = `${datalinkEra}:${datalinkEnabled}:${link16Enabled}`;
     if (this.datalinkConfigurationKey !== datalinkConfigurationKey) {
       this.link16.reset();
+      this.link11.reset();
       this.externalLink16Published.clear();
       this.externalLink16Cues.clear();
+      this.externalLink11Published.clear();
+      this.externalLink11Cues.clear();
       for (const aircraft of this.aircraft) aircraft.networkTracks.clear();
       this.datalinkConfigurationKey = datalinkConfigurationKey;
     }
     this.activeLink16ParticipantIds.clear();
+    this.activeLink11ParticipantIds.clear();
+    const tacticalParticipants = context.tacticalNetworkParticipants ??
+      context.link16Participants ?? [];
     for (const aircraft of this.aircraft) {
       const terminal = aircraft.definition.datalink;
       if (
@@ -381,11 +397,22 @@ export class AirCombatSystem {
         receiveEnabled: aircraft.alive,
       });
     }
-    for (const participant of context.link16Participants ?? []) {
+    for (const participant of tacticalParticipants) {
+      if (shipLink11Eligible({ era: datalinkEra, enabled: datalinkEnabled })) {
+        this.activeLink11ParticipantIds.add(participant.entity.id);
+        this.link11.upsertParticipant({
+          id:participant.entity.id, side:participant.entity.side,
+          position:participant.entity.position, alive:participant.entity.alive,
+          terminalHealth:participant.terminalHealth, timeSyncQuality:.72,
+          transmitEnabled:participant.entity.alive, receiveEnabled:participant.entity.alive,
+          netControlCapable:true,
+        });
+      }
       if (!shipLink16Eligible({ era: datalinkEra, enabled: link16Enabled }))
-        continue;
-      this.activeLink16ParticipantIds.add(participant.entity.id);
-      this.link16.upsertParticipant({
+        { /* Link 11 may still use this participant below. */ }
+      else {
+        this.activeLink16ParticipantIds.add(participant.entity.id);
+        this.link16.upsertParticipant({
         id: participant.entity.id,
         side: participant.entity.side,
         position: participant.entity.position,
@@ -394,15 +421,14 @@ export class AirCombatSystem {
         timeSyncQuality: participant.timeSyncQuality,
         transmitEnabled: participant.entity.alive,
         receiveEnabled: participant.entity.alive,
-      });
+        });
+      }
       for (const track of participant.reports) {
         const observationId =
           track.observationId ??
           `${participant.entity.id}:${track.targetId}:${track.lastUpdate.toFixed(3)}`;
         const publishKey = `${participant.entity.id}:${observationId}`;
-        if (this.externalLink16Published.has(publishKey)) continue;
-        this.externalLink16Published.set(publishKey, time);
-        this.link16.publishTrack(participant.entity.id, {
+        const report = {
           trackId: tacticalTrackNumber(track.targetId),
           originSensorId: track.originSensorId ?? `${participant.entity.id}:sensor`,
           observationId,
@@ -414,16 +440,29 @@ export class AirCombatSystem {
           quality: track.quality,
           uncertainty: track.uncertainty,
           priority: track.classification === "unknown" ? "threat" : "routine",
-        }, time);
+        } as const;
+        if (this.activeLink11ParticipantIds.has(participant.entity.id) &&
+          !this.externalLink11Published.has(publishKey)) {
+          this.externalLink11Published.set(publishKey,time);
+          this.link11.publishTrack(participant.entity.id,report,time);
+        }
+        if (this.activeLink16ParticipantIds.has(participant.entity.id) &&
+          !this.externalLink16Published.has(publishKey)) {
+          this.externalLink16Published.set(publishKey,time);
+          this.link16.publishTrack(participant.entity.id,report,time);
+        }
       }
     }
+    for (const [key,publishedAt] of this.externalLink11Published)
+      if(time-publishedAt>30)this.externalLink11Published.delete(key);
     for (const [key, publishedAt] of this.externalLink16Published)
       if (time - publishedAt > 20) this.externalLink16Published.delete(key);
     this.link16.update(time);
+    this.link11.update(time);
     for (const aircraft of this.aircraft)
       if (this.activeLink16ParticipantIds.has(aircraft.id))
         this.receiveLink16Tracks(aircraft, time);
-    for (const participant of context.link16Participants ?? []) {
+    for (const participant of tacticalParticipants) {
       if (!this.activeLink16ParticipantIds.has(participant.entity.id)) continue;
       const cues = this.link16.drainInbox(participant.entity.id)
         .filter((delivery) => time - delivery.report.observedAt <= 8)
@@ -450,6 +489,22 @@ export class AirCombatSystem {
           };
         });
       if (cues.length) this.externalLink16Cues.set(participant.entity.id, cues);
+    }
+    for (const participant of tacticalParticipants) {
+      if(!this.activeLink11ParticipantIds.has(participant.entity.id))continue;
+      const cues=this.link11.drainInbox(participant.entity.id)
+        .filter(delivery=>time-delivery.report.observedAt<=24)
+        .map((delivery):AirTrack=>{
+          const report=delivery.report, age=Math.max(0,time-report.observedAt);
+          return {targetId:`link11:${report.trackId}`,
+            position:report.position.clone().addScaledVector(report.velocity,age),
+            velocity:report.velocity.clone(),quality:clamp(report.quality*.68-age*.025,.03,.58),
+            uncertainty:report.uncertainty+20+age*2.8,lastUpdate:report.observedAt,
+            classification:(report.classification==="aircraft"||report.classification==="ship"?report.classification:"unknown") as AirTrack["classification"],
+            source:"link11",engagementQuality:"cue",originSensorId:report.originSensorId,
+            observationId:report.observationId,senderId:report.senderId,receivedAt:delivery.receivedAt};
+        });
+      if(cues.length)this.externalLink11Cues.set(participant.entity.id,cues);
     }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
@@ -500,6 +555,13 @@ export class AirCombatSystem {
     return this.link16.diagnostics();
   }
 
+  link11Diagnostics() { return this.link11.diagnostics(); }
+
+  tacticalCuesFor(participantId:string) {
+    return [...(this.externalLink16Cues.get(participantId)??[]),
+      ...(this.externalLink11Cues.get(participantId)??[])];
+  }
+
   link16CuesFor(participantId: string) {
     return this.externalLink16Cues.get(participantId) ?? [];
   }
@@ -507,6 +569,8 @@ export class AirCombatSystem {
   link16Participants() {
     return [...this.activeLink16ParticipantIds];
   }
+
+  link11Participants() { return [...this.activeLink11ParticipantIds]; }
 
   private updateFlightVisuals(aircraft: AirPlatformInstance, time: number) {
     const speedRatio = clamp(

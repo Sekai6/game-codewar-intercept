@@ -11,7 +11,9 @@
 
 ## 联合空中作战
 
-场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `LINK 16 / JTIDS NETWORK ENABLED` 控件。默认 `NTU BASELINE` 保持本地传感器/传统链路，不启用 Link 16；`JTIDS TRANSITION` 只允许达到年代门槛的 F-14A 终端入网，不接入水面舰；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰组网。手动关闭开关会清空参与节点、队列、远程航迹和舰艇提示。苏联 Tu-16K、MiG-29A 在所有年代层都不使用 Link 16。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
+场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `TACTICAL DATA LINK ENABLED` 控件。默认 `NTU BASELINE` 使用美军舰载 Link 11/TADIL-A，不启用 Link 16；`JTIDS TRANSITION` 保留舰艇 Link 11，同时只允许达到年代门槛的 F-14A JTIDS 终端进入 Link 16；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰进入 Link 16。总开关会同时断开该年代可用的数据链，并清空参与节点、队列、远程航迹和提示。苏联 Tu-16K、MiG-29A 不进入这两种美军网络。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
+
+Link 11 是独立的轮询式网络：由存活且具备能力的节点选出 Net Control Station，NCS 每次只轮询一个参与者；节点数量会直接拉长完整刷新周期。报告要承受排队、调制解调器延迟、距离/终端健康丢包、较大的不确定度与质量折损，并保持阵营隔离。当前场景只有一艘蓝方水面舰具备 Link 11，因此它会成为 NCS，但不会凭空产生“队友航迹”；后续加入编队舰或 E-2 时可直接成为真实报告源。F-14A 与 A-6E 没有被伪装成 Link 11 节点。AI 只把未过期的 Link 11 报告用于慢速调整搜索扇区和威胁轴，弱/陈旧提示会回退本舰搜索，不能建火控航迹、发射 SAM 或更新导弹。
 
 联合运行时现已为显式装备终端的美方平台加入游戏化 Link 16/JTIDS 层。它模拟有限 TDMA 时隙、消息优先级、排队与延迟、距离及终端健康造成的丢包、时间同步、阵营隔离、报告来源、重复观测抑制和航迹老化。网络报告始终是提示级：飞机可以据此转向搜索扇区，舰艇可以据此聚焦雷达搜索，但双方都不能直接用 Link 16 报告授权武器。飞机武器仍需本机武器级航迹与实体挂点释放；舰载 SAM 仍需本舰 `CombatPicture` 建轨并经过既有 Mk 10/Mk 41 队列。Tu-16K 与 MiG-29A 没有 Link 16 终端。CEC 保留为远期独立的测量级融合能力，不能用提高 Link 16 航迹质量代替。
 

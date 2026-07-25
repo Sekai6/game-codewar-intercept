@@ -18,7 +18,8 @@ export function airTrackObservation(track: AirTrack): DefenseObservation {
 }
 
 export function trackSupportsWeaponAuthorization(track: AirTrack | undefined) {
-  return !!track && track.engagementQuality !== "cue" && track.source !== "link16";
+  return !!track && track.engagementQuality !== "cue" &&
+    track.source !== "link11" && track.source !== "link16";
 }
 
 export function selectMissionTrack(input: {

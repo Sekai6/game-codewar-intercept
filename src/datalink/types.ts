@@ -52,3 +52,9 @@ export interface Link16Diagnostics {
   droppedDuplicate: number;
   meanDelay: number;
 }
+
+export interface Link11Diagnostics extends Link16Diagnostics {
+  rollCalls: number;
+  netControlStation: string | null;
+  cycleSeconds: number;
+}

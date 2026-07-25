@@ -155,7 +155,7 @@ export interface AirTrack {
   uncertainty: number;
   lastUpdate: number;
   classification: "unknown" | "aircraft" | "ship";
-  source?: "local-radar" | "link16";
+  source?: "local-radar" | "link11" | "link16";
   engagementQuality?: "cue" | "weapon";
   originSensorId?: string;
   observationId?: string;
@@ -249,6 +249,7 @@ export interface AirScenarioContext {
   blueShip: TargetableEntity;
   redShip: TargetableEntity | null;
   datalinkEra?: DatalinkEra;
+  datalinkEnabled?: boolean;
   link16Enabled?: boolean;
   targets?: readonly TargetableEntity[];
   countermeasures?: (targetId: string) => {
@@ -263,12 +264,14 @@ export interface AirScenarioContext {
     threatId: string;
     threatPosition: THREE.Vector3;
   }) => boolean;
-  link16Participants?: readonly {
+  tacticalNetworkParticipants?: readonly {
     entity: CombatEntity;
     terminalHealth: number;
     timeSyncQuality: number;
     reports: readonly AirTrack[];
   }[];
+  /** Compatibility alias for pre-era integrations. */
+  link16Participants?: AirScenarioContext["tacticalNetworkParticipants"];
 }
 
 export type AirCombatEvent = {

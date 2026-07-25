@@ -53,11 +53,13 @@ export function createAirShipBridge(deps: AirShipBridgeDependencies) {
 
 export type AirScenarioBridgeSnapshot = AirShipBridgeDependencies & {
   datalinkEra?: AirScenarioContext["datalinkEra"];
+  datalinkEnabled?: AirScenarioContext["datalinkEnabled"];
   link16Enabled?: AirScenarioContext["link16Enabled"];
   countermeasures?: AirScenarioContext["countermeasures"];
   requestShipCountermeasure?: AirScenarioContext["requestShipCountermeasure"];
   targets?: readonly TargetableEntity[];
   link16Participants?: AirScenarioContext["link16Participants"];
+  tacticalNetworkParticipants?: AirScenarioContext["tacticalNetworkParticipants"];
 };
 
 export function createAirScenarioContext(
@@ -69,6 +71,7 @@ export function createAirScenarioContext(
     return {
       ...bridge,
       datalinkEra: state.datalinkEra,
+      datalinkEnabled: state.datalinkEnabled,
       link16Enabled: state.link16Enabled,
       targets:
         state.targets ??
@@ -76,6 +79,7 @@ export function createAirScenarioContext(
       countermeasures: state.countermeasures,
       requestShipCountermeasure: state.requestShipCountermeasure,
       link16Participants: state.link16Participants,
+      tacticalNetworkParticipants: state.tacticalNetworkParticipants,
     };
   };
 }

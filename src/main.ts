@@ -2401,22 +2401,25 @@ sandbox.insertBefore(datalinkEraField, sandbox.querySelector("#sbStart"));
 const datalinkEraInput = datalinkEraField.querySelector("select") as HTMLSelectElement;
 const link16Field = document.createElement("label");
 link16Field.className = "sandbox-toggle";
-link16Field.innerHTML = '<input id="sbLink16" type="checkbox"> LINK 16 / JTIDS NETWORK ENABLED';
+link16Field.innerHTML = '<input id="sbLink16" type="checkbox"> TACTICAL DATA LINK ENABLED';
 sandbox.insertBefore(link16Field, sandbox.querySelector("#sbStart"));
 const link16Input = link16Field.querySelector("input") as HTMLInputElement;
 function updateDatalinkEraControls() {
   const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
-  link16Input.disabled = !era.link16Available || !era.selectable;
+  link16Input.disabled = (!era.link11Available && !era.link16Available) || !era.selectable;
   if (link16Input.disabled) link16Input.checked = false;
+  const networkNames = [era.link11Available && "LINK 11", era.link16Available && "LINK 16 / JTIDS"].filter(Boolean).join(" + ");
+  link16Field.lastChild!.textContent = ` ${networkNames || "TACTICAL DATA LINK"} ENABLED`;
   link16Field.title = era.description;
 }
 datalinkEraInput.value = "ntu-baseline";
 datalinkEraInput.addEventListener("change", () => {
   const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
-  link16Input.checked = era.link16Available && era.selectable;
+  link16Input.checked = (era.link11Available || era.link16Available) && era.selectable;
   updateDatalinkEraControls();
 });
 updateDatalinkEraControls();
+link16Input.checked = true;
 const tacviewExportField = document.createElement("label");
 tacviewExportField.className = "sandbox-toggle";
 tacviewExportField.innerHTML =
@@ -2661,6 +2664,7 @@ const airScenarioContext = createAirScenarioContext(() => {
     blueAlive: hullIntegrity > 0,
     redShip,
     datalinkEra: datalinkEraInput.value as DatalinkEra,
+    datalinkEnabled: link16Input.checked,
     link16Enabled: link16Input.checked,
     applyBlueDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
@@ -2702,7 +2706,7 @@ const airScenarioContext = createAirScenarioContext(() => {
     },
     requestShipCountermeasure: ({ targetId, threatPosition }) =>
       targetId === "blue-surface-ship" && deployShipChaffAt(threatPosition),
-    link16Participants: [
+    tacticalNetworkParticipants: [
       {
         entity: blueLinkEntity,
         terminalHealth: Math.min(
@@ -7617,11 +7621,11 @@ function tick(now: number) {
         const airContext = airScenarioContext();
         airCombat.update(elapsed, 0.05, airContext);
         const link16Cue = airCombat
-          .link16CuesFor("blue-surface-ship")
+          .tacticalCuesFor("blue-surface-ship")
           .filter(
             (track) =>
-              elapsed - track.lastUpdate <= 8 &&
-              track.quality >= 0.22 &&
+              elapsed - track.lastUpdate <= (track.source === "link11" ? 24 : 8) &&
+              track.quality >= (track.source === "link11" ? 0.12 : 0.22) &&
               track.classification !== "ship",
           )
           .sort((left, right) => right.quality - left.quality)[0];
@@ -8008,6 +8012,15 @@ function tick(now: number) {
     .map((aircraft) => `${aircraft.id}:${aircraft.mission}`)
     .join(",");
   const link16Diagnostics = airCombat.link16Diagnostics();
+  const link11Diagnostics = airCombat.link11Diagnostics();
+  canvas.dataset.link11Queued = String(link11Diagnostics.queued);
+  canvas.dataset.link11Transmitted = String(link11Diagnostics.transmitted);
+  canvas.dataset.link11Delivered = String(link11Diagnostics.delivered);
+  canvas.dataset.link11MeanDelay = link11Diagnostics.meanDelay.toFixed(3);
+  canvas.dataset.link11RollCalls = String(link11Diagnostics.rollCalls);
+  canvas.dataset.link11Ncs = link11Diagnostics.netControlStation ?? "";
+  canvas.dataset.link11CycleSeconds = String(link11Diagnostics.cycleSeconds);
+  canvas.dataset.link11Participants = airCombat.link11Participants().join("|");
   canvas.dataset.link16Queued = String(link16Diagnostics.queued);
   canvas.dataset.link16Transmitted = String(link16Diagnostics.transmitted);
   canvas.dataset.link16Delivered = String(link16Diagnostics.delivered);

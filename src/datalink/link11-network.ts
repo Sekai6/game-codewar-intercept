@@ -1,0 +1,114 @@
+import * as THREE from "three";
+import type {
+  Link11Diagnostics,
+  Link16Delivery,
+  Link16ParticipantState,
+  Link16TrackReport,
+} from "./types.js";
+
+export interface Link11ParticipantState extends Link16ParticipantState {
+  netControlCapable: boolean;
+  radioSilent?: boolean;
+}
+
+type Queued = { report: Link16TrackReport; queuedAt: number };
+type Pending = Link16Delivery & { deliverAt: number };
+
+function hash01(value: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 0xffffffff;
+}
+
+/** Game-scaled Link 11/TADIL-A roll-call net: one NCS polls one participant at a time. */
+export class Link11Network {
+  private readonly participants = new Map<string, Link11ParticipantState>();
+  private readonly queues = new Map<string, Queued[]>();
+  private readonly pending: Pending[] = [];
+  private readonly inboxes = new Map<string, Link16Delivery[]>();
+  private readonly seen = new Map<string, number>();
+  private nextRollCallAt = 0;
+  private pollIndex = 0;
+  private serial = 0;
+  private delayTotal = 0;
+  private readonly pollSeconds = 2;
+  private readonly maximumRange = 1200;
+  private diagnosticsState: Link11Diagnostics = this.emptyDiagnostics();
+
+  private emptyDiagnostics(): Link11Diagnostics {
+    return { queued:0, transmitted:0, delivered:0, droppedCapacity:0,
+      droppedLink:0, droppedDuplicate:0, meanDelay:0, rollCalls:0,
+      netControlStation:null, cycleSeconds:0 };
+  }
+
+  reset() {
+    this.participants.clear(); this.queues.clear(); this.pending.length = 0;
+    this.inboxes.clear(); this.seen.clear(); this.nextRollCallAt = 0;
+    this.pollIndex = 0; this.serial = 0; this.delayTotal = 0;
+    this.diagnosticsState = this.emptyDiagnostics();
+  }
+
+  upsertParticipant(state: Link11ParticipantState) {
+    this.participants.set(state.id, { ...state, position:state.position.clone(),
+      terminalHealth:THREE.MathUtils.clamp(state.terminalHealth,0,1),
+      timeSyncQuality:THREE.MathUtils.clamp(state.timeSyncQuality,0,1) });
+  }
+
+  publishTrack(senderId:string,
+    input:Omit<Link16TrackReport,"messageId"|"senderId"|"side"|"transmittedAt">,
+    time:number) {
+    const sender=this.participants.get(senderId);
+    if (!sender?.alive || sender.radioSilent || !sender.transmitEnabled || sender.terminalHealth<=.05) return false;
+    const queue=this.queues.get(senderId) ?? [];
+    if (queue.length>=12) { queue.shift(); this.diagnosticsState.droppedCapacity++; }
+    queue.push({ queuedAt:time, report:{ ...input, messageId:`M-series-${++this.serial}`,
+      senderId, side:sender.side, transmittedAt:time, position:input.position.clone(),
+      velocity:input.velocity.clone(), relayChain:[...input.relayChain,senderId] } });
+    this.queues.set(senderId,queue); this.diagnosticsState.queued++; return true;
+  }
+
+  update(time:number) {
+    while (time>=this.nextRollCallAt) { this.rollCall(this.nextRollCallAt); this.nextRollCallAt+=this.pollSeconds; }
+    for (let i=this.pending.length-1;i>=0;i--) {
+      const delivery=this.pending[i]; if (delivery.deliverAt>time) continue;
+      this.pending.splice(i,1);
+      const key=`${delivery.recipientId}:${delivery.report.observationId}`;
+      if (this.seen.has(key)) { this.diagnosticsState.droppedDuplicate++; continue; }
+      this.seen.set(key,time); const inbox=this.inboxes.get(delivery.recipientId)??[];
+      inbox.push(delivery); this.inboxes.set(delivery.recipientId,inbox);
+      this.diagnosticsState.delivered++; this.delayTotal+=delivery.networkDelay;
+    }
+    for (const [key,at] of this.seen) if(time-at>40)this.seen.delete(key);
+    this.diagnosticsState.meanDelay=this.diagnosticsState.delivered?this.delayTotal/this.diagnosticsState.delivered:0;
+  }
+
+  private rollCall(time:number) {
+    const live=[...this.participants.values()].filter(p=>p.alive&&!p.radioSilent);
+    const ncs=live.filter(p=>p.netControlCapable&&p.transmitEnabled).sort((a,b)=>b.terminalHealth-a.terminalHealth||a.id.localeCompare(b.id))[0];
+    this.diagnosticsState.netControlStation=ncs?.id??null;
+    this.diagnosticsState.cycleSeconds=live.length*this.pollSeconds;
+    if(!ncs||!live.length)return;
+    const sender=live[this.pollIndex++%live.length]; this.diagnosticsState.rollCalls++;
+    const queue=this.queues.get(sender.id); const item=queue?.shift(); if(!item)return;
+    this.diagnosticsState.transmitted++;
+    for(const recipient of live) {
+      if(recipient.id===sender.id||recipient.side!==sender.side||!recipient.receiveEnabled||recipient.terminalHealth<=.05)continue;
+      const range=sender.position.distanceTo(recipient.position);
+      if(range>this.maximumRange){this.diagnosticsState.droppedLink++;continue;}
+      const rangeFactor=range/this.maximumRange;
+      const success=THREE.MathUtils.clamp(.91*sender.terminalHealth*recipient.terminalHealth-rangeFactor*.22,.08,.96);
+      if(hash01(`${item.report.messageId}:${recipient.id}`)>success){this.diagnosticsState.droppedLink++;continue;}
+      const networkDelay=Math.max(0,time-item.report.observedAt)+1.1+rangeFactor*.8;
+      const report={...item.report,position:item.report.position.clone(),velocity:item.report.velocity.clone(),
+        quality:item.report.quality*.72,uncertainty:item.report.uncertainty+3500+networkDelay*180};
+      this.pending.push({recipientId:recipient.id,report,receivedAt:time+1.1,
+        networkDelay,deliverAt:time+1.1});
+    }
+  }
+
+  drainInbox(id:string){const value=this.inboxes.get(id)??[];this.inboxes.delete(id);return value;}
+  diagnostics():Readonly<Link11Diagnostics>{return {...this.diagnosticsState};}
+}

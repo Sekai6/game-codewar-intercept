@@ -29,6 +29,9 @@ async function runCase(era, enabled) {
     enabled: canvas.dataset.link16Enabled,
     cecAvailable: canvas.dataset.cecAvailable,
     participants: canvas.dataset.link16Participants ?? "",
+    link11Participants: canvas.dataset.link11Participants ?? "",
+    link11Ncs: canvas.dataset.link11Ncs ?? "",
+    link11RollCalls: Number(canvas.dataset.link11RollCalls ?? 0),
     delivered: Number(canvas.dataset.link16Delivered ?? 0),
     shipCues: Number(canvas.dataset.link16ShipCues ?? 0),
     tracks: canvas.dataset.link16TrackStates ?? "",
@@ -36,22 +39,28 @@ async function runCase(era, enabled) {
 }
 
 try {
-  const baseline = await runCase("ntu-baseline", false);
+  const baseline = await runCase("ntu-baseline", true);
+  const baselineDisconnected = await runCase("ntu-baseline", false);
   const transition = await runCase("jtids-transition", true);
   const modernized = await runCase("link16-modernized", true);
   const disconnected = await runCase("link16-modernized", false);
-  const result = { baseline, transition, modernized, disconnected, errors };
+  const result = { baseline, baselineDisconnected, transition, modernized, disconnected, errors };
   console.log(JSON.stringify(result, null, 2));
   if (
     errors.length ||
     baseline.participants !== "" || baseline.delivered !== 0 ||
+    !baseline.link11Participants.includes("blue-surface-ship") ||
+    baseline.link11Ncs !== "blue-surface-ship" || baseline.link11RollCalls <= 0 ||
+    baselineDisconnected.link11Participants !== "" ||
     !transition.participants.includes("F-14A") ||
     transition.participants.includes("A-6E") ||
     transition.participants.includes("surface-ship") ||
+    !transition.link11Participants.includes("blue-surface-ship") ||
     transition.delivered <= 0 ||
     !modernized.participants.includes("F-14A") ||
     !modernized.participants.includes("A-6E") ||
     !modernized.participants.includes("blue-surface-ship") ||
+    modernized.link11Participants !== "" ||
     modernized.delivered <= 0 ||
     disconnected.participants !== "" || disconnected.delivered !== 0 ||
     modernized.cecAvailable !== "false"
