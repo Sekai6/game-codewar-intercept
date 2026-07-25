@@ -11,6 +11,8 @@
 
 ## 联合空中作战
 
+场景面板提供独立的 `TACTICAL NETWORK ERA` 与 `LINK 16 / JTIDS NETWORK ENABLED` 控件。默认 `NTU BASELINE` 保持本地传感器/传统链路，不启用 Link 16；`JTIDS TRANSITION` 只允许达到年代门槛的 F-14A 终端入网，不接入水面舰；`LINK 16 MODERNIZED` 才允许合资格的 F-14A、A-6E 与美方水面舰组网。手动关闭开关会清空参与节点、队列、远程航迹和舰艇提示。苏联 Tu-16K、MiG-29A 在所有年代层都不使用 Link 16。`CEC ENABLED / FUTURE` 仅作为不可选择的路线标记，当前没有伪装成 CEC 的交战级融合。
+
 联合运行时现已为显式装备终端的美方平台加入游戏化 Link 16/JTIDS 层。它模拟有限 TDMA 时隙、消息优先级、排队与延迟、距离及终端健康造成的丢包、时间同步、阵营隔离、报告来源、重复观测抑制和航迹老化。网络报告始终是提示级：飞机可以据此转向搜索扇区，舰艇可以据此聚焦雷达搜索，但双方都不能直接用 Link 16 报告授权武器。飞机武器仍需本机武器级航迹与实体挂点释放；舰载 SAM 仍需本舰 `CombatPicture` 建轨并经过既有 Mk 10/Mk 41 队列。Tu-16K 与 MiG-29A 没有 Link 16 终端。CEC 保留为远期独立的测量级融合能力，不能用提高 Link 16 航迹质量代替。
 
 场景面板的 `AIR PRESET` 提供 `JOINT`、`INTERCEPT`、`STRIKE` 与 `FIGHTER`：联合场景加入 F-14A、Tu-16K 与 A-6E 三个双机编队，拦截场景保留 F-14A/Tu-16K，反舰场景只保留 A-6E，战斗机场景让 F-14A CAP 对抗 MiG-29A 双机截击。编组、坐标、任务覆盖和护航关系位于 `src/air/scenarios.ts`，核心运行时只接收 `AirSpawn[]`。燃油按动力学返回的单 tick 消耗量扣减，`consumeFuel` 保证不会重复应用时间步或出现负值。

@@ -10,6 +10,7 @@ import type {
 } from "../combat-entity";
 import type { EnemyType } from "../threats/catalog";
 import type { FormationStatus } from "./formation";
+import type { DatalinkEra } from "../datalink/era.js";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "egress" | "return";
@@ -114,6 +115,7 @@ export interface AirPlatformDefinition {
   sensor: AirSensorDefinition;
   datalink?: {
     link16: true;
+    minimumEra: "jtids-transition" | "link16-modernized";
     terminalName: string;
     terminalReliability: number;
     timeSyncQuality: number;
@@ -246,6 +248,8 @@ export interface AirDecoyInstance extends CombatEntity {
 export interface AirScenarioContext {
   blueShip: TargetableEntity;
   redShip: TargetableEntity | null;
+  datalinkEra?: DatalinkEra;
+  link16Enabled?: boolean;
   targets?: readonly TargetableEntity[];
   countermeasures?: (targetId: string) => {
     ecmEnabled: boolean;

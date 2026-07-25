@@ -44,6 +44,7 @@ import {
 import { opposingSides } from "../defense/allegiance.js";
 import { Link16Network } from "../datalink/link16-network.js";
 import type { Link16TrackReport } from "../datalink/types.js";
+import { aircraftLink16Eligible, shipLink16Eligible } from "../datalink/era.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -212,6 +213,8 @@ export class AirCombatSystem {
   private readonly link16 = new Link16Network();
   private readonly externalLink16Published = new Map<string, number>();
   private readonly externalLink16Cues = new Map<string, AirTrack[]>();
+  private readonly activeLink16ParticipantIds = new Set<string>();
+  private datalinkConfigurationKey: string | null = null;
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
   private externalTargets: readonly TargetableEntity[] = [];
@@ -258,6 +261,8 @@ export class AirCombatSystem {
     this.link16.reset();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
+    this.activeLink16ParticipantIds.clear();
+    this.datalinkConfigurationKey = null;
     const protectedFormations = new Map<string, string>();
     for (const spawn of spawns) {
       const p = instantiate(spawn, ++this.serial, (id, damage, point) => {
@@ -340,9 +345,28 @@ export class AirCombatSystem {
     if (!this.enabled) return;
     this.currentTime = time;
     this.group.userData.context = context;
+    const datalinkEra = context.datalinkEra ?? "link16-modernized",
+      link16Enabled = context.link16Enabled ?? true;
+    const datalinkConfigurationKey = `${datalinkEra}:${link16Enabled}`;
+    if (this.datalinkConfigurationKey !== datalinkConfigurationKey) {
+      this.link16.reset();
+      this.externalLink16Published.clear();
+      this.externalLink16Cues.clear();
+      for (const aircraft of this.aircraft) aircraft.networkTracks.clear();
+      this.datalinkConfigurationKey = datalinkConfigurationKey;
+    }
+    this.activeLink16ParticipantIds.clear();
     for (const aircraft of this.aircraft) {
       const terminal = aircraft.definition.datalink;
-      if (!terminal?.link16) continue;
+      if (
+        !terminal?.link16 ||
+        !aircraftLink16Eligible({
+          era: datalinkEra,
+          enabled: link16Enabled,
+          minimumEra: terminal.minimumEra,
+        })
+      ) continue;
+      this.activeLink16ParticipantIds.add(aircraft.id);
       this.link16.upsertParticipant({
         id: aircraft.id,
         side: aircraft.side,
@@ -358,6 +382,9 @@ export class AirCombatSystem {
       });
     }
     for (const participant of context.link16Participants ?? []) {
+      if (!shipLink16Eligible({ era: datalinkEra, enabled: link16Enabled }))
+        continue;
+      this.activeLink16ParticipantIds.add(participant.entity.id);
       this.link16.upsertParticipant({
         id: participant.entity.id,
         side: participant.entity.side,
@@ -394,9 +421,10 @@ export class AirCombatSystem {
       if (time - publishedAt > 20) this.externalLink16Published.delete(key);
     this.link16.update(time);
     for (const aircraft of this.aircraft)
-      if (aircraft.definition.datalink?.link16)
+      if (this.activeLink16ParticipantIds.has(aircraft.id))
         this.receiveLink16Tracks(aircraft, time);
     for (const participant of context.link16Participants ?? []) {
+      if (!this.activeLink16ParticipantIds.has(participant.entity.id)) continue;
       const cues = this.link16.drainInbox(participant.entity.id)
         .filter((delivery) => time - delivery.report.observedAt <= 8)
         .map((delivery): AirTrack => {
@@ -474,6 +502,10 @@ export class AirCombatSystem {
 
   link16CuesFor(participantId: string) {
     return this.externalLink16Cues.get(participantId) ?? [];
+  }
+
+  link16Participants() {
+    return [...this.activeLink16ParticipantIds];
   }
 
   private updateFlightVisuals(aircraft: AirPlatformInstance, time: number) {
@@ -698,7 +730,15 @@ export class AirCombatSystem {
           uncertainty: measurement.uncertainty,
           priority: target.kind === "missile" ? "emergency" : "routine",
         };
-        if (a.definition.datalink?.link16)
+        const terminal = a.definition.datalink;
+        if (
+          terminal?.link16 &&
+          aircraftLink16Eligible({
+            era: context.datalinkEra ?? "link16-modernized",
+            enabled: context.link16Enabled ?? true,
+            minimumEra: terminal.minimumEra,
+          })
+        )
           this.link16.publishTrack(a.id, report, time);
         if (first)
           this.emit(

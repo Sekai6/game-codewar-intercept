@@ -52,6 +52,8 @@ export function createAirShipBridge(deps: AirShipBridgeDependencies) {
 }
 
 export type AirScenarioBridgeSnapshot = AirShipBridgeDependencies & {
+  datalinkEra?: AirScenarioContext["datalinkEra"];
+  link16Enabled?: AirScenarioContext["link16Enabled"];
   countermeasures?: AirScenarioContext["countermeasures"];
   requestShipCountermeasure?: AirScenarioContext["requestShipCountermeasure"];
   targets?: readonly TargetableEntity[];
@@ -66,6 +68,8 @@ export function createAirScenarioContext(
     const bridge = createAirShipBridge(state);
     return {
       ...bridge,
+      datalinkEra: state.datalinkEra,
+      link16Enabled: state.link16Enabled,
       targets:
         state.targets ??
         [bridge.blueShip, ...(bridge.redShip ? [bridge.redShip] : [])],

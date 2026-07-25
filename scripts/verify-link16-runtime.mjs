@@ -20,6 +20,8 @@ try {
     timeout: 15_000,
   });
   await page.locator("#sbAirCombat").check();
+  await page.locator("#sbDatalinkEra").selectOption("link16-modernized");
+  await page.locator("#sbLink16").check();
   await page.locator("#sbStart").click();
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();

@@ -98,6 +98,10 @@ import {
   createShipTarget,
 } from "./air/ship-bridge";
 import {
+  DATALINK_ERAS,
+  type DatalinkEra,
+} from "./datalink/era";
+import {
   DEFAULT_SURFACE_CONFIG,
   initialSurfaceLoadout,
   initialSurfaceThreats,
@@ -2385,6 +2389,34 @@ sandbox.insertBefore(airScenarioField, sandbox.querySelector("#sbStart"));
 const airScenarioInput = airScenarioField.querySelector(
   "input",
 ) as HTMLInputElement;
+const datalinkEraField = document.createElement("label");
+datalinkEraField.className = "sandbox-field";
+datalinkEraField.innerHTML = `<span>TACTICAL NETWORK ERA</span><select id="sbDatalinkEra">${Object.values(
+  DATALINK_ERAS,
+).map(
+  (era) =>
+    `<option value="${era.id}"${era.selectable ? "" : " disabled"}>${era.label} / ${era.description}</option>`,
+).join("")}</select>`;
+sandbox.insertBefore(datalinkEraField, sandbox.querySelector("#sbStart"));
+const datalinkEraInput = datalinkEraField.querySelector("select") as HTMLSelectElement;
+const link16Field = document.createElement("label");
+link16Field.className = "sandbox-toggle";
+link16Field.innerHTML = '<input id="sbLink16" type="checkbox"> LINK 16 / JTIDS NETWORK ENABLED';
+sandbox.insertBefore(link16Field, sandbox.querySelector("#sbStart"));
+const link16Input = link16Field.querySelector("input") as HTMLInputElement;
+function updateDatalinkEraControls() {
+  const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
+  link16Input.disabled = !era.link16Available || !era.selectable;
+  if (link16Input.disabled) link16Input.checked = false;
+  link16Field.title = era.description;
+}
+datalinkEraInput.value = "ntu-baseline";
+datalinkEraInput.addEventListener("change", () => {
+  const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
+  link16Input.checked = era.link16Available && era.selectable;
+  updateDatalinkEraControls();
+});
+updateDatalinkEraControls();
 const tacviewExportField = document.createElement("label");
 tacviewExportField.className = "sandbox-toggle";
 tacviewExportField.innerHTML =
@@ -2628,6 +2660,8 @@ const airScenarioContext = createAirScenarioContext(() => {
     blueRcs: activeShip.platform.radarRcs,
     blueAlive: hullIntegrity > 0,
     redShip,
+    datalinkEra: datalinkEraInput.value as DatalinkEra,
+    link16Enabled: link16Input.checked,
     applyBlueDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
       airShipHits++;
@@ -7987,10 +8021,12 @@ function tick(now: number) {
       0,
     ),
   );
-  canvas.dataset.link16Participants = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.datalink?.link16)
-    .map((aircraft) => aircraft.id)
-    .join("|");
+  canvas.dataset.datalinkEra = datalinkEraInput.value;
+  canvas.dataset.link16Enabled = String(link16Input.checked);
+  canvas.dataset.cecAvailable = String(
+    DATALINK_ERAS[datalinkEraInput.value as DatalinkEra].cecAvailable,
+  );
+  canvas.dataset.link16Participants = airCombat.link16Participants().join("|");
   canvas.dataset.link16TrackStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.networkTracks.size}`)
     .join("|");
