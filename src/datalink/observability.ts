@@ -22,12 +22,27 @@ export interface TacticalNetworkTrackView {
   senderId?: string;
 }
 
+export interface TacticalNetworkDecisionView {
+  id: string;
+  network: "link11" | "link16";
+  kind:
+    | "cue-accepted-search"
+    | "cue-expired"
+    | "organic-acquisition"
+    | "weapon-authorization-rejected";
+  time: number;
+  participantId: string;
+  trackId: string;
+  organicTargetId?: string;
+}
+
 export interface TacticalNetworkObservation {
   era: string;
   enabled: boolean;
   nodes: readonly TacticalNetworkNodeView[];
   tracks: readonly TacticalNetworkTrackView[];
   activities: readonly TacticalNetworkActivity[];
+  decisions: readonly TacticalNetworkDecisionView[];
   link11: Readonly<Link11Diagnostics>;
   link16: Readonly<Link16Diagnostics>;
 }

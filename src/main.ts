@@ -3872,8 +3872,9 @@ function showAar(outcome: string, score: number) {
     impacts = aarEvents.filter((e) => / IMPACT /.test(e.text)).length,
     harpoons = aarEvents.filter((e) =>
       /RGM-84 HARPOON SURFACE LAUNCH/i.test(e.text),
-    ).length;
-  resultPanel.innerHTML = `<header class="aar-top"><div><small>AFTER ACTION REVIEW / ${activeShip.name}</small><h2>${outcome}</h2></div><div class="aar-score">SCORE <b>${score}</b></div></header><div class="aar-metrics"><span>THREATS<b>${missiles.length}</b></span><span>SAM SHOTS<b>${samShots}</b></span><span>HARD KILLS<b>${hardKills}</b></span><span>SOFT KILLS<b>${softKills}</b></span><span>LEAKERS<b>${impacts}</b></span><span>HARPOONS<b>${harpoons}</b></span><span>SURFACE HITS<b>${surfaceHits}</b></span><span>PROG DAMAGE<b>${surfaceProgressiveDamage.toFixed(1)}</b></span><span>SFC MISSES<b>${surfaceMisses}</b></span><span>SFC SOFT KILLS<b>${surfaceSoftKills}</b></span><span>SFC PD KILLS<b>${surfacePointDefenseKills}</b></span><span>TARGET HULL<b>${Math.round(enemyPlatform?.hullIntegrity ?? 0)}%</b></span><span>HULL<b>${hullIntegrity}%</b></span></div><div class="aar-body"><section class="aar-replay"><div class="aar-section-head"><b>TACTICAL REPLAY</b><span id="aarTime"></span></div><canvas id="aarCanvas" width="900" height="440"></canvas><div class="aar-controls"><button id="aarStart" title="Jump to start">|&lt;</button><button id="aarPlay">PLAY</button><input id="aarSlider" type="range" min="0" max="${Math.max(0, aarSnapshots.length - 1)}" value="${Math.max(0, aarSnapshots.length - 1)}"><button id="aarEnd" title="Jump to end">&gt;|</button></div></section><aside class="aar-timeline"><div class="aar-section-head"><b>EVENT TIMELINE</b><span>${aarEvents.length} EVENTS</span></div><div id="aarEvents"></div></aside></div><footer class="aar-footer"><button id="aarExportTacview">EXPORT TACVIEW</button><button id="aarClose">CLOSE AAR</button><button id="restartMission">RESTART EXERCISE</button></footer>`;
+    ).length,
+    networkEvents = aarEvents.filter((event) => event.category === "network").length;
+  resultPanel.innerHTML = `<header class="aar-top"><div><small>AFTER ACTION REVIEW / ${activeShip.name}</small><h2>${outcome}</h2></div><div class="aar-score">SCORE <b>${score}</b></div></header><div class="aar-metrics"><span>THREATS<b>${missiles.length}</b></span><span>SAM SHOTS<b>${samShots}</b></span><span>HARD KILLS<b>${hardKills}</b></span><span>SOFT KILLS<b>${softKills}</b></span><span>LEAKERS<b>${impacts}</b></span><span>HARPOONS<b>${harpoons}</b></span><span>NETWORK<b>${networkEvents}</b></span><span>SURFACE HITS<b>${surfaceHits}</b></span><span>PROG DAMAGE<b>${surfaceProgressiveDamage.toFixed(1)}</b></span><span>SFC MISSES<b>${surfaceMisses}</b></span><span>SFC SOFT KILLS<b>${surfaceSoftKills}</b></span><span>SFC PD KILLS<b>${surfacePointDefenseKills}</b></span><span>TARGET HULL<b>${Math.round(enemyPlatform?.hullIntegrity ?? 0)}%</b></span><span>HULL<b>${hullIntegrity}%</b></span></div><div class="aar-body"><section class="aar-replay"><div class="aar-section-head"><b>TACTICAL REPLAY</b><span id="aarTime"></span></div><canvas id="aarCanvas" width="900" height="440"></canvas><div class="aar-controls"><button id="aarStart" title="Jump to start">|&lt;</button><button id="aarPlay">PLAY</button><input id="aarSlider" type="range" min="0" max="${Math.max(0, aarSnapshots.length - 1)}" value="${Math.max(0, aarSnapshots.length - 1)}"><button id="aarEnd" title="Jump to end">&gt;|</button></div></section><aside class="aar-timeline"><div class="aar-section-head"><b>EVENT TIMELINE</b><span>${aarEvents.length} EVENTS</span></div><nav class="aar-event-filters"><button class="active" data-filter="all">ALL</button><button data-filter="combat">COMBAT</button><button data-filter="network">NETWORK</button></nav><div id="aarEvents"></div></aside></div><footer class="aar-footer"><button id="aarExportTacview">EXPORT TACVIEW</button><button id="aarClose">CLOSE AAR</button><button id="restartMission">RESTART EXERCISE</button></footer>`;
   const eventList = resultPanel.querySelector("#aarEvents")!;
   aarEvents.forEach((event, eventIndex) => {
     const button = document.createElement("button");
@@ -3892,8 +3893,19 @@ function showAar(outcome: string, score: number) {
       renderAarFrame(snapshotIndex);
     };
     button.dataset.index = String(eventIndex);
+    button.dataset.category = event.category;
     eventList.appendChild(button);
   });
+  for (const filter of resultPanel.querySelectorAll<HTMLButtonElement>(".aar-event-filters button"))
+    filter.onclick = () => {
+      const mode = filter.dataset.filter ?? "all";
+      resultPanel.querySelectorAll(".aar-event-filters button").forEach((button) =>
+        button.classList.toggle("active", button === filter));
+      resultPanel.querySelectorAll<HTMLElement>(".aar-event").forEach((event) => {
+        const network = event.dataset.category === "network";
+        event.hidden = mode === "network" ? !network : mode === "combat" ? network : false;
+      });
+    };
   const slider = resultPanel.querySelector("#aarSlider") as HTMLInputElement,
     play = resultPanel.querySelector("#aarPlay") as HTMLButtonElement;
   slider.oninput = () => renderAarFrame(Number(slider.value));
@@ -7676,6 +7688,7 @@ function tick(now: number) {
             link16Cue.position.z - defender.position.z,
           );
           combatPicture.setSearch(90, bearing);
+          airCombat.recordCueSearchUse("blue-surface-ship", link16Cue, elapsed);
         }
         synchronizeAirDefenseTargets();
         for (const event of airCombat.drainEvents())
@@ -8087,6 +8100,15 @@ function tick(now: number) {
     .join("|");
   canvas.dataset.link16ShipCues = String(
     airCombat.link16CuesFor("blue-surface-ship").length,
+  );
+  const networkObservation = airCombat.tacticalNetworkObservation(elapsed);
+  canvas.dataset.datalinkDecisionLog = networkObservation.decisions
+    .map((decision) => `${decision.time.toFixed(2)}:${decision.network}:${decision.kind}:${decision.participantId}:${decision.trackId}`)
+    .join("|");
+  canvas.dataset.aarDatalinkNodes = String(latestAar?.datalink?.nodes.length ?? 0);
+  canvas.dataset.aarDatalinkTracks = String(latestAar?.datalink?.tracks.length ?? 0);
+  canvas.dataset.aarDatalinkEvents = String(
+    aarEvents.filter((event) => /LINK1[16] (?:POLL|TRANSMIT|DELIVER|DROP|CUE|ORGANIC)/.test(event.text)).length,
   );
   canvas.dataset.aircraftShipRangesKm = airCombat.aircraft
     .map(

@@ -44,7 +44,7 @@ import {
 import { opposingSides } from "../defense/allegiance.js";
 import { Link16Network } from "../datalink/link16-network.js";
 import { Link11Network } from "../datalink/link11-network.js";
-import type { TacticalNetworkObservation, TacticalNetworkTrackView } from "../datalink/observability.js";
+import type { TacticalNetworkDecisionView, TacticalNetworkObservation, TacticalNetworkTrackView } from "../datalink/observability.js";
 import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
 import {
@@ -221,6 +221,9 @@ export class AirCombatSystem {
   private readonly externalLink11Published = new Map<string, number>();
   private readonly externalLink11Cues = new Map<string, AirTrack[]>();
   private datalinkConfigurationKey: string | null = null;
+  private readonly tacticalNetworkDecisions: TacticalNetworkDecisionView[] = [];
+  private readonly tacticalNetworkDecisionKeys = new Set<string>();
+  private tacticalNetworkDecisionSerial = 0;
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
   private externalTargets: readonly TargetableEntity[] = [];
@@ -273,6 +276,9 @@ export class AirCombatSystem {
     this.externalLink11Published.clear();
     this.externalLink11Cues.clear();
     this.datalinkConfigurationKey = null;
+    this.tacticalNetworkDecisions.length = 0;
+    this.tacticalNetworkDecisionKeys.clear();
+    this.tacticalNetworkDecisionSerial = 0;
     const protectedFormations = new Map<string, string>();
     for (const spawn of spawns) {
       const p = instantiate(spawn, ++this.serial, (id, damage, point) => {
@@ -425,6 +431,22 @@ export class AirCombatSystem {
         });
       }
       for (const track of participant.reports) {
+        const cue = [
+          ...(this.externalLink11Cues.get(participant.entity.id) ?? []),
+          ...(this.externalLink16Cues.get(participant.entity.id) ?? []),
+        ].find((candidate) =>
+          candidate.classification === track.classification &&
+          candidate.position.distanceTo(track.position) <=
+            Math.max(12, candidate.uncertainty + track.uncertainty));
+        if (cue?.source === "link11" || cue?.source === "link16")
+          this.recordTacticalNetworkDecision({
+            network: cue.source,
+            kind: "organic-acquisition",
+            time,
+            participantId: participant.entity.id,
+            trackId: cue.targetId,
+            organicTargetId: track.targetId,
+          });
         const observationId =
           track.observationId ??
           `${participant.entity.id}:${track.targetId}:${track.lastUpdate.toFixed(3)}`;
@@ -507,6 +529,7 @@ export class AirCombatSystem {
         });
       if(cues.length)this.externalLink11Cues.set(participant.entity.id,cues);
     }
+    this.pruneExternalCues(time);
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -520,7 +543,17 @@ export class AirCombatSystem {
   }
 
   private receiveLink16Tracks(aircraft: AirPlatformInstance, time: number) {
+    const previous = new Map(aircraft.networkTracks);
     advanceAirTracks(aircraft.networkTracks, 0, time);
+    for (const [id, track] of previous)
+      if (!aircraft.networkTracks.has(id))
+        this.recordTacticalNetworkDecision({
+          network: track.source === "link11" ? "link11" : "link16",
+          kind: "cue-expired",
+          time,
+          participantId: aircraft.id,
+          trackId: id,
+        });
     for (const delivery of this.link16.drainInbox(aircraft.id)) {
       const report = delivery.report;
       if (time - report.observedAt > 8 || report.side !== aircraft.side) continue;
@@ -563,6 +596,24 @@ export class AirCombatSystem {
       ...(this.externalLink11Cues.get(participantId)??[])];
   }
 
+  recordCueSearchUse(participantId: string, cue: AirTrack, time = this.currentTime) {
+    if (cue.source !== "link11" && cue.source !== "link16") return;
+    this.recordTacticalNetworkDecision({
+      network: cue.source,
+      kind: "cue-accepted-search",
+      time,
+      participantId,
+      trackId: cue.targetId,
+    });
+    this.recordTacticalNetworkDecision({
+      network: cue.source,
+      kind: "weapon-authorization-rejected",
+      time,
+      participantId,
+      trackId: cue.targetId,
+    });
+  }
+
   link16CuesFor(participantId: string) {
     return this.externalLink16Cues.get(participantId) ?? [];
   }
@@ -572,6 +623,40 @@ export class AirCombatSystem {
   }
 
   link11Participants() { return [...this.activeLink11ParticipantIds]; }
+
+  private recordTacticalNetworkDecision(
+    decision: Omit<TacticalNetworkDecisionView, "id">,
+  ) {
+    const key = `${decision.kind}:${decision.participantId}:${decision.trackId}:${decision.organicTargetId ?? ""}`;
+    if (this.tacticalNetworkDecisionKeys.has(key)) return;
+    this.tacticalNetworkDecisionKeys.add(key);
+    this.tacticalNetworkDecisions.push({
+      ...decision,
+      id: `${key}:${++this.tacticalNetworkDecisionSerial}`,
+    });
+    if (decision.kind === "cue-expired")
+      for (const recordedKey of [...this.tacticalNetworkDecisionKeys])
+        if (recordedKey.includes(`:${decision.participantId}:${decision.trackId}:`))
+          this.tacticalNetworkDecisionKeys.delete(recordedKey);
+    if (this.tacticalNetworkDecisions.length > 512)
+      this.tacticalNetworkDecisions.splice(0, this.tacticalNetworkDecisions.length - 512);
+  }
+
+  private pruneExternalCues(time: number) {
+    const prune = (network: "link11" | "link16", store: Map<string, AirTrack[]>) => {
+      const maximumAge = network === "link11" ? 24 : 8;
+      for (const [participantId, tracks] of store) {
+        const retained = tracks.filter((track) => time - track.lastUpdate <= maximumAge && track.quality >= 0.04);
+        for (const track of tracks)
+          if (!retained.includes(track))
+            this.recordTacticalNetworkDecision({ network, kind: "cue-expired", time, participantId, trackId: track.targetId });
+        if (retained.length) store.set(participantId, retained);
+        else store.delete(participantId);
+      }
+    };
+    prune("link11", this.externalLink11Cues);
+    prune("link16", this.externalLink16Cues);
+  }
 
   tacticalNetworkObservation(time = this.currentTime): TacticalNetworkObservation {
     const context = this.group.userData.context as AirScenarioContext | undefined;
@@ -599,6 +684,7 @@ export class AirCombatSystem {
       tracks,
       activities:[...this.link11.recentActivities(time),...this.link16.recentActivities(time)]
         .sort((a,b)=>a.time-b.time),
+      decisions:this.tacticalNetworkDecisions.filter((decision)=>time-decision.time<=30),
       link11:link11Diagnostics,
       link16:this.link16.diagnostics(),
     };
@@ -808,6 +894,19 @@ export class AirCombatSystem {
             precision: a.definition.sensor.precision,
             time,
             noise: [roll(key + 2), roll(key + 3), roll(key + 4)],
+          });
+        const cue = [...a.networkTracks.values()].find((candidate) =>
+          candidate.classification === measurement.classification &&
+          candidate.position.distanceTo(measurement.position) <=
+            Math.max(12, candidate.uncertainty + measurement.uncertainty));
+        if (first && (cue?.source === "link11" || cue?.source === "link16"))
+          this.recordTacticalNetworkDecision({
+            network: cue.source,
+            kind: "organic-acquisition",
+            time,
+            participantId: a.id,
+            trackId: cue.targetId,
+            organicTargetId: target.id,
           });
         a.tracks.set(target.id, measurement);
         const report: Omit<
@@ -1149,7 +1248,7 @@ export class AirCombatSystem {
       ),
     );
     for (const [id, local] of a.tracks) fused.set(id, local);
-    return selectMissionTrack({
+    const selected = selectMissionTrack({
       mission: a.mission,
       tracks: [...fused.values()],
       origin: protectedEntity?.position ?? a.position,
@@ -1157,6 +1256,23 @@ export class AirCombatSystem {
       time,
       reassessDelay: 2,
     });
+    if (selected?.source === "link11" || selected?.source === "link16") {
+      this.recordTacticalNetworkDecision({
+        network: selected.source,
+        kind: "cue-accepted-search",
+        time,
+        participantId: a.id,
+        trackId: selected.targetId,
+      });
+      this.recordTacticalNetworkDecision({
+        network: selected.source,
+        kind: "weapon-authorization-rejected",
+        time,
+        participantId: a.id,
+        trackId: selected.targetId,
+      });
+    }
+    return selected;
   }
   private updateAircraft(
     a: AirPlatformInstance,

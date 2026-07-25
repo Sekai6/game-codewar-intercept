@@ -9,6 +9,7 @@ const observation = {
   nodes: [{ id: "cg-57", network: "link11", position: position(0, 0, 0), terminalHealth: 93, transmitEnabled: true, receiveEnabled: true, role: "ncs" }],
   tracks: [{ id: "red-air-1", network: "link11", position: position(40, 18, -60), uncertainty: 3600, quality: .58, age: 3.5, classification: "aircraft", senderId: "cg-57" }],
   activities: [activity],
+  decisions: [{ id: "cue-use-1", network: "link11", kind: "cue-accepted-search", time: 2.1, participantId: "cg-57", trackId: "red-air-1" }],
   link11: { queued: 0, transmitted: 1, delivered: 0, droppedCapacity: 0, droppedLink: 0, droppedDuplicate: 0, meanDelay: .8, rollCalls: 1, netControlStation: "cg-57", cycleSeconds: 6 },
   link16: { queued: 0, transmitted: 0, delivered: 0, droppedCapacity: 0, droppedLink: 0, droppedDuplicate: 0, meanDelay: 0 },
 };
@@ -16,6 +17,7 @@ const recorder = new DatalinkAarRecorder();
 const first = recorder.sample(observation, 2);
 const repeated = recorder.sample(observation, 2.25);
 assert(first.events.some(event => event.text.includes("LINK11 POLL")), "Link 11 poll was not recorded");
+assert(first.events.some(event => event.text.includes("CUE ACCEPTED FOR SEARCH")), "cue use was not recorded");
 assert(repeated.events.length === 0, "repeated network activity was not deduplicated");
 assert(first.snapshot.tracks[0].uncertainty === 3600, "track uncertainty was not preserved");
 

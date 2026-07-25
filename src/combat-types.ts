@@ -166,6 +166,7 @@ export type AarCategory =
   | "guidance"
   | "effect"
   | "maneuver"
+  | "network"
   | "system";
 export type AarEvent = { time: number; text: string; category: AarCategory };
 export type AarKinematics = {

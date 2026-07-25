@@ -23,7 +23,7 @@ export class DatalinkAarRecorder {
     if (configuration !== this.previousConfiguration) {
       events.push({
         time,
-        category: "guidance",
+        category: "network",
         text: `TACTICAL NETWORK / ERA ${observation.era.toUpperCase()} / ${observation.enabled ? "ENABLED" : "DISCONNECTED"}`,
       });
       this.previousConfiguration = configuration;
@@ -32,7 +32,7 @@ export class DatalinkAarRecorder {
     if (this.previousNcs !== undefined && ncs !== this.previousNcs)
       events.push({
         time,
-        category: "guidance",
+        category: "network",
         text: `LINK 11 NCS CHANGE / ${this.previousNcs ?? "NONE"} -> ${ncs ?? "NONE"}`,
       });
     this.previousNcs = ncs;
@@ -47,13 +47,31 @@ export class DatalinkAarRecorder {
         .filter(Boolean).join(" / ");
       events.push({
         time: activity.time,
-        category: "guidance",
+        category: "network",
         text: `${activity.network.toUpperCase()} ${activity.kind.toUpperCase()} / ${route}${detail ? ` / ${detail}` : ""}`,
+      });
+    }
+    for (const decision of observation.decisions ?? []) {
+      if (this.activityIds.has(decision.id)) continue;
+      this.activityIds.add(decision.id);
+      const labels = {
+        "cue-accepted-search": "CUE ACCEPTED FOR SEARCH",
+        "cue-expired": "CUE EXPIRED",
+        "organic-acquisition": "ORGANIC RADAR ACQUISITION AFTER CUE",
+        "weapon-authorization-rejected": "CUE REJECTED FOR WEAPON AUTHORIZATION",
+      } as const;
+      events.push({
+        time: decision.time,
+        category: "network",
+        text: `${decision.network.toUpperCase()} ${labels[decision.kind]} / ${decision.participantId} / TRACK ${decision.trackId}${decision.organicTargetId ? ` / ORGANIC ${decision.organicTargetId}` : ""}`,
       });
     }
     // Bound memory without allowing recent activities to be emitted twice.
     if (this.activityIds.size > 4096)
-      this.activityIds = new Set(observation.activities.map((activity) => activity.id));
+      this.activityIds = new Set([
+        ...observation.activities.map((activity) => activity.id),
+        ...(observation.decisions ?? []).map((decision) => decision.id),
+      ]);
 
     return {
       events: events.sort((a, b) => a.time - b.time),
