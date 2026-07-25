@@ -1,0 +1,54 @@
+import type * as THREE from "three";
+import type { CombatSide } from "../combat-entity.js";
+
+export type TacticalTrackClassification =
+  | "unknown"
+  | "aircraft"
+  | "ship"
+  | "missile";
+
+export interface Link16TrackReport {
+  messageId: string;
+  trackId: string;
+  senderId: string;
+  side: CombatSide;
+  originSensorId: string;
+  observationId: string;
+  relayChain: readonly string[];
+  observedAt: number;
+  transmittedAt: number;
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  classification: TacticalTrackClassification;
+  quality: number;
+  uncertainty: number;
+  priority: "routine" | "threat" | "emergency";
+}
+
+export interface Link16ParticipantState {
+  id: string;
+  side: CombatSide;
+  position: THREE.Vector3;
+  alive: boolean;
+  terminalHealth: number;
+  timeSyncQuality: number;
+  transmitEnabled: boolean;
+  receiveEnabled: boolean;
+}
+
+export interface Link16Delivery {
+  recipientId: string;
+  report: Link16TrackReport;
+  receivedAt: number;
+  networkDelay: number;
+}
+
+export interface Link16Diagnostics {
+  queued: number;
+  transmitted: number;
+  delivered: number;
+  droppedCapacity: number;
+  droppedLink: number;
+  droppedDuplicate: number;
+  meanDelay: number;
+}

@@ -27,6 +27,7 @@ import {
   noContactMissionDirection,
   selectThrustMode,
   selectMissionTrack,
+  trackSupportsWeaponAuthorization,
 } from "./ooda";
 import { advanceAirTracks, createAirMeasurement } from "./track-store";
 import {
@@ -41,6 +42,8 @@ import {
   resolveEngagement,
 } from "../defense/engagement.js";
 import { opposingSides } from "../defense/allegiance.js";
+import { Link16Network } from "../datalink/link16-network.js";
+import type { Link16TrackReport } from "../datalink/types.js";
 import {
   createDefenseTargetSource,
   DefenseTargetRegistry,
@@ -70,6 +73,14 @@ const angle = (a: THREE.Vector3, b: THREE.Vector3) =>
 function roll(seed: number) {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
+}
+function tacticalTrackNumber(targetId: string) {
+  let hash = 2166136261;
+  for (const character of targetId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `T-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 function rotateToward(
   current: THREE.Vector3,
@@ -155,6 +166,7 @@ function instantiate(
     desiredDirection: spawn.heading.clone().normalize(),
     bank: 0,
     tracks: new Map(),
+    networkTracks: new Map(),
     missileWarnings: new Map(),
     ammo: new Map(
       Object.entries(spawn.definition.loadout) as [AirWeaponId, number][],
@@ -197,6 +209,9 @@ export class AirCombatSystem {
   private lastEventIndex = 0;
   private currentTime = 0;
   private standardDamageApplications = 0;
+  private readonly link16 = new Link16Network();
+  private readonly externalLink16Published = new Map<string, number>();
+  private readonly externalLink16Cues = new Map<string, AirTrack[]>();
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
   private externalTargets: readonly TargetableEntity[] = [];
@@ -240,6 +255,9 @@ export class AirCombatSystem {
     this.disposeObjects();
     this.serial = 0;
     this.standardDamageApplications = 0;
+    this.link16.reset();
+    this.externalLink16Published.clear();
+    this.externalLink16Cues.clear();
     const protectedFormations = new Map<string, string>();
     for (const spawn of spawns) {
       const p = instantiate(spawn, ++this.serial, (id, damage, point) => {
@@ -322,6 +340,89 @@ export class AirCombatSystem {
     if (!this.enabled) return;
     this.currentTime = time;
     this.group.userData.context = context;
+    for (const aircraft of this.aircraft) {
+      const terminal = aircraft.definition.datalink;
+      if (!terminal?.link16) continue;
+      this.link16.upsertParticipant({
+        id: aircraft.id,
+        side: aircraft.side,
+        position: aircraft.position,
+        alive: aircraft.alive,
+        terminalHealth: terminal.terminalReliability * Math.min(
+          (aircraft.subsystemHealth.get("radar") ?? 0) / 100,
+          (aircraft.subsystemHealth.get("weapons") ?? 0) / 100,
+        ),
+        timeSyncQuality: terminal.timeSyncQuality,
+        transmitEnabled: aircraft.alive,
+        receiveEnabled: aircraft.alive,
+      });
+    }
+    for (const participant of context.link16Participants ?? []) {
+      this.link16.upsertParticipant({
+        id: participant.entity.id,
+        side: participant.entity.side,
+        position: participant.entity.position,
+        alive: participant.entity.alive,
+        terminalHealth: participant.terminalHealth,
+        timeSyncQuality: participant.timeSyncQuality,
+        transmitEnabled: participant.entity.alive,
+        receiveEnabled: participant.entity.alive,
+      });
+      for (const track of participant.reports) {
+        const observationId =
+          track.observationId ??
+          `${participant.entity.id}:${track.targetId}:${track.lastUpdate.toFixed(3)}`;
+        const publishKey = `${participant.entity.id}:${observationId}`;
+        if (this.externalLink16Published.has(publishKey)) continue;
+        this.externalLink16Published.set(publishKey, time);
+        this.link16.publishTrack(participant.entity.id, {
+          trackId: tacticalTrackNumber(track.targetId),
+          originSensorId: track.originSensorId ?? `${participant.entity.id}:sensor`,
+          observationId,
+          relayChain: [],
+          observedAt: track.lastUpdate,
+          position: track.position,
+          velocity: track.velocity,
+          classification: track.classification,
+          quality: track.quality,
+          uncertainty: track.uncertainty,
+          priority: track.classification === "unknown" ? "threat" : "routine",
+        }, time);
+      }
+    }
+    for (const [key, publishedAt] of this.externalLink16Published)
+      if (time - publishedAt > 20) this.externalLink16Published.delete(key);
+    this.link16.update(time);
+    for (const aircraft of this.aircraft)
+      if (aircraft.definition.datalink?.link16)
+        this.receiveLink16Tracks(aircraft, time);
+    for (const participant of context.link16Participants ?? []) {
+      const cues = this.link16.drainInbox(participant.entity.id)
+        .filter((delivery) => time - delivery.report.observedAt <= 8)
+        .map((delivery): AirTrack => {
+          const report = delivery.report,
+            age = Math.max(0, time - report.observedAt);
+          return {
+            targetId: `link16:${report.trackId}`,
+            position: report.position.clone().addScaledVector(report.velocity, age),
+            velocity: report.velocity.clone(),
+            quality: clamp(report.quality * 0.85 - age * 0.018, 0.03, 0.82),
+            uncertainty: report.uncertainty + 8 + age * 1.4,
+            lastUpdate: report.observedAt,
+            classification: (
+              report.classification === "aircraft" || report.classification === "ship"
+                ? report.classification
+                : "unknown") as AirTrack["classification"],
+            source: "link16" as const,
+            engagementQuality: "cue" as const,
+            originSensorId: report.originSensorId,
+            observationId: report.observationId,
+            senderId: report.senderId,
+            receivedAt: delivery.receivedAt,
+          };
+        });
+      if (cues.length) this.externalLink16Cues.set(participant.entity.id, cues);
+    }
     this.updateDecoys(dt);
     this.updateCountermeasurePrograms(time);
     for (const a of this.aircraft) {
@@ -332,6 +433,47 @@ export class AirCombatSystem {
     }
     this.updateHardpointReleases(time);
     for (const m of this.missiles) this.updateMissile(m, time, dt, context);
+  }
+
+  private receiveLink16Tracks(aircraft: AirPlatformInstance, time: number) {
+    advanceAirTracks(aircraft.networkTracks, 0, time);
+    for (const delivery of this.link16.drainInbox(aircraft.id)) {
+      const report = delivery.report;
+      if (time - report.observedAt > 8 || report.side !== aircraft.side) continue;
+      const age = Math.max(0, time - report.observedAt),
+        quality = clamp(report.quality * 0.85 - age * 0.018, 0.03, 0.82),
+        uncertainty = report.uncertainty + 8 + age * 1.4,
+        networkTrackId = `link16:${report.trackId}`,
+        existing = aircraft.networkTracks.get(networkTrackId);
+      if (existing && existing.quality > quality && existing.lastUpdate >= report.observedAt)
+        continue;
+      aircraft.networkTracks.set(networkTrackId, {
+        targetId: networkTrackId,
+        position: report.position.clone().addScaledVector(report.velocity, age),
+        velocity: report.velocity.clone(),
+        quality,
+        uncertainty,
+        lastUpdate: report.observedAt,
+        classification:
+          report.classification === "aircraft" || report.classification === "ship"
+            ? report.classification
+            : "unknown",
+        source: "link16",
+        engagementQuality: "cue",
+        originSensorId: report.originSensorId,
+        observationId: report.observationId,
+        senderId: report.senderId,
+        receivedAt: delivery.receivedAt,
+      });
+    }
+  }
+
+  link16Diagnostics() {
+    return this.link16.diagnostics();
+  }
+
+  link16CuesFor(participantId: string) {
+    return this.externalLink16Cues.get(participantId) ?? [];
   }
 
   private updateFlightVisuals(aircraft: AirPlatformInstance, time: number) {
@@ -540,6 +682,24 @@ export class AirCombatSystem {
             noise: [roll(key + 2), roll(key + 3), roll(key + 4)],
           });
         a.tracks.set(target.id, measurement);
+        const report: Omit<
+          Link16TrackReport,
+          "messageId" | "senderId" | "side" | "transmittedAt"
+        > = {
+          trackId: tacticalTrackNumber(target.id),
+          originSensorId: `${a.id}:${a.definition.sensor.name}`,
+          observationId: `${a.id}:${target.id}:${time.toFixed(3)}`,
+          relayChain: [],
+          observedAt: time,
+          position: measurement.position,
+          velocity: measurement.velocity,
+          classification: measurement.classification,
+          quality: measurement.quality,
+          uncertainty: measurement.uncertainty,
+          priority: target.kind === "missile" ? "emergency" : "routine",
+        };
+        if (a.definition.datalink?.link16)
+          this.link16.publishTrack(a.id, report, time);
         if (first)
           this.emit(
             time,
@@ -842,9 +1002,20 @@ export class AirCombatSystem {
     const protectedEntity = a.protectedId
       ? this.targetById(a.protectedId, context)
       : undefined;
+    const fused = new Map(
+      [...a.networkTracks].filter(([, network]) =>
+        ![...a.tracks.values()].some(
+          (local) =>
+            local.classification === network.classification &&
+            local.position.distanceTo(network.position) <=
+              Math.max(12, local.uncertainty + network.uncertainty),
+        ),
+      ),
+    );
+    for (const [id, local] of a.tracks) fused.set(id, local);
     return selectMissionTrack({
       mission: a.mission,
-      tracks: [...a.tracks.values()],
+      tracks: [...fused.values()],
       origin: protectedEntity?.position ?? a.position,
       engagements: a.engagements,
       time,
@@ -883,7 +1054,7 @@ export class AirCombatSystem {
     }
     this.updateTracks(a, time, dt, context);
     if (a.fuel <= 0) a.mission = "return";
-    const observedTracks = [...a.tracks.values()].filter(
+    const observedTracks = [...a.tracks.values(), ...a.networkTracks.values()].filter(
         (track) => time - track.lastUpdate <= 8 && track.quality >= 0.04,
       ),
       observedHostileAircraft = observedTracks.filter(
@@ -957,7 +1128,8 @@ export class AirCombatSystem {
         a.nextOoda = time + 1;
         const track = this.missionTrackFor(a, context),
           ship = track ? this.targetById(track.targetId, context) : undefined;
-        if (ship && track) this.launch(a, ship, track, time);
+        if (ship && track && trackSupportsWeaponAuthorization(track))
+          this.launch(a, ship, track, time);
       }
     } else if (
       a.mission !== "egress" &&
@@ -967,12 +1139,15 @@ export class AirCombatSystem {
       a.nextOoda = time + 1.0;
       const track = this.missionTrackFor(a, context),
         target = track ? this.targetById(track.targetId, context) : undefined;
-      a.targetId = target?.id ?? null;
-      if (target) {
-        const track = a.tracks.get(target.id)!;
+      a.targetId = track?.targetId ?? null;
+      if (track) {
         a.state = "engaging";
         a.desiredDirection.copy(track.position).sub(a.position).normalize();
-        if (track.quality >= 0.22)
+        if (
+          target &&
+          trackSupportsWeaponAuthorization(track) &&
+          track.quality >= 0.22
+        )
           this.launch(a, target, track, time);
       } else {
         const leader = this.aircraft.find(

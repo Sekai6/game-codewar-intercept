@@ -77,6 +77,8 @@
     "verify:mig29-combat": "node scripts/verify-mig29-combat.mjs",
     "verify:air-ooda": "tsc src/air/ooda.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-ooda.mjs",
     "verify:air-tracks": "tsc src/air/track-store.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-tracks.mjs",
+    "verify:link16": "tsc src/datalink/types.ts src/datalink/link16-network.ts src/air/ooda.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-link16.mjs",
+    "verify:link16-runtime": "node scripts/verify-link16-runtime.mjs",
     "verify:air-missile-runtime": "tsc src/air/missile-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-missile-runtime.mjs",
     "verify:ship-defense-runtime": "tsc src/defense/allegiance.ts src/ship-defense/defense-targets.ts src/ship-defense/engagement-runtime.ts src/ship-defense/launcher-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-ship-defense-runtime.mjs",
     "verify:vls-runtime": "tsc src/ship-defense/launcher-runtime.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-vls-runtime.mjs",

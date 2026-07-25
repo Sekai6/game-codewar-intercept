@@ -2589,6 +2589,39 @@ const airScenarioContext = createAirScenarioContext(() => {
         },
       })
     : null;
+  const blueLinkEntity = createShipTarget({
+    id: "blue-surface-ship",
+    side: "blue",
+    position: defender.position,
+    velocity: blueVelocity,
+    radarCrossSection: activeShip.platform.radarRcs,
+    alive: hullIntegrity > 0,
+    applyDamage: () => undefined,
+  });
+  const blueLinkReports = [...combatPicture.tracks.values()]
+    .map((track) => {
+      const target = defenseTargetForSource(track.sourceId);
+      if (!target?.entity) return null;
+      return {
+        targetId: String(track.sourceId),
+        position: track.position,
+        velocity: track.velocity,
+        quality: track.quality,
+        uncertainty: track.uncertainty / 100,
+        lastUpdate: track.lastSeen,
+        classification:
+          target.entity.kind === "aircraft"
+            ? ("aircraft" as const)
+            : target.entity.kind === "ship"
+              ? ("ship" as const)
+              : ("unknown" as const),
+        source: "local-radar" as const,
+        engagementQuality: "weapon" as const,
+        originSensorId: `blue-surface-ship:${track.sensorContributors.join("+")}`,
+        observationId: `blue-surface-ship:${track.id}:${track.lastSeen.toFixed(3)}`,
+      };
+    })
+    .filter((track) => track !== null);
   return {
     bluePosition: defender.position,
     blueVelocity,
@@ -2635,6 +2668,17 @@ const airScenarioContext = createAirScenarioContext(() => {
     },
     requestShipCountermeasure: ({ targetId, threatPosition }) =>
       targetId === "blue-surface-ship" && deployShipChaffAt(threatPosition),
+    link16Participants: [
+      {
+        entity: blueLinkEntity,
+        terminalHealth: Math.min(
+          subsystemHealth("primaryRadar"),
+          subsystemHealth("secondaryRadar"),
+        ),
+        timeSyncQuality: 0.97,
+        reports: blueLinkReports,
+      },
+    ],
   };
 });
 function applyPlatformScenarioHealth(platform: EnemyPlatformInstance) {
@@ -7538,6 +7582,22 @@ function tick(now: number) {
       if (airCombat.enabled) {
         const airContext = airScenarioContext();
         airCombat.update(elapsed, 0.05, airContext);
+        const link16Cue = airCombat
+          .link16CuesFor("blue-surface-ship")
+          .filter(
+            (track) =>
+              elapsed - track.lastUpdate <= 8 &&
+              track.quality >= 0.22 &&
+              track.classification !== "ship",
+          )
+          .sort((left, right) => right.quality - left.quality)[0];
+        if (link16Cue) {
+          const bearing = Math.atan2(
+            link16Cue.position.x - defender.position.x,
+            link16Cue.position.z - defender.position.z,
+          );
+          combatPicture.setSearch(90, bearing);
+        }
         synchronizeAirDefenseTargets();
         for (const event of airCombat.drainEvents())
           log(`AIR OODA / ${event.text}`);
@@ -7913,6 +7973,30 @@ function tick(now: number) {
   canvas.dataset.airMissionStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.mission}`)
     .join(",");
+  const link16Diagnostics = airCombat.link16Diagnostics();
+  canvas.dataset.link16Queued = String(link16Diagnostics.queued);
+  canvas.dataset.link16Transmitted = String(link16Diagnostics.transmitted);
+  canvas.dataset.link16Delivered = String(link16Diagnostics.delivered);
+  canvas.dataset.link16DroppedCapacity = String(link16Diagnostics.droppedCapacity);
+  canvas.dataset.link16DroppedLink = String(link16Diagnostics.droppedLink);
+  canvas.dataset.link16DroppedDuplicate = String(link16Diagnostics.droppedDuplicate);
+  canvas.dataset.link16MeanDelay = link16Diagnostics.meanDelay.toFixed(3);
+  canvas.dataset.link16AircraftTracks = String(
+    airCombat.aircraft.reduce(
+      (total, aircraft) => total + aircraft.networkTracks.size,
+      0,
+    ),
+  );
+  canvas.dataset.link16Participants = airCombat.aircraft
+    .filter((aircraft) => aircraft.definition.datalink?.link16)
+    .map((aircraft) => aircraft.id)
+    .join("|");
+  canvas.dataset.link16TrackStates = airCombat.aircraft
+    .map((aircraft) => `${aircraft.id}:${aircraft.networkTracks.size}`)
+    .join("|");
+  canvas.dataset.link16ShipCues = String(
+    airCombat.link16CuesFor("blue-surface-ship").length,
+  );
   canvas.dataset.aircraftShipRangesKm = airCombat.aircraft
     .map(
       (aircraft) =>
@@ -8025,7 +8109,7 @@ function tick(now: number) {
       const afterburner = aircraft.definition.flight.thrust.afterburnerAvailable
         ? ` / AB ${aircraft.afterburnerRemaining.toFixed(0)}s`
         : "";
-      return `<small>${aircraft.definition.id} ${aircraft.formationIndex + 1} / ${aircraft.mission.toUpperCase()} / ${aircraft.thrustMode.toUpperCase()}${afterburner} / ${aircraft.formationStatus.toUpperCase()} ${Number.isFinite(aircraft.formationError) ? aircraft.formationError.toFixed(0) : "LOST"} / TQ ${Math.round(bestTrack * 100)}% / FUEL ${fuel}% / WPN ${ammo} / ${damage}</small>`;
+      return `<small>${aircraft.definition.id} ${aircraft.formationIndex + 1} / ${aircraft.mission.toUpperCase()} / ${aircraft.thrustMode.toUpperCase()}${afterburner} / ${aircraft.formationStatus.toUpperCase()} ${Number.isFinite(aircraft.formationError) ? aircraft.formationError.toFixed(0) : "LOST"} / TQ ${Math.round(bestTrack * 100)}% / L16 ${aircraft.networkTracks.size} / FUEL ${fuel}% / WPN ${ammo} / ${damage}</small>`;
     })
     .join("<br>");
   airStatusPanel.innerHTML = `<b>JOINT AIR PICTURE</b><span>BLUE <strong>${air.blueLive}</strong> / RED <strong>${air.redLive}</strong> / WEAPONS ${air.activeMissiles}</span><br><span>CHAFF ${air.chaff} / FLARES ${air.flares} / SMOKE ${airVisuals.smoking} / FIRE ${airVisuals.burning}</span><br>${airRows}`;

@@ -112,6 +112,12 @@ export interface AirPlatformDefinition {
     thrust: AirThrustDefinition;
   };
   sensor: AirSensorDefinition;
+  datalink?: {
+    link16: true;
+    terminalName: string;
+    terminalReliability: number;
+    timeSyncQuality: number;
+  };
   ecm: { strength: number; burnThroughRange: number };
   countermeasures: {
     chaff: number;
@@ -147,6 +153,12 @@ export interface AirTrack {
   uncertainty: number;
   lastUpdate: number;
   classification: "unknown" | "aircraft" | "ship";
+  source?: "local-radar" | "link16";
+  engagementQuality?: "cue" | "weapon";
+  originSensorId?: string;
+  observationId?: string;
+  senderId?: string;
+  receivedAt?: number;
 }
 
 export interface AirPlatformInstance extends TargetableEntity {
@@ -165,6 +177,7 @@ export interface AirPlatformInstance extends TargetableEntity {
   desiredDirection: THREE.Vector3;
   bank: number;
   tracks: Map<string, AirTrack>;
+  networkTracks: Map<string, AirTrack>;
   ammo: Map<AirWeaponId, number>;
   subsystemHealth: Map<AirSubsystem, number>;
   nextOoda: number;
@@ -246,6 +259,12 @@ export interface AirScenarioContext {
     threatId: string;
     threatPosition: THREE.Vector3;
   }) => boolean;
+  link16Participants?: readonly {
+    entity: CombatEntity;
+    terminalHealth: number;
+    timeSyncQuality: number;
+    reports: readonly AirTrack[];
+  }[];
 }
 
 export type AirCombatEvent = {

@@ -49,5 +49,9 @@ export function createAirMeasurement(input: {
     uncertainty,
     lastUpdate: input.time,
     classification: classifyAirMeasurement(input.targetKind, input.quality),
+    source: "local-radar",
+    engagementQuality: "weapon",
+    originSensorId: "airborne-radar",
+    observationId: `${input.targetId}:${input.time.toFixed(3)}`,
   };
 }
