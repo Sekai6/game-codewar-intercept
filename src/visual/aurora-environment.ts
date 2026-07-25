@@ -35,15 +35,19 @@ export function createAuroraEnvironment(): AuroraEnvironment {
         float fbm(vec2 p){float n=0.,a=.55;for(int i=0;i<5;i++){n+=noise(p)*a;p=p*2.03+vec2(7.1,3.7);a*=.48;}return n;}
         void main(){
           vec3 d=normalize(vDirection);float az=atan(d.x,d.z);float alt=asin(clamp(d.y,-1.,1.));
-          float north=.28+.72*(1.-smoothstep(1.15,2.85,abs(az)));
-          float horizon=smoothstep(.002,.035,alt)*(1.-smoothstep(.82,1.38,alt));
+          // Keep a dominant polar direction while giving orbit cameras a broad
+          // secondary arc instead of an entirely empty rear hemisphere.
+          float primary=1.-smoothstep(.85,2.55,abs(az));
+          float opposite=smoothstep(1.55,2.75,abs(az));
+          float oval=.42+.58*max(primary,opposite*.68);
+          float horizon=smoothstep(-.012,.018,alt)*(1.-smoothstep(.78,1.34,alt));
           float drift=time*.018+phase;float warp=fbm(vec2(az*1.55+drift,phase*.31))*1.15-.52;
-          float center=.105+sin(az*2.15+drift*.7+warp*2.4)*.048+sin(az*5.7-drift*.43)*.018;
-          float ribbon=exp(-pow((alt-center)/(.105+noise(vec2(az*5.,drift))*.055),2.));
+          float center=.092+sin(az*2.15+drift*.7+warp*2.4)*.045+sin(az*5.7-drift*.43)*.017;
+          float ribbon=exp(-pow((alt-center)/(.102+noise(vec2(az*5.,drift))*.052),2.));
           float folds=.35+.65*pow(.5+.5*sin(az*83.+fbm(vec2(az*12.,drift))*13.+phase*4.),3.);
           float rays=pow(clamp(1.-abs(alt-center)/.38,0.,1.),1.7)*folds;
           float breakup=smoothstep(.2,.78,fbm(vec2(az*8.-drift*.35,alt*12.+phase)));
-          float alpha=(ribbon*.78+rays*.34)*north*horizon*(.55+.45*breakup)*intensity;
+          float alpha=(ribbon*.72+rays*.30)*oval*horizon*(.55+.45*breakup)*intensity;
           vec3 green=vec3(.12,1.18,.52),cyan=vec3(.06,.66,1.15),violet=vec3(.62,.12,1.08);
           float colorShift=.5+.5*sin(az*5.2+phase+time*.011);
           vec3 color=mix(green,cyan,colorShift*.55);color=mix(color,violet,smoothstep(.72,1.,alt)*(.38+.25*sin(az*7.)));
