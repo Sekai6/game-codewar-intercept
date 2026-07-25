@@ -31,12 +31,17 @@ try {
     return (canvas?.dataset.airWeaponLaunchLog ?? "").includes("AIM-54A Phoenix") &&
       (canvas?.dataset.advancedAirLaunchZones ?? "").length > 0;
   }, null, { timeout: 35_000 });
-  await page.waitForTimeout(4_000);
+  await page.waitForFunction(() => {
+    const records = (document.querySelector("#scene")?.dataset.airWeaponKinematics ?? "")
+      .split("|").filter(record => record.includes(":AIM-54A:"));
+    return records.some(record => Number(record.split(":")[5]) >= 100);
+  }, null, { timeout: 15_000 });
   const result = await page.locator("#scene").evaluate(canvas => ({
     maneuvers: canvas.dataset.advancedAirManeuverLog ?? "",
     states: canvas.dataset.advancedAirTacticalStates ?? "",
     launchZones: canvas.dataset.advancedAirLaunchZones ?? "",
     launches: canvas.dataset.airWeaponLaunchLog ?? "",
+    kinematics: canvas.dataset.airWeaponKinematics ?? "",
     stores: canvas.dataset.advancedAirStoreStates ?? "",
   }));
   const parseStores = value => new Map(value.split("|").filter(Boolean).map(record => {
@@ -62,12 +67,18 @@ try {
     return Number(rMin) < Number(rNe) && Number(rNe) < Number(rTr) &&
       Number(rTr) < Number(rMax) && Number(range) >= Number(rMin);
   });
+  const phoenixLaunchRanges = result.launches.split("|").filter(line => line.includes("AIM-54A Phoenix"))
+    .map(line => Number(line.match(/RANGE ([\d.]+) KM/)?.[1] ?? 0));
+  const phoenixKinematics = result.kinematics.split("|").filter(record => record.includes(":AIM-54A:"));
+  const phoenixLoftValid = phoenixKinematics.some(record => Number(record.split(":")[5]) >= 100);
   if (
     errors.length ||
     !result.maneuvers.includes("BVR CRANK") ||
     !result.launchZones ||
     !zoneValid ||
     !storeReleaseValid ||
+    !phoenixLaunchRanges.some(range => range >= 70) ||
+    !phoenixLoftValid ||
     !result.launches.includes("AIM-54A Phoenix")
   ) process.exitCode = 1;
 } finally {

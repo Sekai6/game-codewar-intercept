@@ -94,6 +94,14 @@ export interface AirWeaponDefinition {
     cruiseSpeedFactor: number;
     terminalTurnFactor: number;
   };
+  airToAirFlight?: {
+    sustainSeconds: number;
+    coastDragPerSecond: number;
+    minimumSpeedFactor: number;
+    maximumFlightSeconds: number;
+    loftAltitude: number;
+    loftTransitionRange: number;
+  };
 }
 
 export interface AirSensorDefinition {
@@ -278,6 +286,10 @@ export interface AirMissileInstance extends TargetableEntity {
   releaseAge: number;
   nextSeekerAttempt: number;
   engagementSettled: boolean;
+  launchRange: number;
+  launchRtr: number;
+  launchRmax: number;
+  maximumAltitude: number;
 }
 
 export interface AirDecoyInstance extends CombatEntity {

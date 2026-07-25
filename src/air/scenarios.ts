@@ -53,7 +53,7 @@ function jointAirScenarioSpawns(): AirSpawn[] {
       platformId: "TU-16K",
       side: "red",
       formationId: "RAID-1",
-      position: new THREE.Vector3(80, 92, -1050),
+      position: new THREE.Vector3(80, 92, -2050),
       heading: new THREE.Vector3(-0.15, -0.01, 1),
     }),
     ...pair({
@@ -80,7 +80,7 @@ function interceptScenarioSpawns(): AirSpawn[] {
       platformId: "TU-16K",
       side: "red",
       formationId: "RAID-1",
-      position: new THREE.Vector3(70, 88, -1050),
+      position: new THREE.Vector3(70, 88, -2050),
       heading: new THREE.Vector3(-0.12, -0.01, 1),
     }),
   ];
@@ -110,7 +110,7 @@ function fighterScenarioSpawns(): AirSpawn[] {
       platformId: "MIG-29A",
       side: "red",
       formationId: "FULCRUM-1",
-      position: new THREE.Vector3(65, 68, -1080),
+      position: new THREE.Vector3(65, 68, -2280),
       heading: new THREE.Vector3(-0.15, 0, 1),
       wingmanMission: "intercept",
     }),
@@ -158,12 +158,12 @@ export function airScenarioSpawns(
   if (!shortValidation) return spawns;
   if (id === "fighter") {
     for (const spawn of spawns)
-      if (spawn.definition.id === "MIG-29A") spawn.position.z += 350;
+      if (spawn.definition.id === "MIG-29A") spawn.position.z += 1550;
     return spawns;
   }
   if (id !== "joint" && id !== "intercept") return spawns;
   for (const spawn of spawns) {
-    if (spawn.definition.id === "TU-16K") spawn.position.z += 800;
+    if (spawn.definition.id === "TU-16K") spawn.position.z += 1800;
     if (spawn.definition.id === "F-14A") spawn.position.z += 280;
     if (sovietSalvoValidation && spawn.definition.id === "F-14A")
       spawn.position.z -= 600;

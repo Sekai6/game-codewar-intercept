@@ -8470,6 +8470,15 @@ function tick(now: number) {
         `${missile.definition.name}:${missile.phase}:${missile.seekerAcquired}`,
     )
     .join(",");
+  canvas.dataset.airWeaponKinematics = airCombat.missiles
+    .map((missile) =>
+      [missile.id, missile.definition.id, missile.phase,
+        missile.age.toFixed(1), missile.position.y.toFixed(1),
+        missile.maximumAltitude.toFixed(1), missile.velocity.length().toFixed(2),
+        missile.launchRange.toFixed(1), missile.launchRtr.toFixed(1),
+        missile.launchRmax.toFixed(1), missile.seekerAcquired ? "ACTIVE" : "COMMAND"].join(":"),
+    )
+    .join("|");
   airStatusPanel.style.display = airCombat.enabled ? "block" : "none";
   const airRows = airCombat.aircraft
     .map((aircraft) => {

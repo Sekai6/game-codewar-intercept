@@ -70,7 +70,9 @@ import {
 import { advanceAirTracks, createAirMeasurement } from "./track-store";
 import {
   airToAirGuidancePoint,
+  airToAirMidcourseAimPoint,
   airToAirMissilePhase,
+  stepAirToAirPropulsion,
   shouldContinueAfterTargetLoss,
 } from "./missile-runtime";
 import { updateAntiShipGuidance } from "../anti-ship-guidance";
@@ -1710,6 +1712,19 @@ export class AirCombatSystem {
         model.position.copy(worldPosition);
         model.quaternion.copy(worldQuaternion);
         const velocity = aircraft.velocity.clone().add(ejection),
+          releaseTrack = {
+            position: hardpoint.commandPoint.clone(),
+            velocity: hardpoint.commandVelocity.clone(),
+            quality: hardpoint.trackQuality,
+            uncertainty: (1 - hardpoint.trackQuality) * 50,
+          },
+          launchZone = calculateDynamicLaunchZone({
+            weapon,
+            shooterPosition: aircraft.position,
+            shooterVelocity: aircraft.velocity,
+            shooterMaximumSpeed: aircraft.definition.flight.maxSpeed,
+            track: releaseTrack,
+          }),
           missile: AirMissileInstance = {
             id: `air-weapon-${++this.serial}`,
             side: aircraft.side,
@@ -1742,6 +1757,10 @@ export class AirCombatSystem {
             releaseAge: 0,
             nextSeekerAttempt: time,
             engagementSettled: false,
+            launchRange: launchZone.range,
+            launchRtr: launchZone.rTr,
+            launchRmax: launchZone.rMax,
+            maximumAltitude: worldPosition.y,
           };
         this.missiles.push(missile);
         aircraft.ammo.set(
@@ -1759,7 +1778,7 @@ export class AirCombatSystem {
         this.emit(
           time,
           "launch",
-          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}%`,
+          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM`,
         );
       }
     }
@@ -2746,35 +2765,26 @@ export class AirCombatSystem {
     if (
       !shouldContinueAfterTargetLoss({
         age: missile.age,
-        maximumAge: 180,
+        maximumAge: missile.definition.airToAirFlight?.maximumFlightSeconds ?? 180,
         altitude: missile.position.y,
       })
     ) {
       this.terminateMissile(missile);
       return;
     }
-    const desired = missile.commandPoint
-        .clone()
-        .sub(missile.position)
-        .normalize(),
-      turn = THREE.MathUtils.degToRad(missile.definition.maxTurnRateDeg) * dt;
-    missile.velocity.copy(
-      rotateToward(
-        missile.velocity.clone().normalize(),
-        desired,
-        turn,
-      ).multiplyScalar(
-        THREE.MathUtils.lerp(
-          missile.velocity.length(),
-          missile.definition.speed,
-          Math.min(1, dt * 1.8),
-        ),
-      ),
-    );
-    missile.position.addScaledVector(missile.velocity, dt);
-    missile.model.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 0, -1),
-      missile.velocity.clone().normalize(),
+    const flight = missile.definition.airToAirFlight;
+    this.integrateAirToAirMissile(
+      missile,
+      flight
+        ? airToAirMidcourseAimPoint({
+            commandPoint: missile.commandPoint,
+            missilePosition: missile.position,
+            seekerAcquired: false,
+            loftAltitude: flight.loftAltitude,
+            loftTransitionRange: flight.loftTransitionRange,
+          })
+        : missile.commandPoint.clone(),
+      dt,
     );
   }
   private updateMissileDatalink(
@@ -2996,22 +3006,29 @@ export class AirCombatSystem {
     aim: THREE.Vector3,
     dt: number,
   ) {
-    const desired = aim.sub(missile.position).normalize(),
+    const flight = missile.definition.airToAirFlight,
+      desired = aim.sub(missile.position).normalize(),
       turn = THREE.MathUtils.degToRad(missile.definition.maxTurnRateDeg) * dt;
     missile.velocity.copy(
       rotateToward(
         missile.velocity.clone().normalize(),
         desired,
         turn,
-      ).multiplyScalar(
-        THREE.MathUtils.lerp(
-          missile.velocity.length(),
-          missile.definition.speed,
-          Math.min(1, dt * 1.8),
-        ),
-      ),
+      ).multiplyScalar(flight
+        ? stepAirToAirPropulsion({
+            currentSpeed: missile.velocity.length(),
+            nominalSpeed: missile.definition.speed,
+            age: missile.age,
+            boostSeconds: missile.definition.boostSeconds,
+            sustainSeconds: flight.sustainSeconds,
+            coastDragPerSecond: flight.coastDragPerSecond,
+            minimumSpeedFactor: flight.minimumSpeedFactor,
+            dt,
+          })
+        : missile.definition.speed),
     );
     missile.position.addScaledVector(missile.velocity, dt);
+    missile.maximumAltitude = Math.max(missile.maximumAltitude, missile.position.y);
     missile.model.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 0, -1),
       missile.velocity.clone().normalize(),
@@ -3052,7 +3069,11 @@ export class AirCombatSystem {
       );
       return;
     }
-    if (missile.age > 180 || missile.position.y < 0) {
+    if (
+      missile.age >
+        (missile.definition.airToAirFlight?.maximumFlightSeconds ?? 180) ||
+      missile.position.y < 0
+    ) {
       if (missile.position.y < 0)
         this.onOceanSplash?.(missile.position, Math.min(1.4, missile.definition.damage / 80));
       this.terminateMissile(missile, "miss", time);
@@ -3093,7 +3114,16 @@ export class AirCombatSystem {
     this.attemptMissileSeekerCapture(missile, target, decoy, range, time);
     if (!this.maintainMissileIllumination(missile, target, shooter, time))
       return;
-    const aim = this.missileAimPoint(missile, target, decoy, range, dt, time);
+    let aim = this.missileAimPoint(missile, target, decoy, range, dt, time);
+    const flight = missile.definition.airToAirFlight;
+    if (flight && !missile.seekerAcquired)
+      aim = airToAirMidcourseAimPoint({
+        commandPoint: aim,
+        missilePosition: missile.position,
+        seekerAcquired: missile.seekerAcquired,
+        loftAltitude: flight.loftAltitude,
+        loftTransitionRange: flight.loftTransitionRange,
+      });
     this.integrateAirToAirMissile(missile, aim, dt);
     this.resolveAirToAirFuze(missile, target, range, time);
   }
