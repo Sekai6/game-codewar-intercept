@@ -5,6 +5,9 @@ export interface AssetDetailLodRegistration {
   mediumDistance: number;
   high: readonly THREE.Object3D[];
   medium?: readonly THREE.Object3D[];
+  low?: readonly THREE.Object3D[];
+  persistentUntilMedium?: readonly THREE.Object3D[];
+  exclusiveTiers?: boolean;
 }
 
 export function registerAssetDetailLod(root: THREE.Object3D, registration: AssetDetailLodRegistration) {
@@ -19,8 +22,13 @@ export function updateRegisteredAssetDetailLods(root: THREE.Object3D, cameraPosi
     object.getWorldPosition(worldPosition);
     const distance = worldPosition.distanceTo(cameraPosition);
     const highVisible = distance < registration.nearDistance;
-    const mediumVisible = distance < registration.mediumDistance;
+    const mediumVisible = registration.exclusiveTiers
+      ? distance >= registration.nearDistance && distance < registration.mediumDistance
+      : distance < registration.mediumDistance;
+    const lowVisible = distance >= registration.mediumDistance;
     registration.high.forEach((detail) => { detail.visible = highVisible; });
     registration.medium?.forEach((detail) => { detail.visible = mediumVisible; });
+    registration.low?.forEach((detail) => { detail.visible = lowVisible; });
+    registration.persistentUntilMedium?.forEach((detail) => { detail.visible = !lowVisible; });
   });
 }

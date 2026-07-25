@@ -46,7 +46,7 @@ import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
 import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
 import { createAuroraRuntime } from "./visual/aurora-runtime";
-import { updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
+import { registerAssetDetailLod, updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
 import { TemporalReconstructionPass } from "./visual/temporal-reconstruction-pass";
@@ -356,6 +356,23 @@ const {
 } = createShipCatalog();
 let activeShip = defaultShip,
   defender = activeShip.build();
+function registerShipAssetLod(ship: THREE.Group) {
+  const high = ship.userData.highDetail as THREE.Group | undefined,
+    medium = ship.userData.mediumDetail as THREE.Group | undefined,
+    low = ship.userData.lowDetail as THREE.Group | undefined,
+    persistent = ship.userData.detail as THREE.Object3D[] | undefined;
+  if (!high || !medium || !low) return;
+  registerAssetDetailLod(ship, {
+    nearDistance: 270,
+    mediumDistance: 340,
+    high: [high],
+    medium: [medium],
+    low: [low],
+    persistentUntilMedium: persistent,
+    exclusiveTiers: true,
+  });
+}
+registerShipAssetLod(defender);
 if (activeShip.fixedSensorFaces)
   defender.userData.fixedSensorFaceHealth = createFaceHealth(
     activeShip.fixedSensorFaces,
@@ -2039,6 +2056,7 @@ function configureShip(shipClass: ShipClass) {
   activeShip = definition;
   initialLoadout = initialSurfaceLoadout(activeShip);
   defender = activeShip.build();
+  registerShipAssetLod(defender);
   if (activeShip.fixedSensorFaces)
     defender.userData.fixedSensorFaceHealth = createFaceHealth(
       activeShip.fixedSensorFaces,
@@ -4645,18 +4663,6 @@ function updateShipWeaponVisuals(dt: number) {
         );
     }
   }
-}
-function updateShipVisualLod() {
-  const range = camera.position.distanceTo(defender.position),
-    near = range < 270,
-    medium = range >= 270 && range < 340,
-    low = range >= 340;
-  (defender.userData.highDetail as THREE.Group).visible = near;
-  (defender.userData.mediumDetail as THREE.Group).visible = medium;
-  (defender.userData.lowDetail as THREE.Group).visible = low;
-  (defender.userData.detail as THREE.Object3D[]).forEach(
-    (object) => (object.visible = !low),
-  );
 }
 function updateShipLights() {
   const lights = defender.userData.navigationLights as THREE.PointLight[],
@@ -8241,7 +8247,6 @@ function tick(now: number) {
     (interceptors.some((item) => item.mesh.visible) || missiles.some((item) => item.mesh.visible));
   cinematicAtmospherePass.uniforms.chromaticAberration.value = followedMissile ? 0.72 : 0;
   cinematicAtmospherePass.uniforms.ultraTime.value = elapsed;
-  updateShipVisualLod();
   updateRegisteredAssetDetailLods(scene, camera.position);
   updateShipLights();
   defender.userData.smokePuffs?.forEach((puff: THREE.Mesh, index: number) => {
