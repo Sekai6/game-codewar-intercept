@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createAirWeaponModel } from "../models/air-weapons.js";
 import type { CombatEntity, TargetableEntity } from "../combat-entity";
 import { AIR_WEAPONS } from "./catalog";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
@@ -101,9 +102,7 @@ function instantiate(
       definition.compatibleWeapons.find(
         (candidate) => (remaining.get(candidate) ?? 0) > 0,
       ) ?? null;
-    const mountedModel = weaponId
-      ? missileModel(AIR_WEAPONS[weaponId].guidance)
-      : null;
+    const mountedModel = weaponId ? createAirWeaponModel(AIR_WEAPONS[weaponId]) : null;
     if (weaponId) remaining.set(weaponId, (remaining.get(weaponId) ?? 0) - 1);
     if (mountedModel) {
       mountedModel.position.set(...definition.position);
@@ -182,48 +181,6 @@ function instantiate(
     formationStatus: spawn.formationIndex === 0 ? "joined" : "rejoining",
     formationError: 0,
   };
-}
-
-function missileModel(guidance: AirMissileInstance["definition"]["guidance"]) {
-  const g = new THREE.Group(),
-    radar = guidance !== "infrared",
-    mat = new THREE.MeshStandardMaterial({
-      color: radar ? 0xe6e3d6 : 0xd5d8d2,
-      metalness: 0.55,
-      roughness: 0.36,
-    });
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.2, 2.2, 10),
-    mat,
-  );
-  body.rotation.x = Math.PI / 2;
-  g.add(body);
-  const nose = new THREE.Mesh(
-    new THREE.ConeGeometry(0.16, 0.65, 10),
-    new THREE.MeshStandardMaterial({
-      color: radar ? 0x31383a : 0x25201c,
-      metalness: 0.4,
-      roughness: 0.3,
-    }),
-  );
-  nose.rotation.x = -Math.PI / 2;
-  nose.position.z = -1.42;
-  g.add(nose);
-  const flame = new THREE.Mesh(
-    new THREE.ConeGeometry(0.13, 1.25, 8, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xffa34f,
-      transparent: true,
-      opacity: 0.72,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-  );
-  flame.rotation.x = Math.PI / 2;
-  flame.position.z = 1.7;
-  g.add(flame);
-  g.userData.flame = flame;
-  return g;
 }
 
 export class AirCombatSystem {
