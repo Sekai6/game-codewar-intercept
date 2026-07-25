@@ -1,9 +1,9 @@
-import { HARPOON } from "./harpoon";
-import { KH22 } from "./kh22";
-import { P15 } from "./p15";
-import { P500 } from "./p500";
-import { P700 } from "./p700";
-import type { ThreatDefinition, ThreatProfile } from "./types";
+import { HARPOON } from "./harpoon.js";
+import { KH22 } from "./kh22.js";
+import { P15 } from "./p15.js";
+import { P500 } from "./p500.js";
+import { P700 } from "./p700.js";
+import type { ThreatDefinition, ThreatProfile } from "./types.js";
 
 export const THREAT_DEFINITIONS = [P15, P500, P700, KH22, HARPOON] as const;
 

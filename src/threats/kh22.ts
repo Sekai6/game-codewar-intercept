@@ -1,5 +1,5 @@
-import { createSovietThreatModel } from "./model-helpers";
-import type { ThreatDefinition } from "./types";
+import { createSovietThreatModel } from "./model-helpers.js";
+import type { ThreatDefinition } from "./types.js";
 
 export const KH22 = {
   id: "Kh-22",
@@ -38,6 +38,7 @@ export const KH22 = {
   },
   createModel: () =>
     createSovietThreatModel({
+      identity: "Kh-22",
       length: 11,
       radius: 0.72,
       skinColor: 0xb7b9ad,

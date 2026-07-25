@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { applySurfaceDetail } from "../visual/material-textures";
-import { createThreatParticleTrail } from "../visual/threat-particles";
+import { applySurfaceDetail } from "../visual/material-textures.js";
+import { registerAssetDetailLod } from "../visual/asset-detail-lod.js";
+import { createThreatParticleTrail } from "../visual/threat-particles.js";
 
 interface EffectOptions {
   length: number;
@@ -89,7 +90,37 @@ export function attachThreatEffects(group: THREE.Group, options: EffectOptions) 
   group.userData.modelLength = options.length;
 }
 
+export function addThreatRadialFinSet(
+  group: THREE.Group,
+  options: { z:number; radius:number; span:number; chord:number; thickness:number; material:THREE.Material; swept?:boolean },
+) {
+  const shape=new THREE.Shape();
+  shape.moveTo(options.radius*.7,-options.chord*.52);
+  shape.lineTo(options.radius+options.span,options.swept?-options.chord*.04:-options.chord*.18);
+  shape.lineTo(options.radius+options.span,options.chord*.34);
+  shape.lineTo(options.radius*.7,options.chord*.52);
+  shape.closePath();
+  const geometry=new THREE.ExtrudeGeometry(shape,{depth:options.thickness,bevelEnabled:false,curveSegments:1});
+  geometry.translate(0,0,-options.thickness*.5);geometry.rotateX(Math.PI*.5);
+  for(let index=0;index<4;index++){
+    const fin=new THREE.Mesh(geometry,options.material);fin.position.z=options.z;fin.rotation.z=index*Math.PI*.5;fin.castShadow=true;group.add(fin);
+  }
+}
+
+export function addThreatSurfaceDetail(group:THREE.Group,length:number,radius:number,identity:string,material:THREE.Material){
+  const high=new THREE.Group();high.name=`${identity} high surface detail`;
+  for(const fraction of [-.3,-.02,.27]){
+    const seam=new THREE.Mesh(new THREE.TorusGeometry(radius*.985,.014,5,24),material);seam.scale.y=.96;seam.position.z=fraction*length;high.add(seam);
+  }
+  for(const side of [-1,1]){
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(.018,radius*.34,length*.055),new THREE.MeshStandardMaterial({color:0x596260,metalness:.32,roughness:.58}));panel.position.set(side*radius*.99,0,-length*.1);high.add(panel);
+  }
+  group.add(high);registerAssetDetailLod(group,{nearDistance:72,mediumDistance:190,high:[high]});
+  group.userData.weaponVisualId=identity;group.userData.forwardAxis="-Z";group.userData.surfaceDetailCount=high.children.length;
+}
+
 export interface SovietThreatModelOptions {
+  identity: string;
   length: number;
   radius: number;
   skinColor: number;
@@ -197,22 +228,8 @@ export function createSovietThreatModel(options: SovietThreatModelOptions) {
       options.dorsalDetails ? 0.5 : 1,
     );
     group.add(wing);
-    const fin = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        options.finThickness,
-        options.finHeight,
-        2.5,
-      ),
-      dark,
-    );
-    fin.position.set(
-      side * (options.radius + 0.35),
-      0,
-      options.length * 0.35,
-    );
-    fin.rotation.z = side * 0.18;
-    group.add(fin);
   }
+  addThreatRadialFinSet(group,{z:options.length*.35,radius:options.radius,span:options.finHeight,chord:2.5,thickness:options.finThickness,material:dark,swept:true});
 
   if (options.intake === "ventral") {
     const intake = new THREE.Mesh(
@@ -235,12 +252,10 @@ export function createSovietThreatModel(options: SovietThreatModelOptions) {
   }
 
   if (options.dorsalDetails) {
-    const dorsal = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 2.8, 4.5),
-      skin,
-    );
-    dorsal.position.set(0, 1.15, 1.5);
-    dorsal.rotation.x = 0.08;
+    const dorsalShape=new THREE.Shape();dorsalShape.moveTo(0,0);dorsalShape.lineTo(4.5,0);dorsalShape.lineTo(3.25,2.8);dorsalShape.lineTo(.65,2.25);dorsalShape.closePath();
+    const dorsal = new THREE.Mesh(new THREE.ShapeGeometry(dorsalShape),skin);
+    dorsal.position.set(0, options.radius*.82, 3.5);
+    dorsal.rotation.y = Math.PI*.5;
     group.add(dorsal);
     const belly = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, 0.35, 3.8),
@@ -265,5 +280,6 @@ export function createSovietThreatModel(options: SovietThreatModelOptions) {
       distance: options.shockCone ? 35 : 28,
     },
   });
+  addThreatSurfaceDetail(group,options.length,options.radius,options.identity,dark);
   return group;
 }

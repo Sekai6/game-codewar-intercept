@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { applySurfaceDetail } from "../visual/material-textures";
-import { attachThreatEffects } from "./model-helpers";
-import type { ThreatDefinition } from "./types";
+import { applySurfaceDetail } from "../visual/material-textures.js";
+import { addThreatRadialFinSet, addThreatSurfaceDetail, attachThreatEffects } from "./model-helpers.js";
+import type { ThreatDefinition } from "./types.js";
 
 function createModel() {
   const group = new THREE.Group(),
@@ -67,24 +67,8 @@ function createModel() {
   tail.rotation.x = Math.PI / 2;
   tail.position.z = length * 0.5 + 0.3;
   group.add(tail);
-  const addFinSet = (
-    z: number,
-    span: number,
-    chord: number,
-    material: THREE.Material,
-  ) => {
-    for (let index = 0; index < 4; index++) {
-      const fin = new THREE.Mesh(
-        new THREE.BoxGeometry(span, 0.08, chord),
-        material,
-      );
-      fin.position.z = z;
-      fin.rotation.z = index * Math.PI * 0.5;
-      group.add(fin);
-    }
-  };
-  addFinSet(0.15, 2.8, 1.35, skin);
-  addFinSet(length * 0.39, 1.65, 0.85, dark);
+  addThreatRadialFinSet(group,{z:.15,radius,span:1.4,chord:1.35,thickness:.08,material:skin,swept:true});
+  addThreatRadialFinSet(group,{z:length*.39,radius,span:.83,chord:.85,thickness:.08,material:dark,swept:false});
   const intakeOuter = new THREE.Mesh(
     new THREE.BoxGeometry(0.72, 0.48, 1.45),
     skin,
@@ -109,6 +93,7 @@ function createModel() {
     seekerRadius: 7,
     seekerLength: 30,
   });
+  addThreatSurfaceDetail(group,length,radius,"RGM-84 Harpoon",dark);
   return group;
 }
 

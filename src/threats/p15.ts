@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { applySurfaceDetail } from "../visual/material-textures";
-import { attachThreatEffects } from "./model-helpers";
-import type { ThreatDefinition } from "./types";
+import { applySurfaceDetail } from "../visual/material-textures.js";
+import { addThreatRadialFinSet, addThreatSurfaceDetail, attachThreatEffects } from "./model-helpers.js";
+import type { ThreatDefinition } from "./types.js";
 
 function createModel() {
   const group = new THREE.Group(),
@@ -68,15 +68,7 @@ function createModel() {
     wing.position.set(side * radius * 0.35, -0.08, 0.65);
     group.add(wing);
   }
-  for (let index = 0; index < 4; index++) {
-    const fin = new THREE.Mesh(
-      new THREE.BoxGeometry(2.55, 0.1, 1.8),
-      skin,
-    );
-    fin.position.z = length * 0.39;
-    fin.rotation.z = index * Math.PI * 0.5;
-    group.add(fin);
-  }
+  addThreatRadialFinSet(group,{z:length*.39,radius,span:1.45,chord:1.8,thickness:.1,material:skin,swept:true});
   const intakeFairing = new THREE.Mesh(
     new THREE.BoxGeometry(1.05, 0.62, 2.7),
     skin,
@@ -107,6 +99,7 @@ function createModel() {
     seekerRadius: 9.5,
     seekerLength: 34,
   });
+  addThreatSurfaceDetail(group,length,radius,"P-15 Termit",dark);
   return group;
 }
 

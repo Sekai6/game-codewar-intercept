@@ -1,5 +1,5 @@
-import { createSovietThreatModel } from "./model-helpers";
-import type { ThreatDefinition } from "./types";
+import { createSovietThreatModel } from "./model-helpers.js";
+import type { ThreatDefinition } from "./types.js";
 
 export const P700 = {
   id: "P-700",
@@ -37,6 +37,7 @@ export const P700 = {
   },
   createModel: () =>
     createSovietThreatModel({
+      identity: "P-700",
       length: 9.6,
       radius: 1.05,
       skinColor: 0xa9553d,

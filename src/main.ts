@@ -7902,6 +7902,10 @@ function tick(now: number) {
   canvas.dataset.shipInterceptorBoostersSeparated = String(
     airDefenseSamLaunches.filter((interceptor) => interceptor.mesh.userData.boosterSeparated).length,
   );
+  canvas.dataset.threatVisuals = missiles
+    .filter((missile) => missile.mesh.visible)
+    .map((missile) => `${missile.threatType}:${missile.mesh.userData.weaponVisualId ?? "missing"}:${missile.mesh.userData.forwardAxis ?? "missing"}`)
+    .join("|");
   const latestAar = aarSnapshots[aarSnapshots.length - 1];
   canvas.dataset.aarAircraftCount = String(latestAar?.aircraft.length ?? 0);
   canvas.dataset.aarAirWeaponCount = String(latestAar?.airWeapons.length ?? 0);

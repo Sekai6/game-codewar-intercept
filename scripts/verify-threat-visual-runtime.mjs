@@ -1,0 +1,8 @@
+import { chromium } from "playwright-core";
+
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH??"C:/Program Files/Google/Chrome/Application/chrome.exe",args:["--use-angle=swiftshader","--renderer-process-limit=1"]});
+try{
+  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on("console",(message)=>{if(message.type()==="error")errors.push(message.text());});page.on("pageerror",(error)=>errors.push(error.message));const base=process.env.APP_URL??"http://127.0.0.1:5173/?shortAirValidation=1",results=[];
+  for(const id of ["P-15 Termit","P-500","P-700","Kh-22","RGM-84 Harpoon"]){await page.goto(base,{waitUntil:"domcontentloaded",timeout:15000});await page.locator("#sbAirCombat").uncheck();await page.locator("#sbPlatform").selectOption("AIRBORNE");await page.locator("#sbType").selectOption(id);await page.locator("#sbCount").fill("1");await page.locator("#sbStart").click();await page.waitForFunction((threat)=>document.querySelector("#scene")?.dataset.threatVisuals?.includes(`${threat}:${threat}:-Z`),id,{timeout:10000});await page.waitForFunction(()=>Number.isFinite(Number(document.querySelector("#scene")?.dataset.incomingAttitudeError)),null,{timeout:10000});results.push(await page.locator("#scene").evaluate((canvas,threat)=>({id:threat,visuals:canvas.dataset.threatVisuals??"",attitudeError:Number(canvas.dataset.incomingAttitudeError??999)}),id));}
+  console.log(JSON.stringify({results,errors},null,2));if(errors.length||results.some((result)=>!result.visuals.includes(`${result.id}:${result.id}:-Z`)||result.attitudeError>.01))process.exitCode=1;
+}finally{await browser.close();}
