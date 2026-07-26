@@ -260,7 +260,7 @@ const hizConsumerMode = visualValidationParams.get("hizConsumers");
 hizScreenSpacePass.setConsumerMix(hizConsumerMode !== "contact", hizConsumerMode !== "ao");
 // SSR remains opt-in until moving-camera validation is free of hull-shaped ghosts.
 hizScreenSpacePass.setSsrEnabled(hizConsumerMode === "ssr");
-const ultraInternalScale = 0.85;
+const ultraInternalScale = innerWidth >= 1920 ? 1 : 0.85;
 temporalReconstructionPass.setOutputSize(Math.round(innerWidth * displayPixelRatio), Math.round(innerHeight * displayPixelRatio));
 canvas.dataset.renderPipeline = "webgl2-pbr-ssao-bloom-aces";
 canvas.dataset.ssaoEnabled = String(ssaoPass.enabled);
@@ -2636,7 +2636,7 @@ function updateWebGpuUltraStatus() {
   canvas.dataset.webGpuUltraScatter = webGpuUltraStatus === "active" ? "COMPUTE_SCATTER_ATLAS_128" : "OFF";
   canvas.dataset.webGpuUltraDepth = webGpuUltraStatus === "active" ? "GTAO_DEPTH_RECONSTRUCTED" : "OFF";
   canvas.dataset.webGpuUltraCloudVolume = webGpuUltraStatus === "active" ? "COMPUTE_VOLUME_64X32X64" : "OFF";
-  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? "TAAU_FULL_SCENE_0.85X" : "OFF";
+  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "OFF";
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraVelocity = webGpuUltraStatus === "active" ? "OBJECT_PREVIOUS_MVP_RG16F" : "OFF";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
@@ -8392,7 +8392,7 @@ function tick(now: number) {
   canvas.dataset.webGpuUltraScatter = webGpuUltraStatus === "active" ? "COMPUTE_SCATTER_ATLAS_128" : "OFF";
   canvas.dataset.webGpuUltraDepth = webGpuUltraStatus === "active" ? "GTAO_DEPTH_RECONSTRUCTED" : "OFF";
   canvas.dataset.webGpuUltraCloudVolume = webGpuUltraStatus === "active" ? "COMPUTE_VOLUME_64X32X64" : "OFF";
-  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? "TAAU_FULL_SCENE_0.85X" : "OFF";
+  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "OFF";
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
