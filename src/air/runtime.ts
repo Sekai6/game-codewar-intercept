@@ -228,11 +228,21 @@ function instantiate(
     const mountedModel = weaponId ? createAirWeaponModel(AIR_WEAPONS[weaponId]) : null;
     if (weaponId) remaining.set(weaponId, (remaining.get(weaponId) ?? 0) - 1);
     if (mountedModel) {
-      mountedModel.position.set(...definition.position);
+      const wingPivots = model.userData.variableWings as THREE.Object3D[] | undefined;
+      const wingIndex = definition.id.includes("wing-port")
+        ? 0
+        : definition.id.includes("wing-starboard") ? 1 : -1;
+      const mountParent = wingIndex >= 0 && wingPivots?.[wingIndex]
+        ? wingPivots[wingIndex]
+        : model;
+      model.updateMatrixWorld(true);
+      const worldMount = model.localToWorld(new THREE.Vector3(...definition.position));
+      mountParent.add(mountedModel);
+      mountParent.updateMatrixWorld(true);
+      mountedModel.position.copy(mountParent.worldToLocal(worldMount));
       mountedModel.scale.setScalar(0.72);
       const flame = mountedModel.userData.flame as THREE.Mesh | undefined;
       if (flame) flame.visible = false;
-      model.add(mountedModel);
     }
     return {
       id: definition.id,
@@ -1315,11 +1325,11 @@ export class AirCombatSystem {
       speedRatio,
     );
     const modeVisual = aircraft.thrustMode === "afterburner"
-      ? { width: 1.35, length: 2.8, opacity: 0.88, color: 0x80bfff }
+      ? { width: 1.18, length: 1.55, opacity: 0.58, color: 0x80bfff }
       : aircraft.thrustMode === "military"
-        ? { width: 1.05, length: 1.45, opacity: 0.58, color: 0xffa34f }
+        ? { width: 1.0, length: 1.05, opacity: 0.48, color: 0xffa34f }
         : aircraft.thrustMode === "cruise"
-          ? { width: 0.78, length: 0.72, opacity: 0.3, color: 0xff7a32 }
+          ? { width: 0.74, length: 0.5, opacity: 0.24, color: 0xff7a32 }
           : { width: 0.5, length: 0.18, opacity: 0.08, color: 0xff5a24 };
     exhausts?.forEach((exhaust, index) => {
       const pulse = 1 + Math.sin(time * 17 + index * 1.7) * 0.08,
@@ -1707,7 +1717,7 @@ export class AirCombatSystem {
           ejection = new THREE.Vector3(0, -1.15, 0.18).applyQuaternion(
             aircraft.model.quaternion,
           );
-        aircraft.model.remove(model);
+        model.removeFromParent();
         this.group.add(model);
         model.position.copy(worldPosition);
         model.quaternion.copy(worldQuaternion);

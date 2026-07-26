@@ -81,6 +81,7 @@ function createStarGeometry(radius: number) {
 
 function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: number, span: number, allegiance: "us" | "ussr") {
   const high = new THREE.Group();
+  const markings: THREE.Group[] = [];
   high.name = "aircraft-high-surface-detail";
   for (const fraction of [-0.25, -0.05, 0.16]) {
     const seam = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.998, 0.006, 4, 28), seamMaterial);
@@ -111,6 +112,7 @@ function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: n
       star.rotation.x = -Math.PI / 2; star.position.y = 0.006; marking.add(star);
     }
     marking.position.set(side * span * 0.62, 0.13, 0.15);
+    markings.push(marking);
     high.add(marking);
   }
   const pitot = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.75, 7), seamMaterial);
@@ -118,6 +120,7 @@ function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: n
   pitot.position.z = -length * 0.5 - 0.34;
   high.add(pitot);
   group.add(high);
+  group.userData.surfaceMarkings = markings;
   registerAssetDetailLod(group, { nearDistance: 58, mediumDistance: 145, high: [high] });
   group.userData.surfaceDetailCount = high.children.length;
 }
@@ -189,6 +192,12 @@ export function createF14Model() {
   }
   g.userData.variableWings = variableWings;
   addAircraftSurfaceDetails(g, 0.58, 9.6, 3.75, "us");
+  const markings = g.userData.surfaceMarkings as THREE.Group[];
+  markings.forEach((marking, index) => {
+    const side = index === 0 ? -1 : 1;
+    variableWings[index].add(marking);
+    marking.position.set(side * 1.72, 0.13, -0.02);
+  });
   addFormationLights(g, 3.75);
   return finishAircraft(g, 9.6, [new THREE.Vector3(-1.02, -0.16, 3.72), new THREE.Vector3(1.02, -0.16, 3.72)], ["tandem-canopy", "variable-sweep-wings", "twin-nacelles", "twin-tails", "stabilators", "intake-ramps"]);
 }
