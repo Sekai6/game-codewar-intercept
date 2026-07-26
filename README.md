@@ -9,15 +9,17 @@
 
 </div>
 
-## 舰队系统（第六阶段）
+## 舰队系统（第七阶段）
 
 舰队扩展已从领域模型开始落地。`src/ships/` 定义并创建独立的 `ShipCombatantInstance`；每艘舰分别拥有模型、位置、速度、舰体与子系统健康、弹药库、本地/网络航迹和交战账本。`src/fleet/` 定义舰队条令、编队角色、指挥角色、场景目录与 `NavalForceRuntime`，首个 `blue-ntu-screen` 场景由 CGN-9 与 CG-57 组成。它通过可选的 `NAVAL FORCE` 开关接入，默认仍为原有单舰模式。开启后，现有旗舰运行时被适配为 OTC，护航舰作为独立模型、机动实体和空战目标进入标准帧循环；每舰使用独立 `CombatPicture` 扫描并维护本地航迹，编队运动受平台加速、减速和转向率限制，并支持掉队状态和 OTC/AAWC/ASuW 能力化继任。
 
-第四阶段在 `src/fleet/link11-runtime.ts` 增加独立于空中作战系统的舰间 Link 11 轮询回路，并由 `force-picture.ts` 生成舰队态势图。网络只发布各舰本机雷达已经获得的观测，模拟 NCS 轮询、传输延迟、丢报、质量折损、位置误差和航迹老化；匿名 `FJ-xxxxxx` 网络航迹及融合后的舰队图始终为 `weaponQuality: false`。关闭战术数据链会立即清空舰间网络航迹和舰队图。护航舰武器仍未启用；后续必须依次经过 `AAWC 分配 -> 射手舰本地火控航迹 -> 本舰弹药/通道/照射器 -> 本舰发射队列 -> 实体离架`，舰队层不会生成 SAM。`npm run verify:fleet-link11` 验证网络语义，单 renderer 的 `verify:fleet-scene` 验证真实场景轮询、交付、cue-only 边界及关闭清理。
+第四阶段在 `src/fleet/link11-runtime.ts` 增加独立于空中作战系统的舰间 Link 11 轮询回路，并由 `force-picture.ts` 生成舰队态势图。网络只发布各舰本机雷达已经获得的观测，模拟 NCS 轮询、传输延迟、丢报、质量折损、位置误差和航迹老化；匿名 `FJ-xxxxxx` 网络航迹及融合后的舰队图始终为 `weaponQuality: false`。关闭战术数据链会立即清空舰间网络航迹和舰队图。任何护航舰武器必须依次经过 `AAWC 分配 -> 射手舰本地火控航迹 -> 本舰弹药/通道/照射器 -> 本舰发射队列 -> 实体离架`，舰队层不会生成 SAM。`npm run verify:fleet-link11` 验证网络语义，单 renderer 的 `verify:fleet-scene` 验证真实场景轮询、交付、cue-only 边界及关闭清理。
 
-第五阶段新增独立的 `src/fleet/air-defense-coordinator.ts`。AAWC 按分类、预计抵达时间、航迹质量、误差和年龄排序威胁，再按射程、交战几何、本舰武器级航迹、弹药储备、空闲发射/照射通道、火控与发射器健康和编队角色选择射手。输出仅为带 `forceTrackId`、`localTrackId`、射手、建议武器和建议弹数的 `ForceEngagementAssignment`；协调器不会扣弹、占用通道、写入本舰交战账本或生成导弹。低质量 Link 11 提示可以进入威胁排序，但没有射手舰本地武器级航迹时绝不产生任务；首选舰无弹或资源不可用时会选择另一艘合法舰。护航舰实体发射仍未开放。`npm run verify:fleet-air-defense` 验证 cue-only、本地授权、资源不变和射手转交，`verify:fleet-scene` 在短验证预设中证明 `本舰建轨 -> AAWC 分配 CG-57` 的实际运行时链。
+第五阶段新增独立的 `src/fleet/air-defense-coordinator.ts`。AAWC 按分类、预计抵达时间、航迹质量、误差和年龄排序威胁，再按射程、交战几何、本舰武器级航迹、弹药储备、空闲发射/照射通道、火控与发射器健康和编队角色选择射手。输出仅为带 `forceTrackId`、`localTrackId`、射手、建议武器和建议弹数的 `ForceEngagementAssignment`；协调器不会扣弹、占用通道、写入本舰交战账本或生成导弹。低质量 Link 11 提示可以进入威胁排序，但没有射手舰本地武器级航迹时绝不产生任务；首选舰无弹或资源不可用时会选择另一艘合法舰。`npm run verify:fleet-air-defense` 验证 cue-only、本地授权、资源不变和射手转交，`verify:fleet-scene` 在短验证预设中证明 `本舰建轨 -> AAWC 分配 CG-57` 的实际运行时链。
 
-第六阶段由 `src/fleet/engagement-runtime.ts` 实现舰队级交战账本和 shoot-shoot-look 生命周期。任务依次经过 `assigned -> accepted -> weapons-away -> assessing -> resolved/leaker`；任务接受不等于发射，只有射手舰未来在真实离架后调用 `reportForceWeaponsAway()`，账本才增加 `weaponsCommitted`、合成预计 PK 和预计拦截时刻。在首轮预计拦截及 6 秒观察窗口结束前，AAWC 抑制跨舰重复分配；明确脱靶、部分效果、任务拒绝、执行超时或观察超时会重新开放目标，可由原舰或其他具备本地火控条件的舰接手。确认击杀则持续抑制补射。`verify:fleet-engagements` 覆盖重复抑制、接受/拒绝、两发合成 PK、观察窗口、leaker 转交、击杀闭环和任务过期；实景验证要求舰队任务登记为 `assigned:0` 且所有本舰账本仍为零，证明协调层没有伪造发射。护航舰实体发射仍将在每舰发射运行时阶段接入。
+第六阶段由 `src/fleet/engagement-runtime.ts` 实现舰队级交战账本和 shoot-shoot-look 生命周期。任务依次经过 `assigned -> accepted -> weapons-away -> assessing -> resolved/leaker`；任务接受不等于发射，只有射手舰真实离架后调用 `reportForceWeaponsAway()`，账本才增加 `weaponsCommitted`、合成预计 PK 和预计拦截时刻。在首轮预计拦截及 6 秒观察窗口结束前，AAWC 抑制跨舰重复分配；明确脱靶、部分效果、任务拒绝、执行超时或观察超时会重新开放目标，可由原舰或其他具备本地火控条件的舰接手。确认击杀则持续抑制补射。`verify:fleet-engagements` 覆盖重复抑制、接受/拒绝、两发合成 PK、观察窗口、leaker 转交、击杀闭环和任务过期。
+
+第七阶段新增 `src/ships/weapon-runtime.ts` 与 `src/ships/launcher-adapter.ts`。前者逐舰验证任务归属、本舰有机武器级航迹、航迹年龄、包线、弹药、火控、发射通道和照射器；后者才允许把合法订单放入所属舰的 Mk 10/Mk 41 状态机。排队只扣所属舰预留弹药并建立本舰 pending，不产生导弹或 weapons-away；任务取消会返还同一舰弹药并释放账本。只有 Mk 10 导弹离轨或 Mk 41 舱盖开启后的 hot launch 回调可以创建拦截弹，并逐枚上报 weapons-away。发射实体携带射手舰 ID，后续中段更新与末段照射继续使用发射舰本地航迹和本舰导演器，不允许跨舰照射。`verify:fleet-ship-defense` 覆盖所有权和门禁，单 renderer 的 `verify:fleet-launch-cycle` 实际验证 CG-57 前后 Mk 41 单元离架、CG-57 独立扣弹、舰队账本变化、离架原点归属及不存在 `SHIP SAM AUTO LAUNCH`。该功能只在 `NAVAL FORCE` 开关启用时构造，默认单舰流程保持不变。
 
 ## 联合空中作战
 

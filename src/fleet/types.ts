@@ -64,6 +64,7 @@ export interface ForceEngagementAssignment {
   expiresAt: number;
   status: "assigned" | "accepted" | "rejected" | "expired" | "weapons-away";
   updatedAt: number;
+  weaponsAwayCount?: number;
   rejectionReason?: string;
 }
 

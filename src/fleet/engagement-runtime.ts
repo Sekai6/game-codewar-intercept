@@ -5,6 +5,7 @@ import type {
 } from "./types.js";
 
 const ASSESSMENT_OBSERVATION_SECONDS = 6;
+const ACCEPTED_EXECUTION_SECONDS = 16;
 
 function assignment(force: NavalForceRuntime, assignmentId: string) {
   return force.assignments.get(assignmentId);
@@ -51,6 +52,7 @@ export function acceptForceAssignment(
     return false;
   item.status = "accepted";
   item.updatedAt = now;
+  item.expiresAt = Math.max(item.expiresAt, now + ACCEPTED_EXECUTION_SECONDS);
   const record = recordForAssignment(force, item);
   if (record) record.lastUpdatedAt = now;
   return true;
@@ -89,12 +91,18 @@ export interface WeaponsAwayReport {
 export function reportForceWeaponsAway(force: NavalForceRuntime, report: WeaponsAwayReport) {
   const item = assignment(force, report.assignmentId);
   if (!item || item.shooterId !== report.shooterId
-    || item.status !== "accepted" || report.count <= 0) return false;
+    || (item.status !== "accepted" && item.status !== "weapons-away") || report.count <= 0) return false;
   const record = recordForAssignment(force, item);
   if (!record) return false;
+  const alreadyReported = item.weaponsAwayCount ?? 0;
+  const count = Math.min(
+    Math.max(0, item.requestedShots - alreadyReported),
+    Math.max(0, Math.floor(report.count)),
+  );
+  if (count <= 0) return false;
   item.status = "weapons-away";
+  item.weaponsAwayCount = alreadyReported + count;
   item.updatedAt = report.now;
-  const count = Math.min(item.requestedShots, Math.max(0, Math.floor(report.count)));
   const singlePk = Math.max(0, Math.min(0.99, report.estimatedSingleShotPk));
   const salvoPk = 1 - Math.pow(1 - singlePk, count);
   record.weaponsCommitted += count;

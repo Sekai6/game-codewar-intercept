@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { TargetableEntity } from "../combat-entity.js";
+import type { DefenseTarget, Interceptor } from "../combat-types.js";
 import type { ShipDefinition, ShipWeapon, SubsystemId } from "../ship-types.js";
 import type { ShipCombatantInstance } from "../ships/types.js";
 import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-runtime.js";
@@ -9,6 +10,7 @@ import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
 import { FleetLink11Runtime } from "./link11-runtime.js";
 import { updateForceEngagements } from "./engagement-runtime.js";
+import { ShipLauncherAdapter, type ShipPhysicalLaunch } from "../ships/launcher-adapter.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -30,6 +32,10 @@ export interface FleetSceneIntegrationOptions {
   flagshipSnapshot: () => LegacyFlagshipSnapshot;
   applyFlagshipDamage: (damage: number, hitPoint: THREE.Vector3) => void;
   registerModel?: (model: THREE.Group) => void;
+  resolveDefenseTarget?: (localTrackId: string) => DefenseTarget | undefined;
+  launchInterceptor?: (event: ShipPhysicalLaunch) => Interceptor;
+  launchEffect?: (origin: THREE.Vector3, direction: THREE.Vector3) => void;
+  log?: (message: string) => void;
 }
 
 export class FleetSceneIntegration {
@@ -40,6 +46,7 @@ export class FleetSceneIntegration {
   private readonly sensors = new ShipSensorRuntime();
   private readonly link11 = new FleetLink11Runtime();
   private readonly airDefense = new FleetAirDefenseCoordinator();
+  private readonly launchers: ShipLauncherAdapter[] = [];
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
@@ -65,6 +72,16 @@ export class FleetSceneIntegration {
       });
       options.registerModel?.(ship.model);
       options.scene.add(ship.model);
+      if (options.resolveDefenseTarget && options.launchInterceptor && options.launchEffect) {
+        this.launchers.push(new ShipLauncherAdapter({
+          force: this.force,
+          ship,
+          resolveTarget: options.resolveDefenseTarget,
+          launch: options.launchInterceptor,
+          launchEffect: options.launchEffect,
+          log: options.log ?? (() => undefined),
+        }));
+      }
     }
     this.syncFlagship();
   }
@@ -90,6 +107,7 @@ export class FleetSceneIntegration {
       dt,
       externallyIntegratedShipIds: this.externalShips,
     });
+    for (const launcher of this.launchers) launcher.update(now, dt);
   }
 
   updateSensors(now: number, dt: number, observations: readonly ShipSensorObservation[]) {
@@ -103,10 +121,12 @@ export class FleetSceneIntegration {
   updateAirDefense(now: number) {
     updateForceEngagements(this.force, now);
     this.airDefense.update(this.force, now);
+    for (const launcher of this.launchers) launcher.executeAssignments(now);
   }
 
   networkDiagnostics() { return this.link11.diagnostics(); }
   networkActivities(now: number) { return this.link11.activities(now); }
+  launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }
 
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
@@ -149,6 +169,7 @@ export class FleetSceneIntegration {
     this.sensors.reset();
     this.link11.reset(this.force);
     this.airDefense.reset(this.force);
+    for (const launcher of this.launchers) launcher.reset();
   }
 
   dispose() {

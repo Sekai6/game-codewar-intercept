@@ -102,8 +102,8 @@ try {
       || result.link11Delivered <= 0 || result.pictureTracks <= 0
       || result.link11WeaponAuthority !== "false"
       || !result.aawAssignments.includes("AAW-")
-      || !result.engagements.includes(":assigned:0")
-      || !result.localEngagements.split("|").every((entry) => entry.endsWith(":0"))
+      || !result.engagements.split("|").every((entry) => /:(assigned|weapons-away):[01]$/.test(entry))
+      || !result.localEngagements.includes("blue-cgn-9:0")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || !result.members.includes("blue-cgn-9:alive")

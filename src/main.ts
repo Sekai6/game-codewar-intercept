@@ -22,6 +22,7 @@ import {
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
+import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
   createFaceHealth,
   damageSensorFace,
@@ -142,9 +143,10 @@ import {
   threatScore,
 } from "./ship-defense/engagement-runtime";
 import { createCiwsTracer } from "./ship-defense/defense-visuals";
-import type {
-  EngagementRecord,
-  EngagementSourceId,
+import {
+  resolveEngagement,
+  type EngagementRecord,
+  type EngagementSourceId,
 } from "./defense/engagement.js";
 import { DefenseTargetRegistry } from "./defense/target-source.js";
 import type { CombatEntity, TargetableEntity } from "./combat-entity";
@@ -775,12 +777,11 @@ function settleEngagement(
 ) {
   if (interceptor.mesh.userData.engagementSettled) return;
   interceptor.mesh.userData.engagementSettled = true;
-  const state = resolveShot(
-    engagements,
-    defenseSourceForTarget(interceptor.target),
-    result,
-    elapsed,
-  );
+  const ownerId = interceptor.mesh.userData.launchShipId as string | undefined;
+  const owner = ownerId ? fleetIntegration?.force.ships.get(ownerId) : undefined;
+  const state = owner
+    ? resolveEngagement(owner.engagements, defenseSourceForTarget(interceptor.target), result, elapsed)
+    : resolveShot(engagements, defenseSourceForTarget(interceptor.target), result, elapsed);
   if (!state) return;
   if (
     doctrine === "SSLS" &&
@@ -1100,6 +1101,8 @@ function launchInterceptor(
   launchPoint: string,
   origin: THREE.Vector3,
   railDirection: THREE.Vector3,
+  launchShip?: ShipCombatantInstance,
+  launchTrack?: ShipTrackEstimate,
 ) {
   const er = weapon === "SM-2ER",
     sm2 = weapon === "SM-2MR" || er,
@@ -1159,18 +1162,18 @@ function launchInterceptor(
         blending: THREE.AdditiveBlending,
       }),
     ),
-    track = combatPicture.trackForTarget(defenseSourceForTarget(target)),
+    track = launchShip ? undefined : combatPicture.trackForTarget(defenseSourceForTarget(target)),
     salvoLeader = interceptors.find(
       (i) => i.mesh.visible && i.target === target,
     ),
     commandPoint = (
       salvoLeader?.commandPoint ??
-      track?.position ??
+      launchTrack?.position ?? track?.position ??
       target.mesh.position
     ).clone(),
     commandVelocity = (
       salvoLeader?.commandVelocity ??
-      track?.velocity ??
+      launchTrack?.velocity ?? track?.velocity ??
       target.velocity
     ).clone(),
     nextDatalink = salvoLeader?.nextDatalink ?? elapsed + 0.35;
@@ -1187,16 +1190,19 @@ function launchInterceptor(
     commandPoint,
     commandVelocity,
     nextDatalink,
-    datalinkValid: salvoLeader?.datalinkValid ?? !!track,
+    datalinkValid: salvoLeader?.datalinkValid ?? !!(launchTrack ?? track),
     illuminated: false,
     illuminationBeam,
   } as Interceptor;
   g.userData.launchSerial = interceptors.length + 1;
+  g.userData.launchShipId = launchShip?.id;
+  g.userData.departureOrigin = origin.clone();
+  g.userData.departureShipDistance = launchShip ? origin.distanceTo(launchShip.position) : origin.distanceTo(defender.position);
   g.userData.launcherLabel = launcherLabel;
   g.userData.launchPoint = launchPoint;
   interceptors.push(interceptor);
   const launchRange =
-    target.mesh.position.distanceTo(defender.position) / WORLD_UNITS_PER_KM;
+    target.mesh.position.distanceTo(launchShip?.position ?? defender.position) / WORLD_UNITS_PER_KM;
   log(
     `${weapon} ${launcherLabel} LAUNCH / ${launchPoint} / ${launchRange.toFixed(1)} km / TRACK ${Math.round((track?.quality ?? 0) * 100)}% / ${doctrine}`,
   );
@@ -2280,6 +2286,19 @@ function rebuildFleetIntegration() {
       createExplosion(hitPoint.clone());
       if (hullIntegrity <= 0) phaseEl.textContent = "SHIP DISABLED";
     },
+    resolveDefenseTarget: (localTrackId) => defenseTargetForSource(localTrackId),
+    launchInterceptor: (event) => launchInterceptor(
+      event.target,
+      event.order.weapon,
+      `${event.ship.id} ${event.launcherLabel}`,
+      event.launchPoint,
+      event.origin,
+      event.direction,
+      event.ship,
+      event.order.track,
+    ),
+    launchEffect: createVlsLaunchEffect,
+    log,
   });
   canvas.dataset.fleetId = fleetIntegration.force.id;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
@@ -4890,7 +4909,7 @@ function updateShipLights() {
 function scheduleIlluminators(candidates: Interceptor[], dt: number) {
   const health = subsystemHealth("fireControl"),
     active = candidates.filter(
-      (i) => i.mesh.visible && i.target.phase !== "destroyed",
+      (i) => i.mesh.visible && i.target.phase !== "destroyed" && !i.mesh.userData.launchShipId,
     ),
     directorCount = (defender.userData.directors as THREE.Group[]).length,
     limit = effectiveIlluminatorCount(maxIlluminators, directorCount, health);
@@ -4945,10 +4964,59 @@ function scheduleIlluminators(candidates: Interceptor[], dt: number) {
       ]);
   }
   for (const interceptor of interceptors)
-    if (!active.includes(interceptor)) {
+    if (!interceptor.mesh.userData.launchShipId && !active.includes(interceptor)) {
       interceptor.illuminated = false;
       interceptor.illuminationBeam.visible = false;
     }
+  const companionCandidates = candidates.filter(
+    (interceptor) => interceptor.mesh.visible && interceptor.target.phase !== "destroyed"
+      && !!interceptor.mesh.userData.launchShipId,
+  );
+  const companionIds = new Set(companionCandidates.map(
+    (interceptor) => interceptor.mesh.userData.launchShipId as string,
+  ));
+  for (const shipId of companionIds) {
+    const ship = fleetIntegration?.force.ships.get(shipId);
+    if (!ship?.alive) continue;
+    const fireControlHealth = (ship.subsystemHealth.get("fireControl") ?? 0) / 100;
+    const directors = (ship.model.userData.directors ?? []) as THREE.Group[];
+    const limit = effectiveIlluminatorCount(ship.illuminatorChannels, directors.length, fireControlHealth);
+    const assigned = companionCandidates
+      .filter((interceptor) => interceptor.mesh.userData.launchShipId === shipId)
+      .sort((left, right) => left.mesh.position.distanceTo(left.target.mesh.position)
+        - right.mesh.position.distanceTo(right.target.mesh.position))
+      .slice(0, limit);
+    assigned.forEach((interceptor, index) => {
+      const director = directors[index];
+      if (!director) return;
+      aimLocal(
+        director,
+        interceptor.target.mesh.position,
+        dt,
+        THREE.MathUtils.degToRad(55) * (0.25 + 0.75 * fireControlHealth),
+        THREE.MathUtils.degToRad(38) * (0.25 + 0.75 * fireControlHealth),
+      );
+      const targetLocal = ship.model.worldToLocal(interceptor.target.mesh.position.clone());
+      const desired = Math.atan2(-targetLocal.z, targetLocal.x);
+      const captured = Math.abs(angleDifference(desired, director.rotation.y)) < THREE.MathUtils.degToRad(14);
+      interceptor.illuminated = captured;
+      interceptor.illuminationBeam.visible = captured;
+      if (!captured) return;
+      const feed = director.userData.feedTip as THREE.Object3D | undefined;
+      const origin = feed?.getWorldPosition(new THREE.Vector3()) ?? ship.position.clone();
+      interceptor.illuminationBeam.geometry.dispose();
+      interceptor.illuminationBeam.geometry = new THREE.BufferGeometry().setFromPoints([
+        origin,
+        interceptor.target.mesh.position.clone(),
+      ]);
+    });
+    for (const interceptor of companionCandidates.filter(
+      (candidate) => candidate.mesh.userData.launchShipId === shipId && !assigned.includes(candidate),
+    )) {
+      interceptor.illuminated = false;
+      interceptor.illuminationBeam.visible = false;
+    }
+  }
 }
 function updateCiws() {
   const health = subsystemHealth("ciws");
@@ -6286,6 +6354,15 @@ function updateCombat(dt: number) {
       .join("|");
     canvas.dataset.fleetLocalEngagements = [...fleetIntegration.force.ships.values()]
       .map((ship) => `${ship.id}:${ship.engagements.size}`).join("|");
+    canvas.dataset.fleetSamMagazines = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:RIM=${ship.magazines.rounds.get("RIM-67") ?? 0},MR=${ship.magazines.rounds.get("SM-2MR") ?? 0},ER=${ship.magazines.rounds.get("SM-2ER") ?? 0}`)
+      .join("|");
+    canvas.dataset.fleetLauncherPending = fleetIntegration.launcherDiagnostics()
+      .map((runtime, index) => `${index}:${runtime.pending}`).join("|");
+    canvas.dataset.fleetPhysicalLaunches = interceptors
+      .filter((interceptor) => !!interceptor.mesh.userData.launchShipId)
+      .map((interceptor) => `${interceptor.mesh.userData.launchShipId}:${interceptor.mesh.userData.launcherLabel}:${interceptor.mesh.userData.launchPoint}:OFFSET=${Number(interceptor.mesh.userData.departureShipDistance ?? -1).toFixed(2)}`)
+      .join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
   else updateVlsCells(dt);
@@ -6428,21 +6505,26 @@ function updateCombat(dt: number) {
       trackId = defenseSourceForTarget(i.target);
     i.commandPoint.addScaledVector(i.commandVelocity, dt);
     if (!terminal && elapsed >= i.nextDatalink) {
-      const track = combatPicture.trackForTarget(trackId);
+      const launchShipId = i.mesh.userData.launchShipId as string | undefined,
+        launchShip = launchShipId ? fleetIntegration?.force.ships.get(launchShipId) : undefined,
+        localTrack = launchShip?.localTracks.get(String(trackId)),
+        track = launchShip ? undefined : combatPicture.trackForTarget(trackId),
+        trackPosition = localTrack?.position ?? track?.position,
+        trackVelocity = localTrack?.velocity ?? track?.velocity,
+        trackQuality = localTrack?.quality ?? track?.quality ?? 0,
+        trackAge = localTrack ? elapsed - localTrack.updatedAt : track?.age ?? Number.POSITIVE_INFINITY,
+        altitudeKnown = localTrack ? true : !!track?.altitudeKnown;
       if (
-        track &&
-        track.altitudeKnown &&
-        track.age < 2.2 &&
-        track.quality > 0.08
+        trackPosition && trackVelocity && altitudeKnown && trackAge < 2.2 && trackQuality > 0.08
       ) {
-        const delay = 0.2 + (1 - track.quality) * 0.85,
-          solution = track.position
+        const delay = 0.2 + (1 - trackQuality) * 0.85,
+          solution = trackPosition
             .clone()
-            .addScaledVector(track.velocity, delay + timeToGo * 0.65);
+            .addScaledVector(trackVelocity, delay + timeToGo * 0.65);
         i.commandPoint.lerp(solution, 0.68);
-        i.commandVelocity.lerp(track.velocity, 0.6);
+        i.commandVelocity.lerp(trackVelocity, 0.6);
         i.datalinkValid = true;
-        i.nextDatalink = elapsed + 0.38 + (1 - track.quality) * 1.05;
+        i.nextDatalink = elapsed + 0.38 + (1 - trackQuality) * 1.05;
       } else {
         i.datalinkValid = false;
         i.nextDatalink = elapsed + 0.55;
@@ -6841,7 +6923,10 @@ function updateCombat(dt: number) {
     }
     if (interceptDistance < 2.5) {
       const id = defenseSourceForTarget(i.target),
-        trackQualityValue = combatPicture.trackForTarget(id)?.quality ?? 0.1,
+        launchShipId = i.mesh.userData.launchShipId as string | undefined,
+        trackQualityValue = launchShipId
+          ? fleetIntegration?.force.ships.get(launchShipId)?.localTracks.get(String(id))?.quality ?? 0.1
+          : combatPicture.trackForTarget(id)?.quality ?? 0.1,
         guidanceQuality =
           i.weapon === "RIM-67"
             ? i.mesh.userData.seekerAcquired
