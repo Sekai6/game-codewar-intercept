@@ -163,7 +163,10 @@ export function airScenarioSpawns(
   }
   if (id !== "joint" && id !== "intercept") return spawns;
   for (const spawn of spawns) {
-    if (spawn.definition.id === "TU-16K") spawn.position.z += 1800;
+    // Keep the short joint validation inside the fleet SAM envelope, but
+    // leave enough standoff for the F-14 CAP to exercise its BVR shot before
+    // the ship-defense layer resolves the raid immediately.
+    if (spawn.definition.id === "TU-16K") spawn.position.z += 1600;
     if (spawn.definition.id === "F-14A") spawn.position.z += 280;
     if (sovietSalvoValidation && spawn.definition.id === "F-14A")
       spawn.position.z -= 600;
