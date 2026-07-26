@@ -2,8 +2,8 @@
 
 **A 3D Cold War naval and joint-air combat sandbox.** The observable chain runs from radar measurements, track quality, datalinks, and fire-control authorization through physical launchers, phased guidance, electronic warfare, damage, and AAR.
 
-> Documentation snapshot: v1.0.0 · 2026-07-26<br>
-> This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
+> Documentation snapshot: v1.1.0 · 2026-07-26<br>
+> This page describes the v1.1.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
 ## Live Demo
 
@@ -11,7 +11,7 @@
 
 No installation is required. Desktop Edge or Chrome is recommended. Initial asset and shader compilation may take several seconds. Use High quality on limited hardware; WebGPU Ultra, compute clouds, and the FFT ocean are experimental high-load features.
 
-[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [v1.0.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.0.0)
+[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [v1.1.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.1.0)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -34,6 +34,18 @@ Its three main strengths are observable sensor uncertainty, non-bypassable per-s
 
 [Simulation manual](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations](docs/zh/OPERATIONS.md) | [Verification](docs/zh/VERIFICATION.md) | [English Wiki](wiki/en/README.md)
 
+## v1.1.0 Air-Asset Upgrade
+
+v1.1.0 rebuilds the procedural F-14A, A-6E, MiG-29A, Tu-16K, E-2C, and Tu-126 assets. Every aircraft now uses the same **visual relative scale of 2 metres per unit**, preserving the size relationship between fighters, bombers, and large AEW aircraft. Each type has separately constructed Ultra, High, and Low geometry. Ultra can step down by viewing distance, while High and Low quality select their corresponding assets instead of reusing one high-detail mesh with decorative parts hidden.
+
+- The F-14A sweeps its wings from 20° to 68°; glove pylons and fuselage pallets stay in the fixed airframe coordinate system.
+- The A-6E includes the side-by-side cockpit, D-shaped shoulder intakes, TRAM turret, and five visible pylons; two current strike anchors carry AGM-84A stores.
+- The MiG-29A rebuild includes LERX, a continuous dorsal spine, separate engine channels, auxiliary intake doors, IRST, and three pylon classes for R-27R/R-73 stores.
+- The Tu-16K rebuild includes the glazed nose, swept wing, integrated wing-root nacelles, tail turret, and under-wing KSR-5 carrier beams; ammunition remains owned by a concrete aircraft and hardpoint.
+- The E-2C represents the NTU-era four-blade propellers, four-fin tail, and rotating rotodome. The Tu-126 preserves its much larger airframe, four NK-12 installations with paired contra-rotating propellers, and Liana rotodome proportions.
+
+Asset acceptance checks monotonic triangle reduction, independent tier geometry, dimensional tolerance, F-14 mount parentage, marking ownership, and AEW propeller/rotodome animation. The static gallery and structural tests validate the assets and mount relationships only; they do not by themselves validate flight AI, missile lethality, or a complete joint scenario. Those remain runtime-regression responsibilities. See the [air-platform catalog](wiki/en/PLATFORMS/README.md).
+
 ## Validation Evidence
 
 ![Fleet physical-launch verification](verification-fleet-launch-cycle.png)
@@ -50,6 +62,7 @@ Its three main strengths are observable sensor uncertainty, non-bypassable per-s
 
 - Independent ship entities: USS Long Beach (CGN-9), USS Lake Champlain (CG-57), and Moskva.
 - Independent air entities: F-14A, A-6E, Tu-16K, MiG-29A, E-2C, and Tu-126.
+- Six procedural air assets with a common 2 m/unit visual scale and independent Ultra/High/Low geometry.
 - Three-dimensional ship, aircraft, missile, and decoy motion.
 - Radar horizon, RCS range scaling, scan intervals, measurement error, track aging, and weapon-quality authorization.
 - NTU-era Link 11, optional later Link 16 era settings, and separate Soviet C2 models.
@@ -106,7 +119,7 @@ The complete English Wiki mirrors all current Chinese Wiki paths. Some source-le
 ## Source Map
 
 ```text
-src/air/          air platforms, flight, AI, sensors, weapons, and AEW
+src/air/          air platforms, flight, AI, sensors, weapons, AEW, and model assets
 src/fleet/        force runtime, formations, Link 11, command, and tasking
 src/ships/        independent ship execution, EW, CIWS, and damage control
 src/ship-defense/ shared ship-defense target, engagement, launcher, and visual runtimes
@@ -123,7 +136,7 @@ scripts/          logic, browser, screenshot, and regression verification
 
 ## Project Status
 
-The repository is released as `v1.0.0`. Feature boundaries and verification evidence are listed in [CHANGELOG.md](CHANGELOG.md).
+The repository is released as `v1.1.0`. Feature boundaries and verification evidence are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

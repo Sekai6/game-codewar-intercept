@@ -19,6 +19,6 @@ console.log(JSON.stringify(result, null, 2));
 if (
   !result.platform || !result.loadout || !result.r27 || !result.r73 ||
   !result.semiActive || !result.infrared || !result.hardpointSet ||
-  model.userData.modelLength !== 8.65 ||
+  model.userData.modelLength !== 8.66 ||
   model.userData.exhausts?.length !== 2
 ) process.exitCode = 1;

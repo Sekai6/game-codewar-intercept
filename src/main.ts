@@ -8988,7 +8988,13 @@ function tick(now: number) {
     (interceptors.some((item) => item.mesh.visible) || missiles.some((item) => item.mesh.visible));
   cinematicAtmospherePass.uniforms.chromaticAberration.value = followedMissile ? 0.72 : 0;
   cinematicAtmospherePass.uniforms.ultraTime.value = elapsed;
-  updateRegisteredAssetDetailLods(scene, camera.position);
+  const assetDetailQuality = webGpuUltraInput.checked
+    ? "ultra"
+    : highQualityEnvironmentEnabled
+      ? "high"
+      : "low";
+  updateRegisteredAssetDetailLods(scene, camera.position, assetDetailQuality);
+  canvas.dataset.assetDetailQuality = assetDetailQuality;
   updateShipLights();
   defender.userData.smokePuffs?.forEach((puff: THREE.Mesh, index: number) => {
     const life = (elapsed * 0.22 + index / 9) % 1;

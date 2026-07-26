@@ -1,8 +1,14 @@
 # MiG-29A Fulcrum-A
 
-> 数据快照：v1.0.0 · 2026-07-26 | [English](../en/PLATFORMS/MIG29A_FULCRUM.md)
+> 数据快照：v1.1.0 · 2026-07-26 | [English](../en/PLATFORMS/MIG29A_FULCRUM.md)
 
 苏联前线截击战斗机，默认挂载 R-27R 和 R-73，通过本机 N019 航迹或 Tu-126/GCI 提示执行拦截。它不接入 Link 16，GCI 指令只提供带误差的截击点、速度和雷达开机距离。
+
+## v1.1 程序化模型
+
+模型以 17.32 米机长、11.36 米翼展为参考，采用统一 2 米/单位视觉尺度和独立 Ultra/High/Low 几何。剪影重建包括 73.5° LERX、42°主翼、连续背脊、左右独立发动机通道、辅助进气门、外倾双垂尾与 IRST。
+
+六处武器锚点区分外侧导轨、中挂架和内侧弹射架，分别承载 R-73 与 R-27R 兼容组合。验证检查三档尺寸与面数、几何不共享、三类挂架和实际武器挂载；它不替代 R-27R 照射或 R-73 红外捕获测试。
 
 ## 游戏参数
 
@@ -23,4 +29,4 @@
 
 发动机、雷达、飞控、武器系统和结构损伤可造成性能下降、脱离、失控或坠海。AAR/ACMI 记录 GCI 指令、本机任务、推力档位、武器 owner/target、诱饵和毁伤事件。
 
-源码：`src/air/catalog.ts`、`src/air/ai/`、`src/air/aew/`。
+源码：`src/air/catalog.ts`、`src/air/ai/`、`src/air/aew/`、`src/air/model-assets/soviet/mig29a.ts`。

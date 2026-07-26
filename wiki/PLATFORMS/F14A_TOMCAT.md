@@ -1,8 +1,14 @@
 # F-14A Tomcat
 
-> Data snapshot: v1.0.0 · 2026-07-26
+> Data snapshot: v1.1.0 · 2026-07-26
 
 双机 CAP/截击平台。可携带 AIM-54A、AIM-7F 和 AIM-9L，拥有三维飞行、编队、雷达航迹、加力和导弹告警机动。目录入口：`src/air/catalog.ts`；模型验证：`verification-aircraft-f-14a-ultra.png`。
+
+## v1.1 程序化模型
+
+模型按 19.13 米机长、19.55 米最大翼展的参考关系，以统一 2 米/单位视觉尺度构建。Ultra、High、Low 是三套独立几何，均保持机体长度与翼展容差；近距离层包含串列座舱、双短舱、双垂尾、全动平尾、腹鳍和表面标识。
+
+可变翼在 20°–68°之间连续后掠。翼套挂架和四处机腹挂板属于固定机体武器架，不挂在可变翼枢轴下，因此 AIM-54A/AIM-7F/AIM-9L 不会随翼尖旋转或悬空。模型测试覆盖三档面数递减、几何独立、尺寸、标识 LOD 归属和挂架父级；它不单独证明 Phoenix 的命中结果。
 
 ## 战术行为
 
@@ -32,4 +38,4 @@ F-14 的 AI 先利用雷达/AEW 航迹判断目标身份、距离和威胁，再
 
 JTIDS 只在 `jtids-transition` 及以后年代启用，终端可靠性 0.96；早期场景仍依赖平台航迹和 AEW 指挥。发动机、雷达、飞控和武器系统损伤会分别影响推力/红外特征、探测、机动包线和挂点授权。AAR 保存任务、状态、结构、三维运动、导弹 owner/target 和诱饵实体；诊断字段覆盖推力、发射区、飞行员、威胁、感知、挂点与机动日志。
 
-源码：`src/air/catalog.ts`、`src/air/ai/`、`src/air/flight.ts`、`src/air/models.ts`。
+源码：`src/air/catalog.ts`、`src/air/ai/`、`src/air/flight.ts`、`src/air/model-assets/us/f14a.ts`。

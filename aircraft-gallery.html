@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>NTU Intercept Aircraft Asset Gallery</title>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #9ca8ad; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { position: fixed; left: 24px; top: 22px; padding: 12px 15px; color: #d9f5f1; background: rgba(7, 18, 23, .82); border: 1px solid rgba(102, 226, 213, .58); font: 600 13px/1.55 Consolas, monospace; letter-spacing: .04em; white-space: pre; pointer-events: none; }
+      #scale { position: fixed; right: 24px; bottom: 22px; width: 200px; color: #d9f5f1; font: 600 12px/1.4 Consolas, monospace; text-align: center; }
+      #scale::before { content: ""; display: block; height: 8px; border-left: 2px solid #d9f5f1; border-right: 2px solid #d9f5f1; border-bottom: 2px solid #d9f5f1; }
+    </style>
+  </head>
+  <body>
+    <div id="info">LOADING AIRCRAFT ASSET</div>
+    <div id="scale">REFERENCE SCALE</div>
+    <script type="module" src="/src/air/asset-gallery.ts"></script>
+  </body>
+</html>

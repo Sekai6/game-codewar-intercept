@@ -16,3 +16,32 @@ const expected = [
   { high:false, medium:false, low:true, persistent:false },
 ];
 if (samples.some((sample, index) => Object.entries(expected[index]).some(([key, value]) => sample[key] !== value))) process.exitCode = 1;
+
+const qualityAsset = new THREE.Group(), ultraTier = new THREE.Group(), highTier = new THREE.Group(), lowTier = new THREE.Group();
+qualityAsset.add(ultraTier, highTier, lowTier);scene.add(qualityAsset);
+registerAssetDetailLod(qualityAsset, {
+  nearDistance: 80,
+  mediumDistance: 220,
+  high:[ultraTier],
+  medium:[highTier],
+  low:[lowTier],
+  exclusiveTiers:true,
+  qualityAware:true,
+});
+const qualitySamples = [
+  ["ultra", 40], ["ultra", 120], ["ultra", 300],
+  ["high", 40], ["high", 300], ["low", 40],
+].map(([quality, distance]) => {
+  updateRegisteredAssetDetailLods(scene, new THREE.Vector3(distance, 0, 0), quality);
+  return { quality, distance, ultra:ultraTier.visible, high:highTier.visible, low:lowTier.visible };
+});
+console.log(JSON.stringify(qualitySamples, null, 2));
+const expectedQuality = [
+  { ultra:true, high:false, low:false },
+  { ultra:false, high:true, low:false },
+  { ultra:false, high:false, low:true },
+  { ultra:false, high:true, low:false },
+  { ultra:false, high:false, low:true },
+  { ultra:false, high:false, low:true },
+];
+if (qualitySamples.some((sample, index) => Object.entries(expectedQuality[index]).some(([key, value]) => sample[key] !== value))) process.exitCode = 1;

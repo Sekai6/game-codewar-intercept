@@ -1,8 +1,14 @@
 # A-6E Intruder
 
-> Data snapshot: v1.0.0 · 2026-07-26
+> Data snapshot: v1.1.0 · 2026-07-26
 
 低空反舰攻击机，按任务航线接近并释放 AGM-84A 后脱离，不承担制空任务。其飞行包线、挂点、燃油和干扰弹仍由通用空中实体管理。验证：`npm run verify:air-strike-defense`。
+
+## v1.1 程序化模型
+
+模型以 16.69 米机长、16.15 米翼展为参考，采用统一 2 米/单位视觉尺度和独立 Ultra/High/Low 几何。识别特征包括钝头雷达罩、并列座舱、D 形肩部进气道、TRAM 炮塔、后掠折叠翼外形、闭合翼尖减速板和五个可见挂架。
+
+五个挂架都是外形资产，但当前只有左右两处反舰任务锚点接入 AGM-84A 游戏挂载。武器模型通过挂架接触面、缩放和滚转元数据定位，避免 Harpoon 与机翼分离或穿模。静态挂载验证证明接触关系，不等于反舰导弹已经完成飞行、ECM 和命中回归。
 
 ## 任务循环
 
@@ -27,4 +33,4 @@ A-6E 没有战斗机式加力；军用推力速度因子 1.42、燃油倍率 1.7
 
 可在 `link16-modernized` 年代启用 JTIDS Integration，终端可靠性 0.92；这不绕过本机水面航迹和武器条件。损伤模型与其他飞机共享发动机、雷达、飞控、武器系统和结构状态。AAR/ACMI 保留飞机任务、挂点释放、导弹父对象、目标、阶段和命中/脱靶事件。
 
-源码：`src/air/catalog.ts`、`src/air/ai/mission-planner.ts`、`src/air/missile-runtime.ts`。
+源码：`src/air/catalog.ts`、`src/air/ai/mission-planner.ts`、`src/air/missile-runtime.ts`、`src/air/model-assets/us/a6e.ts`。

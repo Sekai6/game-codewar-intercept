@@ -2,8 +2,8 @@
 
 **冷战海空联合交战与导弹拦截 3D 沙盘。** 从雷达探测、航迹质量、数据链和火控授权，到实体发射器、分阶段制导、电子战、毁伤与 AAR，整条交战链都可以观察和复核。
 
-> 文档数据戳：v1.0.0 · 2026-07-26<br>
-> 本页描述 v1.0.0 当前实现；后续版本可能调整机制、画面和单位数据。
+> 文档数据戳：v1.1.0 · 2026-07-26<br>
+> 本页描述 v1.1.0 当前实现；后续版本可能调整机制、画面和单位数据。
 
 ## 在线演示
 
@@ -11,7 +11,7 @@
 
 无需安装。推荐使用桌面版 Edge 或 Chrome；首次加载及着色器编译可能需要数秒。性能有限时使用 High 画质，WebGPU Ultra、计算云和 FFT 海洋属于实验性高负载功能。
 
-[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [v1.0.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.0.0)
+[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [v1.1.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.1.0)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -40,6 +40,18 @@ NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联�
 
 [English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md) | [Wiki](wiki/README.md)
 
+## v1.1.0 空中资产升级
+
+v1.1.0 重建了 F-14A、A-6E、MiG-29A、Tu-16K、E-2C 和 Tu-126 六型程序化飞机。所有机型采用统一的**视觉相对尺度 2 米/单位**，因此战斗机、轰炸机与大型预警机之间的尺寸关系不再由单机特例决定。每型飞机分别构建 Ultra、High、Low 三套独立几何；Ultra 会按视距降级，High 与 Low 画质也会选择对应资产，而不是共享同一高模后只隐藏装饰件。
+
+- F-14A 的机翼可在 20°–68°之间后掠；翼套挂架与机腹挂板固定在机体坐标系，不随可变翼旋转。
+- A-6E 包含并列座舱、D 形肩部进气道、TRAM 炮塔和五个可见挂架；当前两处反舰武器锚点承载 AGM-84A。
+- MiG-29A 重建 LERX、连续背脊、双发动机通道、辅助进气门、IRST 与三类翼下挂架，并承载 R-27R/R-73。
+- Tu-16K 重建玻璃机鼻、后掠翼、翼根发动机短舱、尾炮塔与翼下 KSR-5 承载梁；弹药仍属于具体飞机与具体挂点。
+- E-2C 使用 NTU 年代四叶螺旋桨、四垂尾与旋转雷达罩；Tu-126 保持大型机体、四台 NK-12 的双组反转螺旋桨和 Liana 雷达罩比例。
+
+模型验收会检查三档面数严格递减、几何对象独立、外形尺寸误差、F-14 挂架父级、表面标识归属以及 AEW 螺旋桨/雷达罩动画。静态画廊与这些结构测试只证明资产和挂载关系，不单独证明飞行 AI、导弹命中率或完整联合场景结果；后者仍由运行时回归验证。各机型细节见[空中平台目录](wiki/PLATFORMS/README.md)。
+
 ## 实机验证画面
 
 ![舰队实体发射验证](verification-fleet-launch-cycle.png)
@@ -56,6 +68,7 @@ NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联�
 
 - 独立舰艇实体：USS Long Beach (CGN-9)、USS Lake Champlain (CG-57) 与 Moskva。
 - 独立空中实体：F-14A、A-6E、Tu-16K、MiG-29A、E-2C 与 Tu-126。
+- 六型空中资产采用统一 2 米/单位视觉尺度与独立 Ultra/High/Low 程序化几何。
 - 舰空、空空与空舰武器的三维运动、动力段、转弯限制和分阶段制导。
 - 雷达地平线、RCS 距离修正、扫描周期、测量误差、航迹老化和武器级授权。
 - NTU 年代 Link 11、可选 Link 16 年代层、苏联 GCI 与海上目标指示模型。
@@ -115,7 +128,7 @@ npm run build
 
 ```text
 src/
-  air/             空中平台、飞行动力学、AI、传感器、武器与 AEW
+  air/             空中平台、飞行动力学、AI、传感器、武器、AEW 与模型资产
   fleet/           舰队、编队、Link 11、指挥与任务分配
   ships/           独立舰艇运行时、传感器、武器、ECM、CIWS 与毁伤
   ship-defense/    通用舰载交战、目标、发射器和视觉运行时
@@ -132,7 +145,7 @@ scripts/           逻辑、浏览器、截图和回归验证
 
 ## 项目状态
 
-当前发布为 `v1.0.0`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
+当前发布为 `v1.1.0`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 

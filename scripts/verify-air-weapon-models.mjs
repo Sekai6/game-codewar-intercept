@@ -26,6 +26,8 @@ const result = weapons.map(([id, guidance]) => {
     meshes,
     mapped,
     length: Number(model.userData.visualLength),
+    mountedScale: Number(model.userData.mountedScale),
+    mountedLength: Number((model.userData.visualLength * model.userData.mountedScale).toFixed(3)),
     planform: model.userData.visualProfile,
     extent: box.getSize(new THREE.Vector3()).toArray().map((value) => Number(value.toFixed(2))),
     flame: Boolean(model.userData.flame),
@@ -42,6 +44,7 @@ const ksr5SpanRatio = (ksr5.radius * 2 + Math.max(ksr5.foreFinSpan, ksr5.aftFinS
 const ksr5Rendered = result.find((weapon) => weapon.id === "KSR-5");
 if (
   result.some((weapon) => weapon.meshes < 12 || weapon.mapped < 2 || !weapon.flame || !weapon.lod) ||
+  result.some((weapon) => !Number.isFinite(weapon.mountedScale) || weapon.mountedScale <= 0) ||
   distinctLengths < 6 ||
   distinctPlanforms !== 3 ||
   !ksr5Rendered ||
@@ -51,6 +54,7 @@ if (
   ksr5FinenessRatio > 12.5 ||
   ksr5SpanRatio < .23 ||
   ksr5SpanRatio > .27 ||
-  ksr5Rendered.length < 5
+  ksr5Rendered.length < 5 ||
+  Math.abs(ksr5Rendered.mountedLength - 5.26) > .03
 )
   process.exitCode = 1;

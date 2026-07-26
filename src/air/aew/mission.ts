@@ -1,4 +1,5 @@
 import * as THREE from "three";
+export { updateAewModelAnimation } from "./model-assets/animation.js";
 
 export function aewOrbitDirection(input:{
   position:THREE.Vector3;
@@ -14,11 +15,4 @@ export function aewOrbitDirection(input:{
   tangent.addScaledVector(radial.normalize(),-radialError*.8);
   tangent.y=(input.station.y-input.position.y)*.01;
   return tangent.normalize();
-}
-
-export function updateAewModelAnimation(model:THREE.Group,dt:number,radarOperational:boolean,speedRatio:number) {
-  const rotodome=model.userData.rotodome as THREE.Group|undefined;
-  if(rotodome&&radarOperational)rotodome.rotation.y+=dt*.65;
-  const propellers=model.userData.propellers as THREE.Group[]|undefined;
-  propellers?.forEach((propeller,index)=>propeller.rotation.z+=dt*(22+speedRatio*24+index*.4));
 }

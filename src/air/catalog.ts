@@ -1,5 +1,7 @@
 import { createA6Model, createF14Model, createMig29Model, createTu16Model } from "./models";
 import { AEW_PLATFORM_DEFINITIONS } from "./aew/catalog.js";
+import { A6E_STRIKE_STATIONS } from "./model-assets/us/a6e-stations.js";
+import { F14A_WEAPON_STATIONS } from "./model-assets/us/f14a-stations.js";
 import type { AirPlatformDefinition, AirPlatformId, AirWeaponDefinition, AirWeaponId } from "./types";
 
 export const AIR_WEAPONS: Readonly<Record<AirWeaponId, AirWeaponDefinition>> = {
@@ -21,13 +23,33 @@ const f14Aerodynamics = {referenceMassKg:22000,wingAreaM2:52.5,zeroLiftDragCoeff
 const tu16Aerodynamics = {referenceMassKg:76000,wingAreaM2:164.7,zeroLiftDragCoefficient:.03,inducedDragFactor:.068,liftCurveSlopePerDeg:.075,criticalAngleOfAttackDeg:13,controlResponseSeconds:1.4,engineSpoolUpSeconds:7.2,engineSpoolDownSeconds:5.8};
 const a6Aerodynamics = {referenceMassKg:15500,wingAreaM2:49.1,zeroLiftDragCoefficient:.031,inducedDragFactor:.064,liftCurveSlopePerDeg:.09,criticalAngleOfAttackDeg:17,controlResponseSeconds:.72,engineSpoolUpSeconds:5.3,engineSpoolDownSeconds:4.1};
 const mig29Aerodynamics = {referenceMassKg:14500,wingAreaM2:38,zeroLiftDragCoefficient:.023,inducedDragFactor:.052,liftCurveSlopePerDeg:.106,criticalAngleOfAttackDeg:24,controlResponseSeconds:.38,engineSpoolUpSeconds:3.4,engineSpoolDownSeconds:2.7};
-const fighterHardpoints = [
-  ...[-1, 1].flatMap((side) => [
-    { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.7,-.31,-.1] as const, compatibleWeapons:["AIM-9L"] as const, releaseDelay:.18, ignitionDelay:.12 },
-    { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.8,-.38,.18] as const, compatibleWeapons:["AIM-54A","AIM-7F"] as const, releaseDelay:.22, ignitionDelay:.16 },
-  ]),
-  ...[-1,1].flatMap((side)=>[0,1].map(index=>({id:`tunnel-${side<0?"port":"starboard"}-${index+1}`,position:[side*.62,-.75,-.5+index*1.35] as const,compatibleWeapons:["AIM-54A","AIM-7F"] as const,releaseDelay:.2,ignitionDelay:.14}))),
-];
+const fighterHardpoints = F14A_WEAPON_STATIONS.map((station) => {
+  if (station.family === "tunnel") {
+    return {
+      id: station.id,
+      position: station.position,
+      compatibleWeapons: ["AIM-54A", "AIM-7F"] as const,
+      releaseDelay: 0.2,
+      ignitionDelay: 0.14,
+    };
+  }
+  if (station.id.endsWith("outer")) {
+    return {
+      id: station.id,
+      position: station.position,
+      compatibleWeapons: ["AIM-9L"] as const,
+      releaseDelay: 0.18,
+      ignitionDelay: 0.12,
+    };
+  }
+  return {
+    id: station.id,
+    position: station.position,
+    compatibleWeapons: ["AIM-54A", "AIM-7F"] as const,
+    releaseDelay: 0.22,
+    ignitionDelay: 0.16,
+  };
+});
 const badgerHardpoints = [-1,1].map(side=>({
   id:`wing-${side<0?"port":"starboard"}-ksr`,
   position:[side*3.85,-1.08,-.85] as const,
@@ -35,7 +57,13 @@ const badgerHardpoints = [-1,1].map(side=>({
   releaseDelay:.65,
   ignitionDelay:.8,
 }));
-const intruderHardpoints = [-1,1].map(side=>({id:`wing-${side<0?"port":"starboard"}-strike`,position:[side*2.15,-.52,.25] as const,compatibleWeapons:["AGM-84A"] as const,releaseDelay:.35,ignitionDelay:.3}));
+const intruderHardpoints = A6E_STRIKE_STATIONS.map((station) => ({
+  id: station.id,
+  position: station.position,
+  compatibleWeapons: ["AGM-84A"] as const,
+  releaseDelay: 0.35,
+  ignitionDelay: 0.3,
+}));
 const fulcrumHardpoints = [-1, 1].flatMap((side) => [
   { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.65,-.34,.18] as const, compatibleWeapons:["R-73"] as const, releaseDelay:.16, ignitionDelay:.1 },
   { id:`wing-${side<0?"port":"starboard"}-middle`, position:[side*1.85,-.43,.18] as const, compatibleWeapons:["R-27R","R-73"] as const, releaseDelay:.2, ignitionDelay:.14 },
