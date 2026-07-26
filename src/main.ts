@@ -22,7 +22,6 @@ import {
 } from "./ship-types";
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
-import { observeFleet } from "./fleet/observability";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
@@ -322,9 +321,7 @@ const tacticalNetworkRuntime = createTacticalNetworkRuntime({
   parent: document.querySelector("#app") as HTMLElement,
   observation: () => airCombat.tacticalNetworkObservation(),
   sovietObservation: () => airCombat.sovietC2Observation(),
-  fleetObservation: () => fleetIntegration
-    ? observeFleet(fleetIntegration.force, elapsed, fleetIntegration.isLink11Enabled(), fleetIntegration.networkActivities(elapsed))
-    : undefined,
+  fleetObservation: () => fleetIntegration?.observation(elapsed),
 });
 function addOceanSplash(position: THREE.Vector3, energy: number) {
   ocean.addSplash(position, energy);
@@ -3683,7 +3680,7 @@ function captureAarSnapshot(force = false) {
     elapsed,
   );
   const fleetSample = fleetIntegration
-    ? fleetAarRecorder.sample(observeFleet(fleetIntegration.force, elapsed, fleetIntegration.isLink11Enabled(), fleetIntegration.networkActivities(elapsed)), elapsed)
+    ? fleetAarRecorder.sample(fleetIntegration.observation(elapsed), elapsed)
     : undefined;
   aarEvents.push(...datalinkSample.events, ...sovietC2Sample.events, ...(fleetSample?.events ?? []));
   aarEvents.sort((a, b) => a.time - b.time);

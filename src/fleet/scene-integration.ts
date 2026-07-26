@@ -10,6 +10,7 @@ import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
 import { FleetLink11Runtime } from "./link11-runtime.js";
 import { updateForceEngagements } from "./engagement-runtime.js";
+import { observeFleet, type FleetObservation } from "./observability.js";
 import { ShipLauncherAdapter, type ShipPhysicalLaunch } from "../ships/launcher-adapter.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
@@ -127,6 +128,9 @@ export class FleetSceneIntegration {
   networkDiagnostics() { return this.link11.diagnostics(); }
   isLink11Enabled() { return this.link11.isEnabled(); }
   networkActivities(now: number) { return this.link11.activities(now); }
+  observation(now: number): FleetObservation {
+    return observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
+  }
   launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }
 
   companionTargets(): readonly TargetableEntity[] {
