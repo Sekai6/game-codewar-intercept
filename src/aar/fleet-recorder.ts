@@ -12,6 +12,7 @@ export class FleetAarRecorder {
   private assignmentStates = new Map<string, string>();
   private engagementStates = new Map<string, string>();
   private stationStates = new Map<string, string>();
+  private damageStates = new Map<string, string>();
   private configuration = "";
 
   reset() {
@@ -20,6 +21,7 @@ export class FleetAarRecorder {
     this.assignmentStates.clear();
     this.engagementStates.clear();
     this.stationStates.clear();
+    this.damageStates.clear();
     this.configuration = "";
   }
 
@@ -44,6 +46,14 @@ export class FleetAarRecorder {
       if (this.stationStates.get(member.id) !== station) {
         emit(time, "maneuver", `FLEET STATION / ${member.id} / ${member.stationStatus.toUpperCase()} / ERROR ${member.stationError.toFixed(1)}`);
         this.stationStates.set(member.id, station);
+      }
+      const damage = `${Math.floor(member.fireIntensity / 10)}|${Math.floor(member.flooding / 10)}|${member.damagedSubsystems}|${member.failedSubsystems}|${member.alive}`;
+      if (this.damageStates.get(member.id) !== damage) {
+        const previous = this.damageStates.get(member.id);
+        if (previous) {
+          emit(time, "system", `SHIP DAMAGE / ${member.id} / HULL ${member.hull.toFixed(1)} / FIRE ${Math.round(member.fireIntensity)} / FLOOD ${Math.round(member.flooding)} / SYSTEMS ${member.damagedSubsystems} DAMAGED ${member.failedSubsystems} FAILED${member.alive ? "" : " / DISABLED"}`);
+        }
+        this.damageStates.set(member.id, damage);
       }
     }
     for (const track of observation.tracks) {

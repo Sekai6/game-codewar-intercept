@@ -7,6 +7,7 @@ const member = (id, roles = []) => ({
   x: id === "blue-cg-57" ? 12 : 0, y: 0, z: 0, heading: 0, speedKnots: 18, hull: 100, alive: true,
   formationRole: id === "blue-cg-57" ? "screen" : "otc", commandRoles: roles, stationStatus: "on-station", stationError: 2,
   magazines: { rim67: 0, sm2mr: 8, sm2er: 4 }, localTracks: 1, networkTracks: 1,
+  fireIntensity: 0, flooding: 0, damagedSubsystems: 0, failedSubsystems: 0,
 });
 const observation = (assignment) => ({
   id: "blue-ntu", enabled: true, datalinkEra: "ntu", link11Enabled: true, formation: "screen",
@@ -25,6 +26,12 @@ assert.equal(sample.events.filter((event) => event.text.includes("WEAPONS AWAY")
 sample = recorder.sample(observation({ ...base, weaponsAway: 1, status: "rejected", rejectionReason: "NO_LOCAL_TRACK", updatedAt: 4 }), 4);
 assert.ok(sample.events.some((event) => event.text.includes("NO_LOCAL_TRACK")));
 assert.deepEqual(sample.snapshot.tracks[0].contributors, ["blue-cgn-9:organic-radar", "blue-cg-57:link11"]);
+const damaged = observation(null);
+damaged.members[1].fireIntensity = 35;
+damaged.members[1].flooding = 22;
+damaged.members[1].damagedSubsystems = 2;
+sample = recorder.sample(damaged, 5);
+assert.ok(sample.events.some((event) => event.text.includes("SHIP DAMAGE / blue-cg-57")));
 
 const snapshot = {
   time: 0, ship: { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0, speed: 0, verticalSpeed: 0, hull: 100 },

@@ -13,6 +13,10 @@ export interface FleetMemberObservation {
   speedKnots: number;
   hull: number;
   alive: boolean;
+  fireIntensity: number;
+  flooding: number;
+  damagedSubsystems: number;
+  failedSubsystems: number;
   formationRole: string;
   commandRoles: string[];
   stationStatus: string;
@@ -92,6 +96,10 @@ export function observeFleet(
         speedKnots: ship.speedKnots,
         hull: ship.hullIntegrity,
         alive: ship.alive,
+        fireIntensity: ship.damageControl.fireIntensity,
+        flooding: ship.damageControl.flooding,
+        damagedSubsystems: [...ship.subsystemHealth.values()].filter((health) => health < 99.5).length,
+        failedSubsystems: [...ship.subsystemHealth.values()].filter((health) => health <= 5).length,
         formationRole: force.formationRoles.get(ship.id) ?? "escort",
         commandRoles: [...force.commandRoles]
           .filter(([, owner]) => owner === ship.id)
