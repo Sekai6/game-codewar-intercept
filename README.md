@@ -640,7 +640,7 @@ game-codewar-intercept/
 
 - `main.ts` 负责把通用能力组合成一局战斗，不应包含舰名或平台 ID 特判。
 - `scenarios/` 只描述一局战斗的初始状态和可调规则，不实现武器行为。
-- `air/ship-bridge.ts` 是空中系统与水面舰运行时之间的唯一目标适配边界。
+- `air/ship-bridge.ts` 是空中系统与水面舰运行时之间的唯一目标适配边界.。
 - `ship-defense/` 管理目标映射、观察评分、武器与照射器计划、物理发射器资源、损坏隔离、完整发射生命周期和防空视觉；`main.ts` 只组装依赖与执行渲染。
 - 舰艇和飞机统一遵循 `目标来源注册 -> 传感器航迹 -> DefenseConsumer 评分 -> 资源授权 -> EngagementRecord -> 实体发射 -> 结算`。注册目标不等于探测成功，也不授予目标真值。
 - `DefenseTargetRegistry` 可以动态注册或注销新的领域来源，并拒绝重复来源名和重复目标 ID。舰载雷达、SAM、CIWS 与空中 OODA 不直接枚举某一种平台容器。
