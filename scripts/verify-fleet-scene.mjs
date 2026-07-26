@@ -24,8 +24,15 @@ try {
   await page.waitForFunction(() => {
     const canvas = document.querySelector("#scene");
     return Number(canvas?.dataset.fleetShipCount ?? 0) === 2
-      && (canvas?.dataset.fleetStationStates ?? "").includes("blue-cg-57:");
-  }, null, { timeout: 10_000 });
+      && (canvas?.dataset.fleetStationStates ?? "").includes("blue-cg-57:")
+      && canvas?.dataset.fleetLink11Ncs === "blue-cgn-9"
+      && Number(canvas?.dataset.fleetLink11RollCalls ?? 0) > 0
+      && Number(canvas?.dataset.fleetLink11Delivered ?? 0) > 0
+      && Number(canvas?.dataset.fleetPictureTracks ?? 0) > 0
+      && (canvas?.dataset.fleetNetworkTracks ?? "").split("|")
+        .some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
+      && canvas?.dataset.fleetLink11WeaponAuthority === "false";
+  }, null, { timeout: 20_000 });
   const result = await page.locator("#scene").evaluate((canvas) => ({
     fleetId: canvas.dataset.fleetId,
     ships: canvas.dataset.fleetShips,
@@ -34,8 +41,25 @@ try {
     members: canvas.dataset.fleetMemberStates,
     stations: canvas.dataset.fleetStationStates,
     localTracks: canvas.dataset.fleetLocalTracks,
+    networkTracks: canvas.dataset.fleetNetworkTracks,
+    pictureTracks: Number(canvas.dataset.fleetPictureTracks ?? 0),
     otc: canvas.dataset.fleetOtc,
+    link11Enabled: canvas.dataset.fleetLink11Enabled,
+    link11Ncs: canvas.dataset.fleetLink11Ncs,
+    link11RollCalls: Number(canvas.dataset.fleetLink11RollCalls ?? 0),
+    link11Delivered: Number(canvas.dataset.fleetLink11Delivered ?? 0),
+    link11WeaponAuthority: canvas.dataset.fleetLink11WeaponAuthority,
   }));
+  await page.locator("#sbLink16").evaluate((input) => {
+    input.checked = false;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("#scene");
+    return Number(canvas?.dataset.fleetPictureTracks ?? -1) === 0
+      && (canvas?.dataset.fleetNetworkTracks ?? "").split("|")
+        .every((entry) => Number(entry.split(":")[1] ?? 0) === 0);
+  });
   result.errors = errors;
   result.defaultCount = defaultCount;
   result.disabledCount = disabledCount;
@@ -43,6 +67,10 @@ try {
   console.log(JSON.stringify(result, null, 2));
   if (errors.length || result.defaultCount !== 0 || result.disabledCount !== 0
       || result.count !== 2 || result.otc !== "blue-cgn-9"
+      || result.link11Ncs !== "blue-cgn-9" || result.link11RollCalls <= 0
+      || result.link11Delivered <= 0 || result.pictureTracks <= 0
+      || result.link11WeaponAuthority !== "false"
+      || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || !result.members.includes("blue-cgn-9:alive")
       || !result.members.includes("blue-cg-57:alive")

@@ -9,9 +9,11 @@
 
 </div>
 
-## 舰队系统（第三阶段）
+## 舰队系统（第四阶段）
 
-舰队扩展已从领域模型开始落地。`src/ships/` 定义并创建独立的 `ShipCombatantInstance`；每艘舰分别拥有模型、位置、速度、舰体与子系统健康、弹药库、本地/网络航迹和交战账本。`src/fleet/` 定义舰队条令、编队角色、指挥角色、场景目录与 `NavalForceRuntime`，首个 `blue-ntu-screen` 场景由 CGN-9 与 CG-57 组成。第三阶段通过 `scene-integration.ts` 接入可选的 `NAVAL FORCE` 场景开关：默认仍是原有单舰模式；开启后，现有旗舰运行时被适配为 OTC，护航舰作为独立模型、机动实体和空战目标进入标准帧循环。每舰使用独立 `CombatPicture` 扫描并维护本地航迹，编队运动受平台加速、减速和转向率限制，并支持掉队状态和 OTC/AAWC/ASuW 能力化继任。NTU Link 11 仍严格保持 `CUE ONLY`。护航舰武器尚未启用；后续只有在每舰合法弹药、发射器、照射器和火控链完成实例化后才会开放射击。`npm run verify:fleet-domain`、`verify:fleet-runtime` 与单 renderer 的 `verify:fleet-scene` 分别验证资源隔离、运动/传感器/继任和实际场景装配。
+舰队扩展已从领域模型开始落地。`src/ships/` 定义并创建独立的 `ShipCombatantInstance`；每艘舰分别拥有模型、位置、速度、舰体与子系统健康、弹药库、本地/网络航迹和交战账本。`src/fleet/` 定义舰队条令、编队角色、指挥角色、场景目录与 `NavalForceRuntime`，首个 `blue-ntu-screen` 场景由 CGN-9 与 CG-57 组成。它通过可选的 `NAVAL FORCE` 开关接入，默认仍为原有单舰模式。开启后，现有旗舰运行时被适配为 OTC，护航舰作为独立模型、机动实体和空战目标进入标准帧循环；每舰使用独立 `CombatPicture` 扫描并维护本地航迹，编队运动受平台加速、减速和转向率限制，并支持掉队状态和 OTC/AAWC/ASuW 能力化继任。
+
+第四阶段在 `src/fleet/link11-runtime.ts` 增加独立于空中作战系统的舰间 Link 11 轮询回路，并由 `force-picture.ts` 生成舰队态势图。网络只发布各舰本机雷达已经获得的观测，模拟 NCS 轮询、传输延迟、丢报、质量折损、位置误差和航迹老化；匿名 `FJ-xxxxxx` 网络航迹及融合后的舰队图始终为 `weaponQuality: false`。关闭战术数据链会立即清空舰间网络航迹和舰队图。护航舰武器仍未启用；后续必须依次经过 `AAWC 分配 -> 射手舰本地火控航迹 -> 本舰弹药/通道/照射器 -> 本舰发射队列 -> 实体离架`，舰队层不会生成 SAM。`npm run verify:fleet-link11` 验证网络语义，单 renderer 的 `verify:fleet-scene` 验证真实场景轮询、交付、cue-only 边界及关闭清理。
 
 ## 联合空中作战
 

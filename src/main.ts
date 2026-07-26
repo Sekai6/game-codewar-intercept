@@ -6211,6 +6211,7 @@ function updateCombat(dt: number) {
       altitudeMeters: target.mesh.position.y * 50,
     }] : []),
   );
+  fleetIntegration?.updateNetwork(elapsed, link16Input.checked);
   const radarState = combatPicture.getSearchState(),
     primaryTracks = [...combatPicture.tracks.values()].filter((track) =>
       track.sensorContributors.includes(primarySensor),
@@ -6249,6 +6250,18 @@ function updateCombat(dt: number) {
     canvas.dataset.fleetOtc = fleetIntegration.force.commandRoles.get("otc") ?? "";
     canvas.dataset.fleetLocalTracks = [...fleetIntegration.force.ships.values()]
       .map((ship) => `${ship.id}:${ship.localTracks.size}`).join("|");
+    canvas.dataset.fleetNetworkTracks = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:${ship.networkTracks.size}`).join("|");
+    canvas.dataset.fleetPictureTracks = String(fleetIntegration.force.picture.size);
+    const fleetLink11 = fleetIntegration.networkDiagnostics();
+    canvas.dataset.fleetLink11Enabled = String(link16Input.checked);
+    canvas.dataset.fleetLink11Ncs = fleetLink11.netControlStation ?? "";
+    canvas.dataset.fleetLink11RollCalls = String(fleetLink11.rollCalls);
+    canvas.dataset.fleetLink11Delivered = String(fleetLink11.delivered);
+    canvas.dataset.fleetLink11WeaponAuthority = String(
+      [...fleetIntegration.force.ships.values()].some((ship) =>
+        [...ship.networkTracks.values()].some((track) => track.weaponQuality)),
+    );
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
   else updateVlsCells(dt);

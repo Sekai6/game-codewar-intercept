@@ -6,6 +6,7 @@ import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-r
 import { reassessFleetCommand } from "./command-runtime.js";
 import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
+import { FleetLink11Runtime } from "./link11-runtime.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -34,6 +35,7 @@ export class FleetSceneIntegration {
   private readonly externalShips: ReadonlySet<string>;
   private readonly companions: ShipCombatantInstance[];
   private readonly sensors = new ShipSensorRuntime();
+  private readonly link11 = new FleetLink11Runtime();
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
@@ -89,6 +91,13 @@ export class FleetSceneIntegration {
     for (const ship of this.force.ships.values()) this.sensors.update(ship, now, dt, observations);
   }
 
+  updateNetwork(now: number, enabled: boolean) {
+    this.link11.update(this.force, now, enabled);
+  }
+
+  networkDiagnostics() { return this.link11.diagnostics(); }
+  networkActivities(now: number) { return this.link11.activities(now); }
+
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
   }
@@ -128,6 +137,7 @@ export class FleetSceneIntegration {
     this.force.formationState.stations.clear();
     this.force.formationState.lastCommandReassessmentAt = Number.NEGATIVE_INFINITY;
     this.sensors.reset();
+    this.link11.reset(this.force);
   }
 
   dispose() {
