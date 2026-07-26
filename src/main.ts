@@ -260,7 +260,7 @@ const hizConsumerMode = visualValidationParams.get("hizConsumers");
 hizScreenSpacePass.setConsumerMix(hizConsumerMode !== "contact", hizConsumerMode !== "ao");
 // SSR remains opt-in until moving-camera validation is free of hull-shaped ghosts.
 hizScreenSpacePass.setSsrEnabled(hizConsumerMode === "ssr");
-const ultraInternalScale = innerWidth >= 1920 ? 1 : 0.85;
+const ultraInternalScale = innerWidth * Math.min(devicePixelRatio, 2) >= 1920 ? 1 : 0.85;
 temporalReconstructionPass.setOutputSize(Math.round(innerWidth * displayPixelRatio), Math.round(innerHeight * displayPixelRatio));
 canvas.dataset.renderPipeline = "webgl2-pbr-ssao-bloom-aces";
 canvas.dataset.ssaoEnabled = String(ssaoPass.enabled);
