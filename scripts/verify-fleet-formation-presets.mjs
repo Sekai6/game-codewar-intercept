@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { defaultFormationStation } from "../dist-test/fleet/formation-presets.js";
+import {
+  FLEET_FORMATION_OPTIONS,
+  defaultFormationStation,
+  parseFleetFormation,
+} from "../dist-test/fleet/formation-presets.js";
+
+if (FLEET_FORMATION_OPTIONS.length !== 4) throw new Error("Expected four selectable formations");
+if (parseFleetFormation("column") !== "column") throw new Error("Known formation was not parsed");
+if (parseFleetFormation("invalid") !== "screen") throw new Error("Invalid formation must fall back to screen");
 const expected = {
   screen: [ -85, 0, 55 ],
   "line-abreast": [ -95, 0, 0 ],

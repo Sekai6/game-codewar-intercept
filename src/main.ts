@@ -24,6 +24,7 @@ import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
 import { fleetCameraFrame } from "./fleet/camera";
 import type { FleetFormation } from "./fleet/types";
+import { FLEET_FORMATION_OPTIONS, parseFleetFormation } from "./fleet/formation-presets";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
@@ -236,9 +237,7 @@ composer.addPass(outputPass);
 const displayPixelRatio = Math.min(devicePixelRatio, 2);
 const visualValidationParams = new URLSearchParams(location.search);
 const requestedFleetFormation = visualValidationParams.get("fleetFormation");
-const fleetFormation: FleetFormation = requestedFleetFormation === "line-abreast" || requestedFleetFormation === "column" || requestedFleetFormation === "dispersed"
-  ? requestedFleetFormation
-  : "screen";
+let fleetFormation: FleetFormation = parseFleetFormation(requestedFleetFormation);
 const ultraAtmosphereMode = visualValidationParams.get("ultraAtmosphere") ?? "both";
 const ultraOceanFftEnabled = visualValidationParams.get("oceanFFT") !== "off";
 const ultraOceanWakeEnabled = visualValidationParams.get("oceanWake") !== "off";
@@ -2265,6 +2264,7 @@ function rebuildFleetIntegration() {
   if (!fleetModeEnabled) {
     fleetOverviewCamera = false;
     canvas.dataset.fleetId = "";
+    canvas.dataset.fleetFormation = "";
     canvas.dataset.fleetShips = "";
     canvas.dataset.fleetShipCount = "0";
     canvas.dataset.fleetCompanionTargets = "";
@@ -2313,6 +2313,7 @@ function rebuildFleetIntegration() {
     log,
   });
   canvas.dataset.fleetId = fleetIntegration.force.id;
+  canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
 }
 let aarSnapshots: AarSnapshot[] = [],
@@ -2492,6 +2493,18 @@ fleetScenarioField.innerHTML =
   '<input id="sbFleetMode" type="checkbox"> NAVAL FORCE / CGN-9 + CG-57 SCREEN';
 sandbox.insertBefore(fleetScenarioField, sandbox.querySelector("#sbStart"));
 const fleetScenarioInput = fleetScenarioField.querySelector("input") as HTMLInputElement;
+const fleetFormationField = document.createElement("label");
+fleetFormationField.className = "sandbox-field";
+fleetFormationField.innerHTML = `<span>FORMATION</span><select id="sbFleetFormation">${FLEET_FORMATION_OPTIONS.map(
+  (option) => `<option value="${option.id}">${option.label}</option>`,
+).join("")}</select>`;
+sandbox.insertBefore(fleetFormationField, sandbox.querySelector("#sbStart"));
+const fleetFormationInput = fleetFormationField.querySelector("select") as HTMLSelectElement;
+fleetFormationInput.value = fleetFormation;
+fleetFormationInput.addEventListener("change", () => {
+  fleetFormation = parseFleetFormation(fleetFormationInput.value);
+  if (fleetModeEnabled) rebuildFleetIntegration();
+});
 fleetScenarioInput.addEventListener("change", () => {
   fleetModeEnabled = fleetScenarioInput.checked;
   rebuildFleetIntegration();

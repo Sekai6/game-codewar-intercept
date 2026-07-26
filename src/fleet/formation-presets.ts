@@ -2,6 +2,24 @@ import type { FleetFormation, FleetFormationRole } from "./types.js";
 
 export type FormationStation = readonly [number, number, number];
 
+export interface FleetFormationOption {
+  id: FleetFormation;
+  label: string;
+}
+
+export const FLEET_FORMATION_OPTIONS: readonly FleetFormationOption[] = [
+  { id: "screen", label: "Screen" },
+  { id: "line-abreast", label: "Line abreast" },
+  { id: "column", label: "Column" },
+  { id: "dispersed", label: "Dispersed" },
+];
+
+export function parseFleetFormation(value: string | null | undefined): FleetFormation {
+  return FLEET_FORMATION_OPTIONS.some((option) => option.id === value)
+    ? value as FleetFormation
+    : "screen";
+}
+
 /** Default relative slots in meters; scenarios may override individual entries. */
 export function defaultFormationStation(
   formation: FleetFormation,

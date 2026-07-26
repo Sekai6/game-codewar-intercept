@@ -16,16 +16,22 @@ try {
     waitUntil: "domcontentloaded", timeout: 15_000,
   });
   const defaultCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount ?? 0));
+  await page.locator("#sbFleetFormation").selectOption("line-abreast");
   await page.locator("#sbFleetMode").check();
   await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShips?.split("|").length ?? 0) === 2);
+  await page.waitForFunction(() => document.querySelector("#scene")?.dataset.fleetFormation === "line-abreast");
+  await page.locator("#sbFleetFormation").selectOption("column");
+  await page.waitForFunction(() => document.querySelector("#scene")?.dataset.fleetFormation === "column");
   await page.locator("#sbFleetMode").uncheck();
   await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShipCount ?? -1) === 0);
   const disabledState = await page.locator("#scene").evaluate((canvas) => ({
     count: Number(canvas.dataset.fleetShipCount),
     overview: canvas.dataset.cameraFleetOverview,
+    formation: canvas.dataset.fleetFormation,
   }));
   const disabledCount = disabledState.count;
   const disabledOverview = disabledState.overview;
+  const disabledFormation = disabledState.formation;
   await page.locator("#sbFleetMode").check();
   await page.locator("#sbStart").click();
   await page.getByRole("button", { name: "TIME: 1X" }).click();
@@ -66,6 +72,7 @@ try {
   }
   const result = await page.locator("#scene").evaluate((canvas) => ({
     fleetId: canvas.dataset.fleetId,
+    formation: canvas.dataset.fleetFormation,
     ships: canvas.dataset.fleetShips,
     count: Number(canvas.dataset.fleetShipCount ?? 0),
     companionTargets: canvas.dataset.fleetCompanionTargets,
@@ -114,6 +121,8 @@ try {
   console.log(JSON.stringify(result, null, 2));
   if (errors.length || result.defaultCount !== 0 || result.disabledCount !== 0
       || disabledOverview === "true"
+      || disabledFormation !== ""
+      || result.formation !== "column"
       || result.count !== 2 || result.otc !== "blue-cgn-9"
       || result.link11Ncs !== "blue-cgn-9" || result.link11RollCalls <= 0
       || result.link11Delivered <= 0 || result.pictureTracks <= 0
