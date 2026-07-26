@@ -1,5 +1,21 @@
 import type { FleetFormation, NavalForceScenario } from "./types.js";
 
+export function validateNavalForceScenario(scenario: NavalForceScenario): void {
+  if (!scenario.id || !scenario.ships.length) throw new Error("Fleet scenario requires an id and at least one ship");
+  const ids = new Set<string>();
+  const roles = new Set<string>();
+  for (const ship of scenario.ships) {
+    if (ids.has(ship.instanceId)) throw new Error(`Duplicate fleet ship: ${ship.instanceId}`);
+    ids.add(ship.instanceId);
+    if (!ship.definitionId) throw new Error(`Fleet ship ${ship.instanceId} has no definition`);
+    for (const role of ship.commandRoles) {
+      if (roles.has(role)) throw new Error(`Duplicate fleet command role: ${role}`);
+      roles.add(role);
+    }
+  }
+  if (!roles.has("otc")) throw new Error(`Fleet ${scenario.id} has no OTC`);
+}
+
 export const NAVAL_FORCE_SCENARIOS: Readonly<Record<string, NavalForceScenario>> = {
   "blue-ntu-screen": {
     id: "blue-ntu-screen",

@@ -4,12 +4,14 @@ import { createShipCombatant } from "../ships/ship-runtime.js";
 import { FLEET_DOCTRINES } from "./doctrine.js";
 import { defaultFormationStation } from "./formation-presets.js";
 import type { FleetCommandRole, NavalForceRuntime, NavalForceScenario } from "./types.js";
+import { validateNavalForceScenario } from "./scenarios.js";
 
 export function createNavalForceRuntime(
   scenario: NavalForceScenario,
   definitions: ReadonlyMap<string, ShipDefinition>,
   modelOverrides: ReadonlyMap<string, THREE.Group> = new Map(),
 ): NavalForceRuntime {
+  validateNavalForceScenario(scenario);
   const doctrine = FLEET_DOCTRINES[scenario.doctrineId];
   if (!doctrine) throw new Error(`Unknown fleet doctrine: ${scenario.doctrineId}`);
   const ships = new Map();
