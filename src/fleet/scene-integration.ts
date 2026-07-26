@@ -18,6 +18,7 @@ import { ShipCiwsRuntime, type ShipCiwsTargetProfile } from "../ships/ciws-runti
 import { ShipDamageControlRuntime } from "../ships/damage-control-runtime.js";
 import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import { FleetDamageVisuals } from "./damage-visuals.js";
+import { FleetLaunchObservability } from "./launch-observability.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -63,6 +64,7 @@ export class FleetSceneIntegration {
   private readonly damageVisuals = new FleetDamageVisuals();
   private readonly ciws = new ShipCiwsRuntime();
   private readonly damageControl = new ShipDamageControlRuntime();
+  readonly launchObservability = new FleetLaunchObservability();
   private currentTime = 0;
   private ciwsEnabled = true;
 
@@ -97,7 +99,10 @@ export class FleetSceneIntegration {
           force: this.force,
           ship,
           resolveTarget: options.resolveDefenseTarget,
-          launch: options.launchInterceptor,
+          launch: (event) => {
+            this.launchObservability.record(event, this.currentTime);
+            return options.launchInterceptor!(event);
+          },
           launchEffect: options.launchEffect,
           log: options.log ?? (() => undefined),
         }));
@@ -168,6 +173,10 @@ export class FleetSceneIntegration {
   networkActivities(now: number) { return this.link11.activities(now); }
   observation(now: number): FleetObservation {
     return observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
+  }
+
+  recentPhysicalLaunches(maxAge = 8) {
+    return this.launchObservability.recent(maxAge, this.currentTime);
   }
   launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }
 
