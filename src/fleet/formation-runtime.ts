@@ -8,6 +8,7 @@ const STRAGGLING_DISTANCE = 90;
 export interface FormationUpdateInput {
   force: NavalForceRuntime;
   dt: number;
+  externallyIntegratedShipIds?: ReadonlySet<string>;
 }
 
 function stationWorldPosition(
@@ -28,7 +29,7 @@ function normalizeAngle(angle: number) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
-export function updateFleetFormation({ force, dt }: FormationUpdateInput) {
+export function updateFleetFormation({ force, dt, externallyIntegratedShipIds }: FormationUpdateInput) {
   if (!(dt > 0)) return;
   const anchor = force.ships.get(force.formationState.anchorShipId);
   if (!anchor?.alive) return;
@@ -61,7 +62,7 @@ export function updateFleetFormation({ force, dt }: FormationUpdateInput) {
         force.formationState.speedKnots + catchup * 8,
       );
       const desiredHeading = errorDistance > ON_STATION_DISTANCE
-        ? Math.atan2(offset.x, offset.z)
+        ? Math.atan2(-offset.z, offset.x)
         : force.formationState.heading;
       const maximumTurn = THREE.MathUtils.degToRad(ship.definition.platform.turnRateDeg) * dt;
       ship.heading += THREE.MathUtils.clamp(
@@ -69,12 +70,20 @@ export function updateFleetFormation({ force, dt }: FormationUpdateInput) {
       );
     }
 
+    if (externallyIntegratedShipIds?.has(ship.id)) {
+      force.formationState.stations.set(shipId, {
+        desiredPosition: desired.toArray(), errorDistance,
+        status: errorDistance <= ON_STATION_DISTANCE ? "on-station" : "maneuvering",
+      });
+      continue;
+    }
+
     const speedDelta = ship.commandedSpeedKnots - ship.speedKnots;
     const speedRate = speedDelta >= 0
       ? ship.definition.platform.accelerationKnotsPerSecond
       : ship.definition.platform.decelerationKnotsPerSecond;
     ship.speedKnots += THREE.MathUtils.clamp(speedDelta, -speedRate * dt, speedRate * dt);
-    ship.velocity.set(Math.sin(ship.heading), 0, Math.cos(ship.heading))
+    ship.velocity.set(Math.cos(ship.heading), 0, -Math.sin(ship.heading))
       .multiplyScalar(ship.speedKnots * KNOTS_TO_WORLD_UNITS_PER_SECOND);
     ship.position.addScaledVector(ship.velocity, dt);
     ship.model.rotation.y = ship.heading;

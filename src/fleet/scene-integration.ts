@@ -1,0 +1,136 @@
+import * as THREE from "three";
+import type { TargetableEntity } from "../combat-entity.js";
+import type { ShipDefinition, SubsystemId } from "../ship-types.js";
+import type { ShipCombatantInstance } from "../ships/types.js";
+import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-runtime.js";
+import { reassessFleetCommand } from "./command-runtime.js";
+import { createNavalForceRuntime } from "./force-runtime.js";
+import { updateFleetFormation } from "./formation-runtime.js";
+import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
+
+export interface LegacyFlagshipSnapshot {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  heading: number;
+  speedKnots: number;
+  commandedSpeedKnots: number;
+  hullIntegrity: number;
+  subsystemHealth: ReadonlyMap<SubsystemId, number>;
+}
+
+export interface FleetSceneIntegrationOptions {
+  scene: THREE.Scene;
+  scenario: NavalForceScenario;
+  definitions: ReadonlyMap<string, ShipDefinition>;
+  flagshipModel: THREE.Group;
+  flagshipSnapshot: () => LegacyFlagshipSnapshot;
+  applyFlagshipDamage: (damage: number, hitPoint: THREE.Vector3) => void;
+  registerModel?: (model: THREE.Group) => void;
+}
+
+export class FleetSceneIntegration {
+  readonly force: NavalForceRuntime;
+  readonly flagshipId: string;
+  private readonly externalShips: ReadonlySet<string>;
+  private readonly companions: ShipCombatantInstance[];
+  private readonly sensors = new ShipSensorRuntime();
+
+  constructor(private readonly options: FleetSceneIntegrationOptions) {
+    const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
+    if (!scenarioOtc) throw new Error(`Fleet ${options.scenario.id} has no OTC model owner`);
+    this.force = createNavalForceRuntime(
+      options.scenario,
+      options.definitions,
+      new Map([[scenarioOtc.instanceId, options.flagshipModel]]),
+    );
+    this.flagshipId = this.force.commandRoles.get("otc")!;
+    this.externalShips = new Set([this.flagshipId]);
+    const flagship = this.force.ships.get(this.flagshipId)!;
+    flagship.applyDamage = options.applyFlagshipDamage;
+    this.companions = [...this.force.ships.values()].filter((ship) => ship.id !== this.flagshipId);
+    for (const ship of this.companions) {
+      ship.model.userData.fleetShipId = ship.id;
+      ship.model.userData.fleetRole = this.force.formationRoles.get(ship.id);
+      ship.model.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = true;
+          object.receiveShadow = true;
+        }
+      });
+      options.registerModel?.(ship.model);
+      options.scene.add(ship.model);
+    }
+    this.syncFlagship();
+  }
+
+  private syncFlagship() {
+    const state = this.options.flagshipSnapshot();
+    const flagship = this.force.ships.get(this.flagshipId)!;
+    flagship.velocity.copy(state.velocity);
+    flagship.heading = state.heading;
+    flagship.speedKnots = state.speedKnots;
+    flagship.commandedSpeedKnots = state.commandedSpeedKnots;
+    flagship.hullIntegrity = state.hullIntegrity;
+    flagship.alive = state.hullIntegrity > 0;
+    for (const [id, health] of state.subsystemHealth) flagship.subsystemHealth.set(id, health);
+  }
+
+  update(now: number, dt: number) {
+    this.syncFlagship();
+    reassessFleetCommand(this.force, now);
+    updateFleetFormation({
+      force: this.force,
+      dt,
+      externallyIntegratedShipIds: this.externalShips,
+    });
+  }
+
+  updateSensors(now: number, dt: number, observations: readonly ShipSensorObservation[]) {
+    for (const ship of this.force.ships.values()) this.sensors.update(ship, now, dt, observations);
+  }
+
+  companionTargets(): readonly TargetableEntity[] {
+    return this.companions;
+  }
+
+  reset() {
+    this.force.commandRoles.clear();
+    const flagship = this.force.ships.get(this.flagshipId)!;
+    for (const entry of this.options.scenario.ships) {
+      const ship = this.force.ships.get(entry.instanceId);
+      if (!ship) continue;
+      for (const role of entry.commandRoles) this.force.commandRoles.set(role, ship.id);
+      if (ship.id === this.flagshipId) continue;
+      const [stationX, stationY, stationZ] = entry.station;
+      const sin = Math.sin(flagship.heading), cos = Math.cos(flagship.heading);
+      ship.position.set(
+        flagship.position.x + stationX * cos + stationZ * sin,
+        flagship.position.y + stationY,
+        flagship.position.z - stationX * sin + stationZ * cos,
+      );
+      ship.heading = flagship.heading;
+      ship.model.rotation.y = flagship.heading;
+      ship.speedKnots = entry.initialSpeedKnots ?? ship.definition.platform.patrolSpeedKnots;
+      ship.commandedSpeedKnots = ship.speedKnots;
+      ship.hullIntegrity = 100;
+      ship.alive = true;
+      ship.localTracks.clear();
+      ship.networkTracks.clear();
+      ship.engagements.clear();
+      ship.magazines.rounds.set("RIM-67", entry.loadout?.["RIM-67"] ?? ship.definition.ammo.rim67);
+      ship.magazines.rounds.set("SM-2MR", entry.loadout?.["SM-2MR"] ?? ship.definition.ammo.sm2mr);
+      ship.magazines.rounds.set("SM-2ER", entry.loadout?.["SM-2ER"] ?? ship.definition.ammo.sm2er);
+      ship.magazines.ciws = entry.loadout?.ciws ?? ship.definition.ammo.ciws;
+      ship.magazines.surfaceStrike = entry.loadout?.surfaceStrike ?? ship.definition.surfaceStrike?.magazine ?? 0;
+      for (const id of ship.subsystemHealth.keys()) ship.subsystemHealth.set(id, 100);
+    }
+    this.force.formationState.anchorShipId = this.flagshipId;
+    this.force.formationState.stations.clear();
+    this.force.formationState.lastCommandReassessmentAt = Number.NEGATIVE_INFINITY;
+    this.sensors.reset();
+  }
+
+  dispose() {
+    for (const ship of this.companions) this.options.scene.remove(ship.model);
+  }
+}

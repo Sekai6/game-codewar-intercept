@@ -1,0 +1,52 @@
+import { chromium } from "playwright-core";
+
+const browser = await chromium.launch({
+  headless: true,
+  executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
+});
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+page.on("pageerror", (error) => errors.push(error.message));
+try {
+  await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/", {
+    waitUntil: "domcontentloaded", timeout: 15_000,
+  });
+  const defaultCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount ?? 0));
+  await page.locator("#sbFleetMode").check();
+  await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShips?.split("|").length ?? 0) === 2);
+  await page.locator("#sbFleetMode").uncheck();
+  await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShipCount ?? -1) === 0);
+  const disabledCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount));
+  await page.locator("#sbFleetMode").check();
+  await page.locator("#sbStart").click();
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("#scene");
+    return Number(canvas?.dataset.fleetShipCount ?? 0) === 2
+      && (canvas?.dataset.fleetStationStates ?? "").includes("blue-cg-57:");
+  }, null, { timeout: 10_000 });
+  const result = await page.locator("#scene").evaluate((canvas) => ({
+    fleetId: canvas.dataset.fleetId,
+    ships: canvas.dataset.fleetShips,
+    count: Number(canvas.dataset.fleetShipCount ?? 0),
+    companionTargets: canvas.dataset.fleetCompanionTargets,
+    members: canvas.dataset.fleetMemberStates,
+    stations: canvas.dataset.fleetStationStates,
+    localTracks: canvas.dataset.fleetLocalTracks,
+    otc: canvas.dataset.fleetOtc,
+  }));
+  result.errors = errors;
+  result.defaultCount = defaultCount;
+  result.disabledCount = disabledCount;
+  await page.screenshot({ path: "verification-fleet-scene.png", fullPage: true });
+  console.log(JSON.stringify(result, null, 2));
+  if (errors.length || result.defaultCount !== 0 || result.disabledCount !== 0
+      || result.count !== 2 || result.otc !== "blue-cgn-9"
+      || !result.companionTargets.includes("blue-cg-57")
+      || !result.members.includes("blue-cgn-9:alive")
+      || !result.members.includes("blue-cg-57:alive")
+      || !result.localTracks.includes("blue-cgn-9:")) process.exitCode = 1;
+} finally {
+  await browser.close();
+}

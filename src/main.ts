@@ -20,6 +20,8 @@ import {
   type SubsystemId,
 } from "./ship-types";
 import { createShipCatalog } from "./ship-catalog";
+import { FleetSceneIntegration } from "./fleet/scene-integration";
+import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import {
   createFaceHealth,
   damageSensorFace,
@@ -2070,6 +2072,7 @@ function configureShip(shipClass: ShipClass) {
   log(
     `SHIP SELECT / ${activeShip.name} ${activeShip.hullNumber} / ${activeShip.era} / ${activeShip.launcher.displayName}`,
   );
+  rebuildFleetIntegration();
 }
 function damageSubsystem(
   id: SubsystemId,
@@ -2237,6 +2240,45 @@ let shipSpeedKnots = DEFAULT_SURFACE_CONFIG.initialSpeedKnots,
   nextShipDecision = 0,
   shipManeuverThreatId: number | string = 0;
 const shipWakePosition = new THREE.Vector3();
+let fleetIntegration: FleetSceneIntegration | null = null,
+  fleetModeEnabled = false;
+function rebuildFleetIntegration() {
+  fleetIntegration?.dispose();
+  fleetIntegration = null;
+  if (!fleetModeEnabled) {
+    canvas.dataset.fleetId = "";
+    canvas.dataset.fleetShips = "";
+    canvas.dataset.fleetShipCount = "0";
+    canvas.dataset.fleetCompanionTargets = "";
+    return;
+  }
+  const scenario = blueNtuScreenForFlagship(activeShip.id);
+  fleetIntegration = new FleetSceneIntegration({
+    scene,
+    scenario,
+    definitions: SHIP_DEFINITIONS,
+    flagshipModel: defender,
+    registerModel: registerShipAssetLod,
+    flagshipSnapshot: () => ({
+      position: defender.position,
+      velocity: new THREE.Vector3(1, 0, 0)
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), defender.rotation.y)
+        .multiplyScalar(shipSpeedKnots * 0.005144),
+      heading: defender.rotation.y,
+      speedKnots: shipSpeedKnots,
+      commandedSpeedKnots: shipCommandedSpeedKnots,
+      hullIntegrity,
+      subsystemHealth: new Map(subsystemList.map((system) => [system.id, system.health])),
+    }),
+    applyFlagshipDamage: (damage, hitPoint) => {
+      hullIntegrity = Math.max(0, hullIntegrity - damage);
+      createExplosion(hitPoint.clone());
+      if (hullIntegrity <= 0) phaseEl.textContent = "SHIP DISABLED";
+    },
+  });
+  canvas.dataset.fleetId = fleetIntegration.force.id;
+  canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
+}
 let aarSnapshots: AarSnapshot[] = [],
   aarEvents: AarEvent[] = [],
   nextAarSnapshot = 0,
@@ -2408,6 +2450,16 @@ sandbox.insertBefore(airScenarioField, sandbox.querySelector("#sbStart"));
 const airScenarioInput = airScenarioField.querySelector(
   "input",
 ) as HTMLInputElement;
+const fleetScenarioField = document.createElement("label");
+fleetScenarioField.className = "sandbox-toggle";
+fleetScenarioField.innerHTML =
+  '<input id="sbFleetMode" type="checkbox"> NAVAL FORCE / CGN-9 + CG-57 SCREEN';
+sandbox.insertBefore(fleetScenarioField, sandbox.querySelector("#sbStart"));
+const fleetScenarioInput = fleetScenarioField.querySelector("input") as HTMLInputElement;
+fleetScenarioInput.addEventListener("change", () => {
+  fleetModeEnabled = fleetScenarioInput.checked;
+  rebuildFleetIntegration();
+});
 const advancedAirAiField = document.createElement("label");
 advancedAirAiField.className = "sandbox-toggle";
 advancedAirAiField.innerHTML =
@@ -2702,6 +2754,7 @@ const airScenarioContext = createAirScenarioContext(() => {
     blueVelocity,
     blueRcs: activeShip.platform.radarRcs,
     blueAlive: hullIntegrity > 0,
+    additionalTargets: fleetIntegration?.companionTargets() ?? [],
     redShip,
     datalinkEra: datalinkEraInput.value as DatalinkEra,
     datalinkEnabled: link16Input.checked,
@@ -3434,6 +3487,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     nextShipDecision = 0;
     shipManeuverThreatId = 0;
     defender.rotation.y = 0;
+    fleetIntegration?.reset();
     ocean.setVesselWake(defender.position, 0, 0);
   },
   true,
@@ -6149,6 +6203,14 @@ function updateCombat(dt: number) {
     defender.position,
     aspectHealth,
   );
+  fleetIntegration?.updateSensors(
+    elapsed,
+    dt,
+    allDefenseTargets().flatMap((target) => target.entity ? [{
+      entity: target.entity,
+      altitudeMeters: target.mesh.position.y * 50,
+    }] : []),
+  );
   const radarState = combatPicture.getSearchState(),
     primaryTracks = [...combatPicture.tracks.values()].filter((track) =>
       track.sensorContributors.includes(primarySensor),
@@ -6173,6 +6235,21 @@ function updateCombat(dt: number) {
   canvas.dataset.radarBackgroundTracks = String(outsideFocus);
   updateSurfaceCombat(dt, primarySensor, secondarySensor, aspectHealth);
   updateShipManeuver(dt);
+  fleetIntegration?.update(elapsed, dt);
+  if (fleetIntegration) {
+    canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
+    canvas.dataset.fleetCompanionTargets = fleetIntegration.companionTargets()
+      .map((target) => target.id).join("|");
+    canvas.dataset.fleetMemberStates = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:${ship.alive ? "alive" : "disabled"}:${ship.hullIntegrity.toFixed(0)}:${ship.position.x.toFixed(1)},${ship.position.z.toFixed(1)}`)
+      .join("|");
+    canvas.dataset.fleetStationStates = [...fleetIntegration.force.formationState.stations]
+      .map(([id, station]) => `${id}:${station.status}:${station.errorDistance.toFixed(1)}`)
+      .join("|");
+    canvas.dataset.fleetOtc = fleetIntegration.force.commandRoles.get("otc") ?? "";
+    canvas.dataset.fleetLocalTracks = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:${ship.localTracks.size}`).join("|");
+  }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
   else updateVlsCells(dt);
   combatPicture.drainEvents().forEach((event) => log(event));

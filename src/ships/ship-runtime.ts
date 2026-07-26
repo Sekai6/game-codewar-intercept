@@ -13,6 +13,8 @@ export interface CreateShipCombatantInput {
   forceId: string;
   side: CombatSide;
   definition: ShipDefinition;
+  model?: THREE.Group;
+  preserveModelTransform?: boolean;
   position: THREE.Vector3;
   heading: number;
   initialSpeedKnots?: number;
@@ -20,12 +22,14 @@ export interface CreateShipCombatantInput {
 }
 
 export function createShipCombatant(input: CreateShipCombatantInput): ShipCombatantInstance {
-  const model = input.definition.build();
-  model.position.copy(input.position);
-  model.rotation.y = input.heading;
+  const model = input.model ?? input.definition.build();
+  if (!input.preserveModelTransform) {
+    model.position.copy(input.position);
+    model.rotation.y = input.heading;
+  }
   const speedKnots = input.initialSpeedKnots ?? input.definition.platform.patrolSpeedKnots;
-  const velocity = new THREE.Vector3(Math.sin(input.heading), 0, Math.cos(input.heading))
-    .multiplyScalar(speedKnots / 360);
+  const velocity = new THREE.Vector3(Math.cos(input.heading), 0, -Math.sin(input.heading))
+    .multiplyScalar(speedKnots * 0.005144);
   const rounds = new Map<ShipWeapon, number>([
     ["RIM-67", input.loadout?.["RIM-67"] ?? input.definition.ammo.rim67],
     ["SM-2MR", input.loadout?.["SM-2MR"] ?? input.definition.ammo.sm2mr],
@@ -70,4 +74,3 @@ export function createShipCombatant(input: CreateShipCombatantInput): ShipCombat
   };
   return instance;
 }
-

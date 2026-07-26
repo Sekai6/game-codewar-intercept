@@ -7,6 +7,7 @@ import type { FleetCommandRole, NavalForceRuntime, NavalForceScenario } from "./
 export function createNavalForceRuntime(
   scenario: NavalForceScenario,
   definitions: ReadonlyMap<string, ShipDefinition>,
+  modelOverrides: ReadonlyMap<string, THREE.Group> = new Map(),
 ): NavalForceRuntime {
   const doctrine = FLEET_DOCTRINES[scenario.doctrineId];
   if (!doctrine) throw new Error(`Unknown fleet doctrine: ${scenario.doctrineId}`);
@@ -23,6 +24,8 @@ export function createNavalForceRuntime(
       forceId: scenario.id,
       side: scenario.side,
       definition,
+      model: modelOverrides.get(entry.instanceId),
+      preserveModelTransform: modelOverrides.has(entry.instanceId),
       position: new THREE.Vector3(...entry.position),
       heading: entry.heading,
       initialSpeedKnots: entry.initialSpeedKnots,

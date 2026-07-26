@@ -31,3 +31,30 @@ export const NAVAL_FORCE_SCENARIOS: Readonly<Record<string, NavalForceScenario>>
   },
 };
 
+export function blueNtuScreenForFlagship(definitionId: string): NavalForceScenario {
+  const base = NAVAL_FORCE_SCENARIOS["blue-ntu-screen"];
+  if (definitionId === "long-beach") return base;
+  const flagship = base.ships.find((ship) => ship.definitionId === definitionId);
+  if (!flagship) throw new Error(`No NTU fleet station for flagship definition: ${definitionId}`);
+  const escorts = base.ships.filter((ship) => ship.definitionId !== definitionId);
+  return {
+    ...base,
+    id: `${base.id}-${definitionId}-flagship`,
+    ships: [
+      {
+        ...flagship,
+        position: base.ships[0].position,
+        station: [0, 0, 0],
+        formationRole: "command",
+        commandRoles: ["otc", "aawc"],
+      },
+      ...escorts.map((ship, index) => ({
+        ...ship,
+        position: [-180 - index * 70, 0, -80 - index * 60] as const,
+        station: [-180 - index * 70, 0, -120 - index * 60] as const,
+        formationRole: "picket" as const,
+        commandRoles: ["asuwc"] as const,
+      })),
+    ],
+  };
+}
