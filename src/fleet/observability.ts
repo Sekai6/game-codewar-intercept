@@ -68,6 +68,13 @@ export interface FleetObservation {
     updatedAt: number;
   }>;
   networkActivities: readonly TacticalNetworkActivity[];
+  physicalLaunches?: Array<{
+    shipId: string;
+    launcherLabel: string;
+    launchPoint: string;
+    weapon: string;
+    time: number;
+  }>;
 }
 
 export function observeFleet(
@@ -148,5 +155,6 @@ export function observeFleet(
       updatedAt: record.lastUpdatedAt,
     })),
     networkActivities,
+    physicalLaunches: [],
   };
 }

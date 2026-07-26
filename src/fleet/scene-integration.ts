@@ -172,7 +172,9 @@ export class FleetSceneIntegration {
   isLink11Enabled() { return this.link11.isEnabled(); }
   networkActivities(now: number) { return this.link11.activities(now); }
   observation(now: number): FleetObservation {
-    return observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
+    const observation = observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
+    observation.physicalLaunches = this.launchObservability.all().map((event) => ({ ...event }));
+    return observation;
   }
 
   recentPhysicalLaunches(maxAge = 120) {

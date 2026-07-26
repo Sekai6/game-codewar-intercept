@@ -69,6 +69,12 @@ export class FleetAarRecorder {
       this.seen.add(key);
       emit(activity.time, "network", `FLEET ${activity.network.toUpperCase()} ${activity.kind.toUpperCase()} / ${activity.senderId}${activity.recipientId ? ` -> ${activity.recipientId}` : ""}${activity.trackId ? ` / TRACK ${activity.trackId}` : ""}${activity.delay !== undefined ? ` / DELAY ${activity.delay.toFixed(2)}s` : ""}`);
     }
+    for (const launch of observation.physicalLaunches ?? []) {
+      const key = `physical-launch:${launch.shipId}:${launch.launchPoint}:${launch.time}`;
+      if (this.seen.has(key)) continue;
+      this.seen.add(key);
+      emit(launch.time, "fire", `PHYSICAL LAUNCH / ${launch.shipId} / ${launch.launcherLabel} / ${launch.launchPoint} / ${launch.weapon} / ORGANIC VLS`);
+    }
     for (const assignment of observation.assignments) {
       const state = `${assignment.status}|${assignment.weaponsAway}|${assignment.rejectionReason ?? ""}`;
       if (this.assignmentStates.get(assignment.id) === state) continue;
