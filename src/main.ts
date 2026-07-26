@@ -2258,6 +2258,7 @@ function rebuildFleetIntegration() {
   fleetIntegration?.dispose();
   fleetIntegration = null;
   if (!fleetModeEnabled) {
+    fleetOverviewCamera = false;
     canvas.dataset.fleetId = "";
     canvas.dataset.fleetShips = "";
     canvas.dataset.fleetShipCount = "0";

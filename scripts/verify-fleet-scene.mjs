@@ -20,7 +20,12 @@ try {
   await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShips?.split("|").length ?? 0) === 2);
   await page.locator("#sbFleetMode").uncheck();
   await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.fleetShipCount ?? -1) === 0);
-  const disabledCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount));
+  const disabledState = await page.locator("#scene").evaluate((canvas) => ({
+    count: Number(canvas.dataset.fleetShipCount),
+    overview: canvas.dataset.cameraFleetOverview,
+  }));
+  const disabledCount = disabledState.count;
+  const disabledOverview = disabledState.overview;
   await page.locator("#sbFleetMode").check();
   await page.locator("#sbStart").click();
   await page.getByRole("button", { name: "TIME: 1X" }).click();
@@ -108,6 +113,7 @@ try {
   await page.screenshot({ path: "verification-fleet-scene.png", fullPage: true });
   console.log(JSON.stringify(result, null, 2));
   if (errors.length || result.defaultCount !== 0 || result.disabledCount !== 0
+      || disabledOverview === "true"
       || result.count !== 2 || result.otc !== "blue-cgn-9"
       || result.link11Ncs !== "blue-cgn-9" || result.link11RollCalls <= 0
       || result.link11Delivered <= 0 || result.pictureTracks <= 0
