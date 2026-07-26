@@ -68,6 +68,18 @@ export interface ForceEngagementAssignment {
   rejectionReason?: string;
 }
 
+export interface SurfaceStrikeAssignment {
+  id: string;
+  targetId: string;
+  shooterId: string;
+  localTrackId: string;
+  requestedWeapons: number;
+  quality: number;
+  assignedAt: number;
+  status: "assigned" | "accepted" | "launched" | "rejected" | "expired";
+  rejectionReason?: string;
+}
+
 export interface FleetStationState {
   desiredPosition: readonly [number, number, number];
   errorDistance: number;
@@ -96,4 +108,5 @@ export interface NavalForceRuntime {
   picture: Map<string, ShipTrackEstimate>;
   assignments: Map<string, ForceEngagementAssignment>;
   engagements: Map<string, ForceEngagementRecord>;
+  surfaceAssignments: Map<string, SurfaceStrikeAssignment>;
 }

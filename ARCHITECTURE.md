@@ -71,6 +71,7 @@ The simulation is organized around capabilities rather than ship-name checks.
 - `src/ships/ciws-runtime.ts`: organic-track-gated per-ship close-in defense using physical mounts, arcs, slew, cooldown, health, and owned ammunition.
 - `src/ships/damage-control-runtime.ts`: per-ship zonal impacts, progressive fire/flooding, subsystem casualties, mobility loss, and disablement.
 - `src/fleet/damage-visuals.ts`: read-only companion-ship smoke, fire intensity, and hull tint driven by damage state; it does not apply damage or change combat authority.
+- `src/fleet/surface-warfare-coordinator.ts`: observed-track ASuW task assignment for the ASuWC, requiring a local ship track and owned Harpoon inventory; it never creates a missile or bypasses a physical launcher.
 - `src/combat-types.ts`: shared runtime domain types.
 - `src/interceptor-data.ts`: ship-launched interceptor flight profiles.
 - `src/threats/catalog.ts`: incoming-threat registry and derived `EnemyType`.

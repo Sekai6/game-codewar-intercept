@@ -63,5 +63,6 @@ export function createNavalForceRuntime(
     picture: new Map(),
     assignments: new Map(),
     engagements: new Map(),
+    surfaceAssignments: new Map(),
   };
 }

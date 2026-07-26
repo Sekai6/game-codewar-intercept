@@ -92,6 +92,9 @@ try {
     console.error("Fleet AAW assignment timeout", JSON.stringify(diagnostic, null, 2));
     throw error;
   }
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetPhysicalLaunches ?? "")
+    .includes("blue-cg-57:"), null, { timeout: 45_000 });
+  await page.screenshot({ path: "verification-fleet-escort-launch.png", fullPage: true });
   const result = await page.locator("#scene").evaluate((canvas) => ({
     fleetId: canvas.dataset.fleetId,
     formation: canvas.dataset.fleetFormation,
@@ -117,6 +120,7 @@ try {
     electronicWarfare: canvas.dataset.fleetElectronicWarfare,
     ciws: canvas.dataset.fleetCiws,
     damage: canvas.dataset.fleetDamage,
+    surfaceAssignments: canvas.dataset.fleetSurfaceAssignments,
     physicalLaunches: canvas.dataset.fleetPhysicalLaunches,
   }));
   await page.keyboard.press("n");

@@ -6,6 +6,7 @@ import type { ShipCombatantInstance } from "../ships/types.js";
 import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-runtime.js";
 import { reassessFleetCommand } from "./command-runtime.js";
 import { FleetAirDefenseCoordinator } from "./air-defense-coordinator.js";
+import { FleetSurfaceWarfareCoordinator } from "./surface-warfare-coordinator.js";
 import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
 import { FleetLink11Runtime } from "./link11-runtime.js";
@@ -55,6 +56,7 @@ export class FleetSceneIntegration {
   private readonly sensors = new ShipSensorRuntime();
   private readonly link11 = new FleetLink11Runtime();
   private readonly airDefense = new FleetAirDefenseCoordinator();
+  private readonly surfaceWarfare = new FleetSurfaceWarfareCoordinator();
   private readonly launchers: ShipLauncherAdapter[] = [];
   private readonly electronicWarfare = new ShipElectronicWarfareRuntime();
   private readonly electronicWarfareVisuals: FleetElectronicWarfareVisuals;
@@ -121,6 +123,7 @@ export class FleetSceneIntegration {
     this.currentTime = now;
     this.syncFlagship();
     reassessFleetCommand(this.force, now);
+    this.surfaceWarfare.update(this.force, now);
     updateFleetFormation({
       force: this.force,
       dt,
@@ -216,6 +219,9 @@ export class FleetSceneIntegration {
   setCiwsEnabled(enabled: boolean) { this.ciwsEnabled = enabled; }
   isCiwsEnabled() { return this.ciwsEnabled; }
   damageDiagnostics() { return this.damageControl.diagnostics(); }
+  surfaceWarfareDiagnostics() {
+    return [...this.force.surfaceAssignments.values()].map((assignment) => ({ ...assignment }));
+  }
 
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
@@ -264,6 +270,7 @@ export class FleetSceneIntegration {
     this.sensors.reset();
     this.link11.reset(this.force);
     this.airDefense.reset(this.force);
+    this.surfaceWarfare.reset(this.force);
     this.ciws.reset();
     this.damageControl.reset();
     this.damageVisuals.reset(this.companions);
