@@ -2274,6 +2274,7 @@ function rebuildFleetIntegration() {
     canvas.dataset.fleetCompanionTargets = "";
     canvas.dataset.fleetElectronicWarfare = "";
     canvas.dataset.fleetCiws = "";
+    canvas.dataset.fleetDamage = "";
     return;
   }
   const scenario = blueNtuScreenForFlagship(activeShip.id, fleetFormation);
@@ -6447,6 +6448,9 @@ function updateCombat(dt: number) {
     canvas.dataset.fleetCiws = [...fleetIntegration.force.ships.values()]
       .filter((ship) => ship.id !== fleetFlagshipId)
       .map((ship) => `${ship.id}:AUTO=${fleetCiwsEnabled ? 1 : 0},R=${ship.magazines.ciws},M=${fleetCiwsCapabilities.get(ship.id)?.physicalMounts ?? 0}/${fleetCiwsCapabilities.get(ship.id)?.declaredMounts ?? 0},E=${fleetCiwsEvents.filter((event) => event.shipId === ship.id).length}`)
+      .join("|");
+    canvas.dataset.fleetDamage = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:H=${ship.hullIntegrity.toFixed(0)},F=${ship.damageControl.fireIntensity.toFixed(0)},FL=${ship.damageControl.flooding.toFixed(0)},D=${[...ship.subsystemHealth.values()].filter((health) => health < 99.5).length},X=${[...ship.subsystemHealth.values()].filter((health) => health <= 5).length}`)
       .join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
