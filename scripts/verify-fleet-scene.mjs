@@ -48,6 +48,20 @@ try {
         .some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       && canvas?.dataset.fleetLink11WeaponAuthority === "false";
   }, null, { timeout: 20_000 });
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
+    .includes("blue-cg-57:ECM=1,SRBOC=1,R=12,D=0"));
+  await page.getByRole("button", { name: "SHIP ECM: AUTO" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
+    .includes("blue-cg-57:ECM=0,SRBOC=1"));
+  await page.getByRole("button", { name: "SHIP ECM: HOLD" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
+    .includes("blue-cg-57:ECM=1,SRBOC=1"));
+  await page.getByRole("button", { name: "SRBOC: AUTO" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
+    .includes("blue-cg-57:ECM=1,SRBOC=0"));
+  await page.getByRole("button", { name: "SRBOC: HOLD" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
+    .includes("blue-cg-57:ECM=1,SRBOC=1"));
   try {
     await page.waitForFunction(() => {
       const canvas = document.querySelector("#scene");
@@ -92,6 +106,7 @@ try {
     aawAssignments: canvas.dataset.fleetAawAssignments,
     engagements: canvas.dataset.fleetEngagements,
     localEngagements: canvas.dataset.fleetLocalEngagements,
+    electronicWarfare: canvas.dataset.fleetElectronicWarfare,
   }));
   await page.keyboard.press("n");
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
@@ -130,6 +145,7 @@ try {
       || !result.aawAssignments.includes("AAW-")
       || !result.engagements.split("|").every((entry) => /:(assigned|weapons-away):[01]$/.test(entry))
       || !result.localEngagements.includes("blue-cgn-9:0")
+      || !result.electronicWarfare.includes("blue-cg-57:ECM=1,SRBOC=1,R=12")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || result.networkObserverFleetShips !== 2

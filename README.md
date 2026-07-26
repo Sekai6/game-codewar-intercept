@@ -21,6 +21,8 @@
 
 第七阶段新增 `src/ships/weapon-runtime.ts` 与 `src/ships/launcher-adapter.ts`。前者逐舰验证任务归属、本舰有机武器级航迹、航迹年龄、包线、弹药、火控、发射通道和照射器；后者才允许把合法订单放入所属舰的 Mk 10/Mk 41 状态机。排队只扣所属舰预留弹药并建立本舰 pending，不产生导弹或 weapons-away；任务取消会返还同一舰弹药并释放账本。只有 Mk 10 导弹离轨或 Mk 41 舱盖开启后的 hot launch 回调可以创建拦截弹，并逐枚上报 weapons-away。发射实体携带射手舰 ID，后续中段更新与末段照射继续使用发射舰本地航迹和本舰导演器，不允许跨舰照射。`verify:fleet-ship-defense` 覆盖所有权和门禁，单 renderer 的 `verify:fleet-launch-cycle` 实际验证 CG-57 前后 Mk 41 单元离架、CG-57 独立扣弹、舰队账本变化、离架原点归属及不存在 `SHIP SAM AUTO LAUNCH`。该功能只在 `NAVAL FORCE` 开关启用时构造，默认单舰流程保持不变。
 
+第八阶段为每个舰队成员加入独立电子战状态。舰型目录声明 ECM 强度、烧穿距离、SRBOC 库存、冷却、投放包线、诱饵 RCS 与寿命；`src/ships/electronic-warfare-runtime.ts` 按本舰 AN/SLQ-32、Mk 36 SRBOC 健康和库存执行。箔条不是命中率减值，而是从目标舰实体位置释放、保留速度、扩散、衰减并进入反舰导弹导引头信号竞争的对象；`src/fleet/electronic-warfare-visuals.ts` 只呈现这些运行时实体。空射反舰武器按稳定目标舰 ID 查询反制，旗舰继续走原有回路，僚舰只扣本舰库存。`SHIP ECM` 与 `SRBOC` 仍是两个独立开关，关闭舰队模式不会创建这套运行时。`verify:ship-electronic-warfare`、`verify:fleet-electronic-warfare` 和单 renderer `verify:fleet-scene` 分别验证物理状态、目标路由及前端开关传播。
+
 ## 联合空中作战
 
 场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。高级模型使用统一物理单位计算指数大气密度、真实动压、速度/高度相关的可用过载、有限 G 建立率、寄生与诱导阻力、协调转弯率、爬升能量损失、能量高度和比剩余功率 `Ps`。飞机不能由脚本瞬间改变航向；高 G 规避会掉速，高空低动压会压低可用过载，AoA 越界会进入包线保护或失速恢复。每架飞机的上述状态均进入运行时诊断。

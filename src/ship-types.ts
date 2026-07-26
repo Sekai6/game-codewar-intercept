@@ -83,6 +83,15 @@ export interface ShipDefinition {
     channels: number;
     illuminators: number;
   };
+  electronicWarfare?: {
+    ecmStrength: number;
+    burnThroughRange: number;
+    decoyRounds: number;
+    decoyCooldownSeconds: number;
+    decoyDeployRange: number;
+    decoyRcs: number;
+    decoyLifeSeconds: number;
+  };
   hullColor: number;
   surfaceStrike?: {
     weapon: "RGM-84 Harpoon";

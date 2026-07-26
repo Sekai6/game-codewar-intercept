@@ -2268,6 +2268,7 @@ function rebuildFleetIntegration() {
     canvas.dataset.fleetShips = "";
     canvas.dataset.fleetShipCount = "0";
     canvas.dataset.fleetCompanionTargets = "";
+    canvas.dataset.fleetElectronicWarfare = "";
     return;
   }
   const scenario = blueNtuScreenForFlagship(activeShip.id, fleetFormation);
@@ -2315,6 +2316,8 @@ function rebuildFleetIntegration() {
   canvas.dataset.fleetId = fleetIntegration.force.id;
   canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
+  fleetIntegration.setElectronicWarfareEnabled(shipEcmEnabled);
+  fleetIntegration.setCountermeasuresEnabled(srbocEnabled);
 }
 let aarSnapshots: AarSnapshot[] = [],
   aarEvents: AarEvent[] = [],
@@ -2838,6 +2841,8 @@ const airScenarioContext = createAirScenarioContext(() => {
         hullIntegrity > 0 ? "DAMAGE CONTROL" : "SHIP DISABLED";
     },
     countermeasures: (targetId: string) => {
+      const fleetCountermeasures = fleetIntegration?.countermeasures(targetId);
+      if (fleetCountermeasures) return fleetCountermeasures;
       if (targetId !== "blue-surface-ship") return null;
       return {
         ecmEnabled: shipEcmEnabled,
@@ -2850,7 +2855,8 @@ const airScenarioContext = createAirScenarioContext(() => {
       };
     },
     requestShipCountermeasure: ({ targetId, threatPosition }) =>
-      targetId === "blue-surface-ship" && deployShipChaffAt(threatPosition),
+      fleetIntegration?.requestCountermeasure(targetId, threatPosition, elapsed)
+      || (targetId === "blue-surface-ship" && deployShipChaffAt(threatPosition)),
     tacticalNetworkParticipants: [
       {
         entity: blueLinkEntity,
@@ -6353,6 +6359,8 @@ function updateCombat(dt: number) {
   canvas.dataset.radarBackgroundTracks = String(outsideFocus);
   updateSurfaceCombat(dt, primarySensor, secondarySensor, aspectHealth);
   updateShipManeuver(dt);
+  fleetIntegration?.setElectronicWarfareEnabled(shipEcmEnabled);
+  fleetIntegration?.setCountermeasuresEnabled(srbocEnabled);
   fleetIntegration?.update(elapsed, dt);
   if (fleetIntegration) {
     canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
@@ -6405,6 +6413,9 @@ function updateCombat(dt: number) {
     canvas.dataset.fleetPhysicalLaunches = interceptors
       .filter((interceptor) => !!interceptor.mesh.userData.launchShipId)
       .map((interceptor) => `${interceptor.mesh.userData.launchShipId}:${interceptor.mesh.userData.launcherLabel}:${interceptor.mesh.userData.launchPoint}:OFFSET=${Number(interceptor.mesh.userData.departureShipDistance ?? -1).toFixed(2)}`)
+      .join("|");
+    canvas.dataset.fleetElectronicWarfare = fleetIntegration.electronicWarfareDiagnostics()
+      .map((state) => `${state.shipId}:ECM=${state.ecmEnabled ? 1 : 0},SRBOC=${state.decoyEnabled ? 1 : 0},R=${state.rounds},D=${state.activeDecoys}`)
       .join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);

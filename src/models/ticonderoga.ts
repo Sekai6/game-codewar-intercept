@@ -888,4 +888,13 @@ export const TICONDEROGA_METADATA: Omit<ShipDefinition, "build"> = {
     channels: 6,
     illuminators: 4,
   },
+  electronicWarfare: {
+    ecmStrength: 0.64,
+    burnThroughRange: 70,
+    decoyRounds: 12,
+    decoyCooldownSeconds: 2.2,
+    decoyDeployRange: 92,
+    decoyRcs: 8.5,
+    decoyLifeSeconds: 14,
+  },
 };

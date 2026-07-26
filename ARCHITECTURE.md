@@ -65,6 +65,8 @@ The simulation is organized around capabilities rather than ship-name checks.
 - `src/platforms/models/<platform>.ts`: one platform-specific model and complete capability definition.
 - `src/surface-combat.ts`: generic friendly anti-ship missile runtime, terminal seeker, finite platform defenses, and platform damage.
 - `src/surface-doctrine.ts`: pure salvo-sizing logic for in-flight limits, estimated effects, and ammunition conservation.
+- `src/ships/electronic-warfare-runtime.ts`: per-ship ECM and physical SRBOC-decoy state, inventory, damage gates, motion, and signal decay.
+- `src/fleet/electronic-warfare-visuals.ts`: read-only scene representation of fleet decoy entities; it cannot resolve seeker contests or consume rounds.
 - `src/combat-types.ts`: shared runtime domain types.
 - `src/interceptor-data.ts`: ship-launched interceptor flight profiles.
 - `src/threats/catalog.ts`: incoming-threat registry and derived `EnemyType`.

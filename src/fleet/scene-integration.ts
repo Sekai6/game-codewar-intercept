@@ -12,6 +12,8 @@ import { FleetLink11Runtime } from "./link11-runtime.js";
 import { updateForceEngagements } from "./engagement-runtime.js";
 import { observeFleet, type FleetObservation } from "./observability.js";
 import { ShipLauncherAdapter, type ShipPhysicalLaunch } from "../ships/launcher-adapter.js";
+import { ShipElectronicWarfareRuntime, type ShipCountermeasureSnapshot } from "../ships/electronic-warfare-runtime.js";
+import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -48,8 +50,11 @@ export class FleetSceneIntegration {
   private readonly link11 = new FleetLink11Runtime();
   private readonly airDefense = new FleetAirDefenseCoordinator();
   private readonly launchers: ShipLauncherAdapter[] = [];
+  private readonly electronicWarfare = new ShipElectronicWarfareRuntime();
+  private readonly electronicWarfareVisuals: FleetElectronicWarfareVisuals;
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
+    this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
     const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
     if (!scenarioOtc) throw new Error(`Fleet ${options.scenario.id} has no OTC model owner`);
     this.force = createNavalForceRuntime(
@@ -108,6 +113,10 @@ export class FleetSceneIntegration {
       dt,
       externallyIntegratedShipIds: this.externalShips,
     });
+    for (const ship of this.force.ships.values()) this.electronicWarfare.update(ship, dt);
+    this.electronicWarfareVisuals.update(
+      [...this.force.ships.values()].flatMap((ship) => ship.electronicWarfare.decoys),
+    );
     for (const launcher of this.launchers) launcher.update(now, dt);
   }
 
@@ -132,6 +141,43 @@ export class FleetSceneIntegration {
     return observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
   }
   launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }
+
+  setElectronicWarfareEnabled(enabled: boolean) {
+    for (const ship of this.companions)
+      ship.electronicWarfare.ecmEnabled = enabled && Boolean(ship.definition.electronicWarfare);
+  }
+
+  setCountermeasuresEnabled(enabled: boolean) {
+    for (const ship of this.companions)
+      ship.electronicWarfare.decoyEnabled = enabled && Boolean(ship.definition.electronicWarfare);
+  }
+
+  countermeasures(targetId: string): ShipCountermeasureSnapshot | null {
+    const ship = this.force.ships.get(targetId);
+    return ship && !this.externalShips.has(targetId)
+      ? this.electronicWarfare.snapshot(ship)
+      : null;
+  }
+
+  requestCountermeasure(targetId: string, threatPosition: THREE.Vector3, now: number) {
+    const ship = this.force.ships.get(targetId);
+    if (!ship || this.externalShips.has(targetId)) return false;
+    const decoy = this.electronicWarfare.deploy(ship, threatPosition, now);
+    if (!decoy) return false;
+    this.options.log?.(`${ship.definition.name} SRBOC PHYSICAL RELEASE / ${decoy.id} / ROUNDS ${ship.electronicWarfare.decoyRounds}`);
+    return true;
+  }
+
+  electronicWarfareDiagnostics() {
+    return this.companions.map((ship) => ({
+      shipId: ship.id,
+      ecmEnabled: ship.electronicWarfare.ecmEnabled,
+      decoyEnabled: ship.electronicWarfare.decoyEnabled,
+      ecmHealth: (ship.subsystemHealth.get("ecm") ?? 0) / 100,
+      rounds: ship.electronicWarfare.decoyRounds,
+      activeDecoys: ship.electronicWarfare.decoys.filter((decoy) => decoy.alive).length,
+    }));
+  }
 
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
@@ -167,6 +213,7 @@ export class FleetSceneIntegration {
       ship.magazines.ciws = entry.loadout?.ciws ?? ship.definition.ammo.ciws;
       ship.magazines.surfaceStrike = entry.loadout?.surfaceStrike ?? ship.definition.surfaceStrike?.magazine ?? 0;
       for (const id of ship.subsystemHealth.keys()) ship.subsystemHealth.set(id, 100);
+      this.electronicWarfare.reset(ship);
     }
     this.force.formationState.anchorShipId = this.flagshipId;
     this.force.formationState.stations.clear();
@@ -175,9 +222,11 @@ export class FleetSceneIntegration {
     this.link11.reset(this.force);
     this.airDefense.reset(this.force);
     for (const launcher of this.launchers) launcher.reset();
+    this.electronicWarfareVisuals.reset();
   }
 
   dispose() {
+    this.electronicWarfareVisuals.dispose();
     for (const ship of this.companions) this.options.scene.remove(ship.model);
   }
 }

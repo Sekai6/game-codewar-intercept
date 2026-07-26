@@ -22,6 +22,31 @@ export interface ShipMagazineState {
   surfaceStrike: number;
 }
 
+export interface ShipRadarDecoy {
+  id: string;
+  sourceShipId: string;
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  age: number;
+  lifeSeconds: number;
+  radarCrossSection: number;
+  alive: boolean;
+}
+
+export interface ShipElectronicWarfareState {
+  ecmEnabled: boolean;
+  decoyEnabled: boolean;
+  ecmStrength: number;
+  burnThroughRange: number;
+  decoyRounds: number;
+  decoyCooldownSeconds: number;
+  decoyDeployRange: number;
+  decoyRcs: number;
+  decoyLifeSeconds: number;
+  nextDecoyAt: number;
+  decoys: ShipRadarDecoy[];
+}
+
 export interface ShipCombatantInstance extends TargetableEntity {
   kind: "ship";
   definition: ShipDefinition;
@@ -34,6 +59,7 @@ export interface ShipCombatantInstance extends TargetableEntity {
   hullIntegrity: number;
   subsystemHealth: Map<SubsystemId, number>;
   magazines: ShipMagazineState;
+  electronicWarfare: ShipElectronicWarfareState;
   localTracks: Map<string, ShipTrackEstimate>;
   networkTracks: Map<string, ShipTrackEstimate>;
   engagements: Map<string, EngagementRecord>;
