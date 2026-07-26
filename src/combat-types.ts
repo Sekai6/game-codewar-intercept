@@ -232,7 +232,7 @@ export type AarFleetSnapshot = {
     magazines: { rim67: number; sm2mr: number; sm2er: number };
     localTracks: number; networkTracks: number;
   }>;
-  tracks: Array<{ id: string; classification: string; quality: number; uncertainty: number; age: number; contributors: string[]; weaponAuthority: false }>;
+  tracks: Array<{ id: string; x: number; y: number; z: number; classification: string; quality: number; uncertainty: number; age: number; contributors: string[]; weaponAuthority: false }>;
   assignments: Array<{ id: string; targetId: string; shooterId: string; localTrackId: string; weapon: string; requestedShots: number; weaponsAway: number; status: string; rejectionReason?: string; updatedAt: number }>;
   engagements: Array<{ targetId: string; shooters: string[]; weaponsCommitted: number; estimatedPk: number; status: string; updatedAt: number }>;
 };

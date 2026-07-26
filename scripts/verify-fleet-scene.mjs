@@ -81,6 +81,14 @@ try {
     engagements: canvas.dataset.fleetEngagements,
     localEngagements: canvas.dataset.fleetLocalEngagements,
   }));
+  await page.keyboard.press("n");
+  await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
+  Object.assign(result, await page.locator("#scene").evaluate((canvas) => ({
+    networkObserverFleetShips: Number(canvas.dataset.networkObserverFleetShips ?? 0),
+    networkObserverFleetAssignments: Number(canvas.dataset.networkObserverFleetAssignments ?? 0),
+    networkObserverFleetWeaponsAway: Number(canvas.dataset.networkObserverFleetWeaponsAway ?? 0),
+    networkObserverObjects: Number(canvas.dataset.networkObserverObjects ?? 0),
+  })));
   await page.locator("#sbLink16").evaluate((input) => {
     input.checked = false;
     input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -106,6 +114,9 @@ try {
       || !result.localEngagements.includes("blue-cgn-9:0")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
+      || result.networkObserverFleetShips !== 2
+      || result.networkObserverFleetAssignments < 1
+      || result.networkObserverObjects < result.networkObserverFleetShips
       || !result.members.includes("blue-cgn-9:alive")
       || !result.members.includes("blue-cg-57:alive")
       || !result.localTracks.includes("blue-cgn-9:")) process.exitCode = 1;

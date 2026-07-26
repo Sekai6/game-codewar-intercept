@@ -24,6 +24,9 @@ export interface FleetMemberObservation {
 
 export interface FleetTrackObservation {
   id: string;
+  x: number;
+  y: number;
+  z: number;
   classification: string;
   quality: number;
   uncertainty: number;
@@ -106,6 +109,9 @@ export function observeFleet(
     }),
     tracks: [...force.picture.entries()].map(([id, track]) => ({
       id,
+      x: track.position.x,
+      y: track.position.y,
+      z: track.position.z,
       classification: track.classification,
       quality: track.quality,
       uncertainty: track.uncertainty,

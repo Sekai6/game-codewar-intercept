@@ -312,6 +312,8 @@ let clusteredLightCount = 0;
 let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
 const airCombat = new AirCombatSystem(scene);
+// Declared before the observer is constructed because its initial snapshot is sampled immediately.
+let fleetIntegration: FleetSceneIntegration | null = null;
 const datalinkAarRecorder = new DatalinkAarRecorder();
 const sovietC2AarRecorder = new SovietC2AarRecorder();
 const fleetAarRecorder = new FleetAarRecorder();
@@ -320,6 +322,9 @@ const tacticalNetworkRuntime = createTacticalNetworkRuntime({
   parent: document.querySelector("#app") as HTMLElement,
   observation: () => airCombat.tacticalNetworkObservation(),
   sovietObservation: () => airCombat.sovietC2Observation(),
+  fleetObservation: () => fleetIntegration
+    ? observeFleet(fleetIntegration.force, elapsed, fleetIntegration.isLink11Enabled(), fleetIntegration.networkActivities(elapsed))
+    : undefined,
 });
 function addOceanSplash(position: THREE.Vector3, energy: number) {
   ocean.addSplash(position, energy);
@@ -2249,8 +2254,7 @@ let shipSpeedKnots = DEFAULT_SURFACE_CONFIG.initialSpeedKnots,
   nextShipDecision = 0,
   shipManeuverThreatId: number | string = 0;
 const shipWakePosition = new THREE.Vector3();
-let fleetIntegration: FleetSceneIntegration | null = null,
-  fleetModeEnabled = false;
+let fleetModeEnabled = false;
 function rebuildFleetIntegration() {
   fleetIntegration?.dispose();
   fleetIntegration = null;
