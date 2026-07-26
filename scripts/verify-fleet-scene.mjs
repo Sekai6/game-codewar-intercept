@@ -117,6 +117,7 @@ try {
     electronicWarfare: canvas.dataset.fleetElectronicWarfare,
     ciws: canvas.dataset.fleetCiws,
     damage: canvas.dataset.fleetDamage,
+    physicalLaunches: canvas.dataset.fleetPhysicalLaunches,
   }));
   await page.keyboard.press("n");
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
@@ -169,6 +170,7 @@ try {
       || !result.electronicWarfare.includes("blue-cg-57:ECM=1,SRBOC=1,R=12")
       || !result.ciws.includes("blue-cg-57:AUTO=1,R=1800,M=2/2")
       || !result.damage?.includes("blue-cg-57:H=")
+      || !result.physicalLaunches?.includes("blue-cg-57:")
       || !result.swappedCompanionCiws.includes("blue-cgn-9:AUTO=1,R=1200,M=2/2")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
