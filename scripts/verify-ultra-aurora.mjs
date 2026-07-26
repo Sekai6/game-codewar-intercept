@@ -15,6 +15,8 @@ try {
     options.find(option => option.textContent?.includes("CG-57"))?.value,
   );
   if (!cg57Option) throw new Error("CG-57 ship selector option was not found");
+  const versionLabel = await page.locator("#appVersion").textContent();
+  if (versionLabel?.trim() !== "v1.0.0") throw new Error(`Unexpected application version: ${versionLabel}`);
   await page.locator("#sbShip").selectOption(cg57Option);
   const extraToggleExists = await page.locator("#sbAuroraEnvironment").count() === 1;
   await page.locator("#sbWebGpuUltra").check();
@@ -45,9 +47,9 @@ try {
   await page.locator("#sbWebGpuUltra").uncheck();
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.webGpuUltraStatus === "idle", null, { timeout: 10_000 });
   const disabled = await canvas.evaluate(element => ({ ultra: element.dataset.webGpuUltraStatus, enabled: element.dataset.auroraEnvironment }));
-  const result = { cg57Option, extraToggleExists, baselineWithoutExtra, active, disabled, errors };
+  const result = { cg57Option, versionLabel, extraToggleExists, baselineWithoutExtra, active, disabled, errors };
   console.log(JSON.stringify(result, null, 2));
-  if (!extraToggleExists || baselineWithoutExtra !== "false" || active.enabled !== "true" || active.layers !== 3 || active.ultra !== "active" || active.godRays !== "0.00" || disabled.ultra !== "idle" || errors.length) process.exitCode = 1;
+  if (!extraToggleExists || versionLabel?.trim() !== "v1.0.0" || baselineWithoutExtra !== "false" || active.enabled !== "true" || active.layers !== 3 || active.ultra !== "active" || active.godRays !== "0.00" || disabled.ultra !== "idle" || errors.length) process.exitCode = 1;
 } finally {
   await browser.close();
 }

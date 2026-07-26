@@ -3,6 +3,8 @@
 > 文档数据戳：v1.0.0 · 2026-07-26<br>
 > 本页描述 v1.0.0 当前实现；后续版本可能调整机制、画面和单位数据。
 
+[在线演示](https://cwi.kisara.info) · [GitHub 仓库](https://github.com/Sekai6/game-coldwar-intercept) · `v1.0.0`
+
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
 *WebGPU Ultra 极光环境下的 USS Lake Champlain (CG-57) 作战验证画面。画面是项目内测试证据，不代表现实装备性能。*

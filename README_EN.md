@@ -3,6 +3,8 @@
 > Documentation snapshot: v1.0.0 · 2026-07-26<br>
 > This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
+[Live Demo](https://cwi.kisara.info) · [GitHub repository](https://github.com/Sekai6/game-coldwar-intercept) · `v1.0.0`
+
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
 *USS Lake Champlain (CG-57) combat validation under the WebGPU Ultra aurora environment. This is project evidence, not real-world performance data.*
