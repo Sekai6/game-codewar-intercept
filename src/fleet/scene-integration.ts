@@ -285,6 +285,7 @@ export class FleetSceneIntegration {
     this.ciws.reset();
     this.damageControl.reset();
     this.damageVisuals.reset(this.companions);
+    this.launchObservability.reset();
     for (const launcher of this.launchers) launcher.reset();
     this.electronicWarfareVisuals.reset();
   }

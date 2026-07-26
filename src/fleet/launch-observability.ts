@@ -12,6 +12,10 @@ export interface FleetPhysicalLaunchObservation {
 export class FleetLaunchObservability {
   private readonly events: FleetPhysicalLaunchObservation[] = [];
 
+  reset(): void {
+    this.events.length = 0;
+  }
+
   record(event: ShipPhysicalLaunch, time: number): void {
     this.events.push({
       shipId: event.ship.id,
