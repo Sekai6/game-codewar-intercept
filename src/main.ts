@@ -2716,7 +2716,7 @@ async function configureWebGpuUltra(requested: boolean) {
     canvas.dataset.webGpuUltraOceanRanges = String(webGpuUltraResult.oceanSpectrumTexture?.userData.channelRanges ?? "unknown");
     temporalReconstructionPass.setRequested(webGpuUltraResult.status === "active" && ultraInternalScale < 1);
     hizScreenSpacePass.setRequested(webGpuUltraResult.status === "active");
-    outputPass.enabled = webGpuUltraResult.status !== "active";
+    outputPass.enabled = webGpuUltraResult.status !== "active" || ultraInternalScale >= 1;
     composer.setPixelRatio(displayPixelRatio * (webGpuUltraResult.status === "active" ? ultraInternalScale : 1));
     composer.setSize(innerWidth, innerHeight);
     temporalReconstructionPass.setOutputSize(Math.round(innerWidth * displayPixelRatio), Math.round(innerHeight * displayPixelRatio));
