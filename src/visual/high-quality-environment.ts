@@ -107,6 +107,7 @@ export function createHighQualityEnvironment(): HighQualityEnvironment {
       `,
     });
     const cloud = new THREE.Mesh(cloudGeometry, material);
+    cloud.userData.temporalReactive = true;
       cloud.position.set((seeded(index, 1) - 0.5) * 1000, 172 + seeded(index, 2) * 72, (seeded(index, 3) - 0.5) * 1000);
     cloud.scale.set(58 + seeded(index, 4) * 72, 17 + seeded(index, 5) * 18, 48 + seeded(index, 6) * 68);
     cloud.rotation.y = seeded(index, 7) * Math.PI;

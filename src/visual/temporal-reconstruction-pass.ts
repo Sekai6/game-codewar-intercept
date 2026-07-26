@@ -111,7 +111,7 @@ export class TemporalReconstructionPass extends Pass {
         resolution: { value: new THREE.Vector2(1, 1) },
         inputResolution: { value: new THREE.Vector2(1, 1) },
         historyValid: { value: 0 },
-        historyWeight: { value: 0.82 },
+        historyWeight: { value: 0.68 },
         skyDistance: { value: 520 },
         cameraNear: { value: camera.near },
         cameraFar: { value: camera.far },
@@ -233,7 +233,15 @@ export class TemporalReconstructionPass extends Pass {
     if (!this.requested) return;
     const cameraPosition = this.camera.getWorldPosition(new THREE.Vector3());
     const cameraQuaternion = this.camera.getWorldQuaternion(new THREE.Quaternion());
-    if (this.valid && (cameraPosition.distanceTo(this.previousCameraPosition) > 24 || cameraQuaternion.angleTo(this.previousCameraQuaternion) > THREE.MathUtils.degToRad(7))) this.invalidate();
+    const cameraTranslation = cameraPosition.distanceTo(this.previousCameraPosition);
+    const cameraRotation = cameraQuaternion.angleTo(this.previousCameraQuaternion);
+    if (this.valid && (cameraTranslation > 24 || cameraRotation > THREE.MathUtils.degToRad(7))) this.invalidate();
+    const motionFactor = THREE.MathUtils.clamp(
+      Math.max(cameraTranslation / 1.5, cameraRotation / THREE.MathUtils.degToRad(0.7)),
+      0,
+      1,
+    );
+    this.resolveMaterial.uniforms.historyWeight.value = THREE.MathUtils.lerp(0.68, 0.38, motionFactor);
 
     const currentViewProjection = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.inverseViewProjection.copy(currentViewProjection).invert();

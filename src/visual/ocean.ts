@@ -101,6 +101,7 @@ class WebglOcean implements OceanSurface {
     });
     this.object = new THREE.Mesh(this.geometry, this.standardMaterial);
     this.object.userData.screenSpaceWater = true;
+    this.object.userData.temporalReactive = true;
     this.object.rotation.x = -Math.PI / 2;
     this.object.receiveShadow = true;
   }

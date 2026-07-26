@@ -2636,7 +2636,9 @@ function updateWebGpuUltraStatus() {
   canvas.dataset.webGpuUltraScatter = webGpuUltraStatus === "active" ? "COMPUTE_SCATTER_ATLAS_128" : "OFF";
   canvas.dataset.webGpuUltraDepth = webGpuUltraStatus === "active" ? "GTAO_DEPTH_RECONSTRUCTED" : "OFF";
   canvas.dataset.webGpuUltraCloudVolume = webGpuUltraStatus === "active" ? "COMPUTE_VOLUME_64X32X64" : "OFF";
-  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "OFF";
+  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active"
+    ? ultraInternalScale < 1 ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "NATIVE_NO_TAA"
+    : "OFF";
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraVelocity = webGpuUltraStatus === "active" ? "OBJECT_PREVIOUS_MVP_RG16F" : "OFF";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
@@ -2712,7 +2714,7 @@ async function configureWebGpuUltra(requested: boolean) {
     canvas.dataset.webGpuUltraOceanCompute = webGpuUltraResult.oceanSpectrumBackend;
     canvas.dataset.webGpuUltraOceanError = webGpuUltraResult.oceanSpectrumError;
     canvas.dataset.webGpuUltraOceanRanges = String(webGpuUltraResult.oceanSpectrumTexture?.userData.channelRanges ?? "unknown");
-    temporalReconstructionPass.setRequested(webGpuUltraResult.status === "active");
+    temporalReconstructionPass.setRequested(webGpuUltraResult.status === "active" && ultraInternalScale < 1);
     hizScreenSpacePass.setRequested(webGpuUltraResult.status === "active");
     outputPass.enabled = webGpuUltraResult.status !== "active";
     composer.setPixelRatio(displayPixelRatio * (webGpuUltraResult.status === "active" ? ultraInternalScale : 1));
@@ -8392,7 +8394,9 @@ function tick(now: number) {
   canvas.dataset.webGpuUltraScatter = webGpuUltraStatus === "active" ? "COMPUTE_SCATTER_ATLAS_128" : "OFF";
   canvas.dataset.webGpuUltraDepth = webGpuUltraStatus === "active" ? "GTAO_DEPTH_RECONSTRUCTED" : "OFF";
   canvas.dataset.webGpuUltraCloudVolume = webGpuUltraStatus === "active" ? "COMPUTE_VOLUME_64X32X64" : "OFF";
-  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active" ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "OFF";
+  canvas.dataset.webGpuUltraTemporal = webGpuUltraStatus === "active"
+    ? ultraInternalScale < 1 ? `TAAU_FULL_SCENE_${ultraInternalScale.toFixed(2)}X` : "NATIVE_NO_TAA"
+    : "OFF";
   canvas.dataset.webGpuUltraInternalScale = webGpuUltraStatus === "active" ? ultraInternalScale.toFixed(2) : "1.00";
   canvas.dataset.webGpuUltraCloudShadows = webGpuUltraStatus === "active" ? "VOLUME_PROJECTED_3_LAYER" : "OFF";
   canvas.dataset.webGpuUltraFroxel = webGpuUltraStatus === "active" ? "FROXEL_80X45X32_DYNAMIC_8" : "OFF";
