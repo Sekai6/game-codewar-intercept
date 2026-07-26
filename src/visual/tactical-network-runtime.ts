@@ -35,10 +35,17 @@ export function createTacticalNetworkRuntime(options:Options):TacticalNetworkRun
   function fleetChain(fleet:FleetObservation,time:number){
     const ships=new Map(fleet.members.map(member=>[member.id,member]));
     const tracks=new Map(fleet.tracks.map(track=>[track.id,track]));
+    const anchor=fleet.members.find(member=>member.commandRoles.includes("otc"));
     for(const member of fleet.members){
       const color=member.commandRoles.includes("aawc")?0xffe06a:member.formationRole==="picket"?0x8fd8ff:0x9aa8b8;
       const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.45,20),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.72,side:THREE.DoubleSide,depthTest:false}));
       marker.rotation.x=-Math.PI/2;marker.position.set(member.x,member.y+.7,member.z);marker.renderOrder=904;group.add(marker);
+      if(anchor&&member.id!==anchor.id){
+        line(new THREE.Vector3(anchor.x,anchor.y+2,anchor.z),new THREE.Vector3(member.x,member.y+2,member.z),color,.24);
+        const errorRadius=THREE.MathUtils.clamp(member.stationError*.08,.8,5.5);
+        const errorRing=new THREE.Mesh(new THREE.RingGeometry(errorRadius*.82,errorRadius,20),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.34,side:THREE.DoubleSide,depthTest:false}));
+        errorRing.rotation.x=-Math.PI/2;errorRing.position.set(member.x,member.y+.8,member.z);errorRing.renderOrder=903;group.add(errorRing);
+      }
     }
     for(const assignment of fleet.assignments){
       const shooter=ships.get(assignment.shooterId),track=tracks.get(assignment.targetId);if(!shooter||!track)continue;
