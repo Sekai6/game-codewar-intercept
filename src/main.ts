@@ -22,6 +22,7 @@ import {
 } from "./ship-types";
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
+import { fleetCameraFrame } from "./fleet/camera";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
@@ -2244,6 +2245,7 @@ let dragging = false,
   cinematic = false,
   viewMode: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 2,
   selectedAircraftId: string | null = null;
+let fleetOverviewCamera = false;
 let shipSpeedKnots = DEFAULT_SURFACE_CONFIG.initialSpeedKnots,
   shipDesiredHeading = 0,
   shipCommandedSpeedKnots = activeShip.platform.patrolSpeedKnots,
@@ -4621,6 +4623,18 @@ log("16:42:11  SURFACE SEARCH RADAR — CONTACTS ACQUIRED");
 function updateCamera() {
   if (cinematic) az += 0.0018;
   let focus: THREE.Vector3;
+  if (fleetOverviewCamera && fleetIntegration) {
+    const frame = fleetCameraFrame(fleetIntegration.observation(elapsed));
+    if (frame) {
+      focus = frame.center.clone().add(new THREE.Vector3(0, 5, 0));
+      const overviewDistance = Math.max(120, frame.radius * 2.8);
+      const x = Math.cos(el) * Math.sin(az) * overviewDistance;
+      const z = Math.cos(el) * Math.cos(az) * overviewDistance;
+      camera.position.lerp(new THREE.Vector3(focus.x + x, focus.y + Math.sin(el) * overviewDistance, focus.z + z), 0.12);
+      camera.lookAt(focus);
+      return;
+    }
+  }
   const selectedAircraft = airCombat.aircraft.find(
     (aircraft) => aircraft.id === selectedAircraftId && aircraft.alive,
   );
@@ -8310,6 +8324,7 @@ function tick(now: number) {
   canvas.dataset.webGpuUltraHistoryResets = String(temporalDiagnostics.resets);
   canvas.dataset.highQualityOcean = String(highQualityEnvironmentEnabled);
   canvas.dataset.cameraViewMode = String(viewMode);
+  canvas.dataset.cameraFleetOverview = String(fleetOverviewCamera);
   canvas.dataset.cameraAircraftId = selectedAircraftId ?? "";
   canvas.dataset.pureAirCombat = String(pureAirCombatStart);
   canvas.dataset.aircraftTotal = String(air.aircraft);
@@ -9036,6 +9051,14 @@ addEventListener("keydown", (e) => {
     az = 0.65;
     el = 0.58;
     dist = 300;
+  }
+  if (e.key === "0" && fleetIntegration) {
+    cinematic = false;
+    fleetOverviewCamera = !fleetOverviewCamera;
+    if (fleetOverviewCamera) {
+      az = 0.65;
+      el = 0.62;
+    }
   }
   if (e.key.toLowerCase() === "c") cinematic = !cinematic;
 });

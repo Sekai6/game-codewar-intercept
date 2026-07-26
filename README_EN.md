@@ -617,6 +617,8 @@ The `DAMAGE CONTROL` panel shows continuous health for all nine entries. Below 6
 <a id="presentation"></a>
 ## 13. 3D Presentation and Ship Model
 
+Optional fleet mode uses `0` to toggle a formation-wide camera. Its center and distance are calculated from live member positions and the bounding radius; default single-ship mode is unchanged.
+
 Scenario setup selects between two procedural ships. Each class owns its longitudinal station table, with eight cross-section points per station controlling deck edge, shoulder chine, waterline, keel, and bow sheer. The shared module only triangulates the profiles and does not impose one class's lines on another. CG-57 now uses thirteen stations and derives its model dimensions directly from the real ship's approximate `172.8 m × 16.8 m` dimensions and a `2.25 m/world-unit` scale. The resulting `76.8 × 7.47` hull has the real ship's `10.29:1` length-to-beam ratio. Denser stern, parallel-midbody, bow-shoulder, and clipper-bow stations improve transom taper, side chines, and bow flare. The model also includes forward and aft Mk 41 banks, four SPY-1 faces, separated superstructure blocks, twin mast/exhaust groups, hangar, flight deck, and fore/aft Mk 45 guns. Mk 41 cells have independent hatches and one-shot state; launch sequencing opens the hatch, performs a hot vertical departure, delays the programmed turn, closes the hatch, and marks the cell spent.
 
 The CG-57 model carries four independently tasked AN/SPG-62 directors, one on each side of the forward and aft superstructure. Its two Phalanx CIWS mounts select threats within their respective forward and aft sectors. Both systems solve bearings in ship-local coordinates so target tracking remains correct while the ship maneuvers.

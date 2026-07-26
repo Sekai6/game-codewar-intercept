@@ -83,6 +83,9 @@ try {
   }));
   await page.keyboard.press("n");
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
+  await page.keyboard.press("0");
+  await page.waitForFunction(() => document.querySelector("#scene")?.dataset.cameraFleetOverview === "true");
+  result.fleetOverviewCamera = true;
   Object.assign(result, await page.locator("#scene").evaluate((canvas) => ({
     networkObserverFleetShips: Number(canvas.dataset.networkObserverFleetShips ?? 0),
     networkObserverFleetAssignments: Number(canvas.dataset.networkObserverFleetAssignments ?? 0),
@@ -117,6 +120,7 @@ try {
       || result.networkObserverFleetShips !== 2
       || result.networkObserverFleetAssignments < 1
       || result.networkObserverObjects < result.networkObserverFleetShips
+      || result.fleetOverviewCamera !== true
       || !result.members.includes("blue-cgn-9:alive")
       || !result.members.includes("blue-cg-57:alive")
       || !result.localTracks.includes("blue-cgn-9:")) process.exitCode = 1;
