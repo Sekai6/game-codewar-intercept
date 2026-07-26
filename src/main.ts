@@ -6448,7 +6448,7 @@ function updateCombat(dt: number) {
       .filter((interceptor) => !!interceptor.mesh.userData.launchShipId)
       .map((interceptor) => `${interceptor.mesh.userData.launchShipId}:${interceptor.mesh.userData.launcherLabel}:${interceptor.mesh.userData.launchPoint}:OFFSET=${Number(interceptor.mesh.userData.departureShipDistance ?? -1).toFixed(2)}`)
       .join("|");
-    canvas.dataset.fleetRecentPhysicalLaunches = fleetIntegration.recentPhysicalLaunches()
+    canvas.dataset.fleetRecentPhysicalLaunches = fleetIntegration.recentPhysicalLaunches(120)
       .map((event) => `${event.shipId}:${event.launcherLabel}:${event.launchPoint}:${event.weapon}`)
       .join("|");
     canvas.dataset.fleetElectronicWarfare = fleetIntegration.electronicWarfareDiagnostics()

@@ -175,7 +175,7 @@ export class FleetSceneIntegration {
     return observeFleet(this.force, now, this.isLink11Enabled(), this.networkActivities(now));
   }
 
-  recentPhysicalLaunches(maxAge = 8) {
+  recentPhysicalLaunches(maxAge = 120) {
     return this.launchObservability.recent(maxAge, this.currentTime);
   }
   launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }

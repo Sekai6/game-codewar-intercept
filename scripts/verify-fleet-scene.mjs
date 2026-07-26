@@ -124,6 +124,8 @@ try {
     damage: canvas.dataset.fleetDamage,
     surfaceAssignments: canvas.dataset.fleetSurfaceAssignments,
     physicalLaunches: canvas.dataset.fleetPhysicalLaunches,
+    recentPhysicalLaunches: canvas.dataset.fleetRecentPhysicalLaunches,
+    launchCameraShip: canvas.dataset.cameraFleetLaunchShip,
   }));
   await page.keyboard.press("n");
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
@@ -177,6 +179,8 @@ try {
       || !result.ciws.includes("blue-cg-57:AUTO=1,R=1800,M=2/2")
       || !result.damage?.includes("blue-cg-57:H=")
       || !result.physicalLaunches?.includes("blue-cg-57:")
+      || !result.recentPhysicalLaunches?.includes("blue-cg-57:")
+      || result.launchCameraShip !== "blue-cg-57"
       || !result.swappedCompanionCiws.includes("blue-cgn-9:AUTO=1,R=1200,M=2/2")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
