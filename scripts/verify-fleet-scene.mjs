@@ -94,6 +94,8 @@ try {
   }
   await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetPhysicalLaunches ?? "")
     .includes("blue-cg-57:"), null, { timeout: 45_000 });
+  await page.keyboard.press("l");
+  await page.waitForFunction(() => document.querySelector("#scene")?.dataset.cameraFleetLaunchShip === "blue-cg-57");
   await page.screenshot({ path: "verification-fleet-escort-launch.png", fullPage: true });
   const result = await page.locator("#scene").evaluate((canvas) => ({
     fleetId: canvas.dataset.fleetId,

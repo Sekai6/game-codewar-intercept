@@ -23,7 +23,7 @@ import {
 } from "./ship-types";
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
-import { fleetCameraFrame } from "./fleet/camera";
+import { fleetCameraFrame, fleetMemberFrame } from "./fleet/camera";
 import type { FleetFormation } from "./fleet/types";
 import { FLEET_FORMATION_OPTIONS, parseFleetFormation } from "./fleet/formation-presets";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
@@ -2254,6 +2254,7 @@ let dragging = false,
   viewMode: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 2,
   selectedAircraftId: string | null = null;
 let fleetOverviewCamera = false;
+let fleetLaunchCameraShipId: string | null = null;
 let shipSpeedKnots = DEFAULT_SURFACE_CONFIG.initialSpeedKnots,
   shipDesiredHeading = 0,
   shipCommandedSpeedKnots = activeShip.platform.patrolSpeedKnots,
@@ -4670,6 +4671,16 @@ log("16:42:11  SURFACE SEARCH RADAR — CONTACTS ACQUIRED");
 function updateCamera() {
   if (cinematic) az += 0.0018;
   let focus: THREE.Vector3;
+  if (fleetLaunchCameraShipId && fleetIntegration) {
+    const frame = fleetMemberFrame(fleetIntegration.observation(elapsed), fleetLaunchCameraShipId);
+    if (frame) {
+      focus = frame.center.clone().add(new THREE.Vector3(0, 4, 0));
+      const distance = 55;
+      camera.position.lerp(focus.clone().add(new THREE.Vector3(32, 24, 38)), 0.14);
+      camera.lookAt(focus);
+      return;
+    }
+  }
   if (fleetOverviewCamera && fleetIntegration) {
     const frame = fleetCameraFrame(fleetIntegration.observation(elapsed));
     if (frame) {
@@ -8397,6 +8408,7 @@ function tick(now: number) {
   canvas.dataset.highQualityOcean = String(highQualityEnvironmentEnabled);
   canvas.dataset.cameraViewMode = String(viewMode);
   canvas.dataset.cameraFleetOverview = String(fleetOverviewCamera);
+  canvas.dataset.cameraFleetLaunchShip = fleetLaunchCameraShipId ?? "";
   canvas.dataset.cameraAircraftId = selectedAircraftId ?? "";
   canvas.dataset.pureAirCombat = String(pureAirCombatStart);
   canvas.dataset.aircraftTotal = String(air.aircraft);
@@ -9131,6 +9143,12 @@ addEventListener("keydown", (e) => {
       az = 0.65;
       el = 0.62;
     }
+  }
+  if (e.key.toLowerCase() === "l" && fleetIntegration) {
+    const recent = fleetIntegration.recentPhysicalLaunches(12);
+    fleetLaunchCameraShipId = recent.at(-1)?.shipId ?? null;
+    fleetOverviewCamera = false;
+    cinematic = false;
   }
   if (e.key.toLowerCase() === "c") cinematic = !cinematic;
 });
