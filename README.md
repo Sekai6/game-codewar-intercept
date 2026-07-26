@@ -9,9 +9,9 @@
 
 </div>
 
-## 舰队系统（第一阶段）
+## 舰队系统（第二阶段）
 
-舰队扩展已从领域模型开始落地。`src/ships/` 定义并创建独立的 `ShipCombatantInstance`；每艘舰分别拥有模型、位置、速度、舰体与子系统健康、弹药库、本地/网络航迹和交战账本。`src/fleet/` 定义舰队条令、编队角色、指挥角色、场景目录与 `NavalForceRuntime`，首个 `blue-ntu-screen` 场景由 CGN-9 与 CG-57 组成。NTU Link 11 条令明确保持 `CUE ONLY`：网络航迹不能直接授予武器权限，发射舰仍需建立本地火控航迹。当前阶段尚未接入 `main.ts` 战斗帧循环；现有单舰战斗结果保持不变。`npm run verify:fleet-domain` 验证多舰弹药、航迹、毁伤、模型和角色状态相互独立。
+舰队扩展已从领域模型开始落地。`src/ships/` 定义并创建独立的 `ShipCombatantInstance`；每艘舰分别拥有模型、位置、速度、舰体与子系统健康、弹药库、本地/网络航迹和交战账本。`src/fleet/` 定义舰队条令、编队角色、指挥角色、场景目录与 `NavalForceRuntime`，首个 `blue-ntu-screen` 场景由 CGN-9 与 CG-57 组成。第二阶段加入受平台加速、减速和转向率限制的槽位追踪、掉队状态，以及 OTC/AAWC/ASuW 指挥舰失能后的能力化继任。NTU Link 11 条令明确保持 `CUE ONLY`：网络航迹不能直接授予武器权限，发射舰仍需建立本地火控航迹。当前阶段尚未接入 `main.ts` 战斗帧循环；现有单舰战斗结果保持不变。`npm run verify:fleet-domain` 验证多舰资源独立，`npm run verify:fleet-runtime` 验证编队运动与指挥继任。
 
 ## 联合空中作战
 

@@ -48,6 +48,20 @@ export interface ForceEngagementRecord {
   status: "assigned" | "weapons-away" | "assessing" | "leaker";
 }
 
+export interface FleetStationState {
+  desiredPosition: readonly [number, number, number];
+  errorDistance: number;
+  status: "on-station" | "maneuvering" | "straggling" | "disabled";
+}
+
+export interface FleetFormationState {
+  anchorShipId: string;
+  heading: number;
+  speedKnots: number;
+  stations: Map<string, FleetStationState>;
+  lastCommandReassessmentAt: number;
+}
+
 export interface NavalForceRuntime {
   id: string;
   side: CombatSide;
@@ -58,7 +72,7 @@ export interface NavalForceRuntime {
   stations: Map<string, readonly [number, number, number]>;
   formationRoles: Map<string, FleetFormationRole>;
   commandRoles: Map<FleetCommandRole, string>;
+  formationState: FleetFormationState;
   picture: Map<string, ShipTrackEstimate>;
   engagements: Map<string, ForceEngagementRecord>;
 }
-

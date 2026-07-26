@@ -37,6 +37,8 @@ export function createNavalForceRuntime(
     }
   }
   if (!commandRoles.has("otc")) throw new Error(`Fleet ${scenario.id} has no OTC`);
+  const anchorShipId = commandRoles.get("otc")!;
+  const anchor = ships.get(anchorShipId)!;
   return {
     id: scenario.id,
     side: scenario.side,
@@ -47,8 +49,14 @@ export function createNavalForceRuntime(
     stations,
     formationRoles,
     commandRoles,
+    formationState: {
+      anchorShipId,
+      heading: anchor.heading,
+      speedKnots: anchor.speedKnots,
+      stations: new Map(),
+      lastCommandReassessmentAt: Number.NEGATIVE_INFINITY,
+    },
     picture: new Map(),
     engagements: new Map(),
   };
 }
-
