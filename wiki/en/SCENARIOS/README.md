@@ -1,11 +1,9 @@
-# Scenarios
+# Scenario Index
 
-> v1.0.0 · 2026-07-26
+| Scenario | Purpose | Page |
+|---|---|---|
+| Default NTU air defense | Surface radar, fleet AAW and legal SAM launches | [BLUE_NTU_SCREEN](BLUE_NTU_SCREEN.md) |
+| Joint air combat | Fighter interception, air-to-ship weapons and ship defense | [JOINT_AIR](JOINT_AIR.md) |
 
-[Wiki home](../README.md) | [中文](../../SCENARIOS/README.md)
+Scenario definitions belong in `src/scenarios/`; each should document ID, forces, stores, era/data-link settings, ROE, acceptance events and expected ACMI objects.
 
-The default naval scenario exercises radar detection, uncertain tracks, shipboard SAM assignment, physical launchers, terminal seekers, EW, CIWS, and AAR. The optional naval-force mode adds CG-57 as an independent companion rather than a visual attachment.
-
-The joint-air scenario combines F-14 CAP, Tu-16K maritime strike, A-6E anti-ship attack, AEW/GCI control, air-to-air weapons, aircraft countermeasures, shipboard SAM engagement, and surviving-aircraft maneuver. Era controls select Link 11 as the NTU baseline and permit later Link 16 behavior only where configured.
-
-Scenario initial positions, ammunition, threat spacing, and engagement settings live under `src/scenarios/`; platform behavior remains in platform-owned runtimes.

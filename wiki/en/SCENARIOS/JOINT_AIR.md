@@ -1,7 +1,4 @@
-# Joint-Air Combat
+# Joint Air Combat Scenario
 
-> v1.0.0 · 2026-07-26 | [Scenarios](README.md) | [中文](../../SCENARIOS/JOINT_AIR.md)
+Scenario ID: `joint-air-combat`; entries are assembled by `src/air/scenarios.ts` and `src/air/catalog.ts`. F-14A, Tu-16K, A-6E, MiG-29A, E-2C and Tu-126 share the sensor, OODA, flight, weapon and countermeasure runtimes. Verify Phoenix interception, KSR-5/AGM-84A hardpoint release and ship SAM launcher events with `npm run verify:joint-air` and AAR/ACMI.
 
-The joint scenario combines F-14A CAP, Tu-16K maritime strike, A-6E anti-ship attack, MiG-29A interception, E-2C/Tu-126 control, air-to-air missiles, aircraft countermeasures, anti-ship releases, and shipboard SAM defense.
-
-Each aircraft is independently simulated and targetable. F-14s use Phoenix/Sparrow/Sidewinder employment; Tu-16K approaches, releases KSR-5, and egresses; A-6E attacks with AGM-84A; MiG-29A uses R-27R/R-73. AEW/GCI cues retain uncertainty and do not grant weapon authority. Surviving aircraft continue maneuvering and damaged aircraft follow explicit damage/crash states.

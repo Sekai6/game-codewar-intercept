@@ -1,7 +1,4 @@
-# Blue NTU Screen
+# Default NTU Air-Defense Scenario
 
-> v1.0.0 · 2026-07-26 | [Scenarios](README.md) | [中文](../../SCENARIOS/BLUE_NTU_SCREEN.md)
+Scenario ID: `blue-ntu-screen`. Configuration lives in `src/scenarios/surface-scenarios.ts` and `src/scenarios/`. CGN-9 and CG-57 face layered P-15/P-500/P-700/Kh-22 threats. Radar tracks, authorization, launcher animation, physical separation and ammunition decrement form one legal SAM path. Verify with `npm run verify:surface-scenarios` and ACMI object birth.
 
-This preset exercises a US NTU-era naval screen. USS Long Beach acts as flagship and USS Lake Champlain may join as an independent companion when naval-force mode is enabled. Link 11 is the historical baseline; later Link 16 behavior is optional and era-gated.
-
-The scenario verifies formation station keeping, local versus shared tracks, AAW assignment, per-ship weapon authorization, independent magazines/channels, physical Mk 10/Mk 41 launches, ECM/SRBOC/CIWS, damage, AAR, and ACMI ownership.
