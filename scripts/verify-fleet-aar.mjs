@@ -21,6 +21,9 @@ const base = { id: "AAW-1", targetId: "M-104", shooterId: "blue-cg-57", localTra
 let sample = recorder.sample(observation(base), 1);
 assert.equal(sample.events.filter((event) => event.text.includes("AAWC ASSIGN")).length, 1);
 assert.ok(sample.events.some((event) => event.text.includes("PHYSICAL LAUNCH / blue-cg-57 / MK 41 FWD / CELL 26 / SM-2ER / ORGANIC VLS")));
+assert.deepEqual(sample.snapshot.physicalLaunches, [{
+  shipId: "blue-cg-57", launcherLabel: "MK 41 FWD", launchPoint: "CELL 26", weapon: "SM-2ER", time: 2,
+}]);
 sample = recorder.sample(observation({ ...base, updatedAt: 2 }), 2);
 assert.equal(sample.events.filter((event) => event.text.includes("AAWC ASSIGN")).length, 0);
 sample = recorder.sample(observation({ ...base, weaponsAway: 1, updatedAt: 3 }), 3);
