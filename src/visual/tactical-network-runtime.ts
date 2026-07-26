@@ -87,7 +87,8 @@ export function createTacticalNetworkRuntime(options:Options):TacticalNetworkRun
       (lastFleetObservation?`<p><b>FLEET CHAIN</b> ${lastFleetObservation.members.length} SHIPS / ${lastFleetObservation.assignments.length} TASKS / ${lastFleetObservation.assignments.filter(task=>task.weaponsAway>0).length} FIRING / <em>ORGANIC TRACK REQUIRED</em></p>`:"");
     events.innerHTML=sovietMode
       ? (lastSovietObservation?.events.slice(-6).reverse().map(event=>`<p><time>${event.time.toFixed(1)}</time><b>SOVIET ${event.layer.toUpperCase()}</b> ${event.text}</p>`).join("")||"<p>NO SOVIET C2 TRAFFIC</p>")
-      : (o.activities.slice(-6).reverse().map(event=>`<p><time>${event.time.toFixed(1)}</time><b>${event.network.toUpperCase()}</b> ${event.kind.toUpperCase()} ${event.senderId}${event.recipientId?` -> ${event.recipientId}`:""}${event.trackId?` / ${event.trackId}`:""}</p>`).join("")||"<p>NO NETWORK TRAFFIC</p>");}
+      : (o.activities.slice(-6).reverse().map(event=>`<p><time>${event.time.toFixed(1)}</time><b>${event.network.toUpperCase()}</b> ${event.kind.toUpperCase()} ${event.senderId}${event.recipientId?` -> ${event.recipientId}`:""}${event.trackId?` / ${event.trackId}`:""}</p>`).join("")||"<p>NO NETWORK TRAFFIC</p>")+
+        (lastFleetObservation?.assignments.slice(0,4).map(task=>`<p class="fleet-task"><time>${task.weaponsAway}</time><b>${task.shooterId}</b> ${task.weapon} / ${task.targetId} / ${task.status.toUpperCase()}</p>`).join("")||"");}
   function applyMode(next:ViewMode){mode=next;if(next!=="off")lastMode=next;group.visible=next!=="off";panel.classList.toggle("visible",next!=="off");lastBuild=-Infinity;}
   const onKey=(event:KeyboardEvent)=>{if(event.key.toLowerCase()!=="n"||event.repeat)return;if(event.shiftKey){const modes:ViewMode[]=["link11","link16","soviet","all","off"];applyMode(modes[(modes.indexOf(mode)+1)%modes.length]);}else applyMode(mode==="off"?lastMode:"off");};
   addEventListener("keydown",onKey);
