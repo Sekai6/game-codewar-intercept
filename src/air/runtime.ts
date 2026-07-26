@@ -228,18 +228,18 @@ function instantiate(
     const mountedModel = weaponId ? createAirWeaponModel(AIR_WEAPONS[weaponId]) : null;
     if (weaponId) remaining.set(weaponId, (remaining.get(weaponId) ?? 0) - 1);
     if (mountedModel) {
-      const wingPivots = model.userData.variableWings as THREE.Object3D[] | undefined;
-      const wingIndex = definition.id.includes("wing-port")
-        ? 0
-        : definition.id.includes("wing-starboard") ? 1 : -1;
-      const mountParent = wingIndex >= 0 && wingPivots?.[wingIndex]
-        ? wingPivots[wingIndex]
-        : model;
-      model.updateMatrixWorld(true);
-      const worldMount = model.localToWorld(new THREE.Vector3(...definition.position));
-      mountParent.add(mountedModel);
-      mountParent.updateMatrixWorld(true);
-      mountedModel.position.copy(mountParent.worldToLocal(worldMount));
+      const visualMounts = model.userData.airWeaponMounts as
+        | Record<string, THREE.Object3D>
+        | undefined;
+      const visualMount = visualMounts?.[definition.id];
+      if (visualMount) {
+        visualMount.add(mountedModel);
+        mountedModel.position.set(0, 0, 0);
+        mountedModel.rotation.z = Number(visualMount.userData.weaponRoll ?? 0);
+      } else {
+        mountedModel.position.set(...definition.position);
+        model.add(mountedModel);
+      }
       mountedModel.scale.setScalar(0.72);
       const flame = mountedModel.userData.flame as THREE.Mesh | undefined;
       if (flame) flame.visible = false;

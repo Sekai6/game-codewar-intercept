@@ -8,6 +8,25 @@ const glass = new THREE.MeshPhysicalMaterial({ color: 0x183d50, metalness: 0.08,
 const panel = applySurfaceDetail(new THREE.MeshStandardMaterial({ color: 0x515b5a, metalness: 0.48, roughness: 0.46 }), "dark-metal", 0.17);
 const seamMaterial = new THREE.MeshStandardMaterial({ color: 0x313b3b, metalness: 0.35, roughness: 0.62 });
 
+type AirWeaponMountMap = Record<string, THREE.Object3D>;
+
+interface AirWeaponMountPiece {
+  offset: readonly [number, number, number];
+  size: readonly [number, number, number];
+}
+
+interface AirWeaponMountVisual {
+  position: THREE.Vector3;
+  size: THREE.Vector3;
+}
+
+interface AirWeaponMountBatch {
+  mounts: THREE.Group[];
+  visuals: AirWeaponMountVisual[];
+}
+
+type AirWeaponMountBatches = Map<THREE.Object3D, AirWeaponMountBatch>;
+
 function planarShape(points: readonly [number, number][], thickness = 0.08) {
   const shape = new THREE.Shape();
   points.forEach(([x, z], index) => index ? shape.lineTo(x, z) : shape.moveTo(x, z));
@@ -59,12 +78,72 @@ function canopy(length: number, width: number, height: number, z: number) {
   return mesh;
 }
 
-function addFormationLights(group: THREE.Group, span: number) {
-  for (const side of [-1, 1]) {
-    const light = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), new THREE.MeshBasicMaterial({ color: side < 0 ? 0xff473d : 0x54f58a }));
-    light.position.set(side * span, 0.04, 0.4);
-    group.add(light);
-  }
+function addFormationLight(root: THREE.Group, parent: THREE.Object3D, side: number, position: readonly [number, number, number]) {
+  const light = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 6, 4),
+    new THREE.MeshBasicMaterial({ color: side < 0 ? 0xff473d : 0x54f58a }),
+  );
+  light.position.set(...position);
+  parent.add(light);
+  ((root.userData.formationLights ??= []) as THREE.Mesh[]).push(light);
+  return light;
+}
+
+function airWeaponMounts(root: THREE.Group) {
+  return (root.userData.airWeaponMounts ??= {}) as AirWeaponMountMap;
+}
+
+function addAirWeaponMount(
+  root: THREE.Group,
+  parent: THREE.Object3D,
+  batches: AirWeaponMountBatches,
+  id: string,
+  aircraftPosition: readonly [number, number, number],
+  pieces: readonly AirWeaponMountPiece[],
+) {
+  root.updateMatrixWorld(true);
+  const localPosition = parent.worldToLocal(
+    root.localToWorld(new THREE.Vector3(...aircraftPosition)),
+  );
+  const mount = new THREE.Group();
+  mount.name = `air-weapon-mount:${id}`;
+  mount.position.copy(localPosition);
+  mount.userData.stationId = id;
+  mount.userData.aircraftLocalPosition = [...aircraftPosition];
+  parent.add(mount);
+  airWeaponMounts(root)[id] = mount;
+  const batch = batches.get(parent) ?? { mounts: [], visuals: [] };
+  batch.mounts.push(mount);
+  pieces.forEach((piece) => batch.visuals.push({
+    position: localPosition.clone().add(new THREE.Vector3(...piece.offset)),
+    size: new THREE.Vector3(...piece.size),
+  }));
+  batches.set(parent, batch);
+  return mount;
+}
+
+function finishAirWeaponMounts(batches: AirWeaponMountBatches) {
+  const matrix = new THREE.Matrix4(), rotation = new THREE.Quaternion();
+  let batchIndex = 0;
+  batches.forEach((batch, parent) => {
+    if (!batch.visuals.length) return;
+    const hardware = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      panel,
+      batch.visuals.length,
+    );
+    hardware.name = `air-weapon-mount-hardware:${batchIndex++}`;
+    batch.visuals.forEach((visual, index) => {
+      matrix.compose(visual.position, rotation, visual.size);
+      hardware.setMatrixAt(index, matrix);
+    });
+    hardware.instanceMatrix.needsUpdate = true;
+    hardware.computeBoundingBox();
+    hardware.computeBoundingSphere();
+    hardware.castShadow = true;
+    parent.add(hardware);
+    batch.mounts.forEach((mount) => { mount.userData.hardware = hardware; });
+  });
 }
 
 function createStarGeometry(radius: number) {
@@ -79,7 +158,14 @@ function createStarGeometry(radius: number) {
   return new THREE.ShapeGeometry(shape);
 }
 
-function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: number, span: number, allegiance: "us" | "ussr") {
+function addAircraftSurfaceDetails(
+  group: THREE.Group,
+  radius: number,
+  length: number,
+  span: number,
+  allegiance: "us" | "ussr",
+  markingPositions?: readonly (readonly [number, number, number])[],
+) {
   const high = new THREE.Group();
   const markings: THREE.Group[] = [];
   high.name = "aircraft-high-surface-detail";
@@ -111,7 +197,7 @@ function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: n
       const star = new THREE.Mesh(createStarGeometry(0.245), new THREE.MeshStandardMaterial({ color: 0xc62126, roughness: 0.7 }));
       star.rotation.x = -Math.PI / 2; star.position.y = 0.006; marking.add(star);
     }
-    marking.position.set(side * span * 0.62, 0.13, 0.15);
+    marking.position.set(...(markingPositions?.[side < 0 ? 0 : 1] ?? [side * span * 0.62, 0.048, 0.15]));
     markings.push(marking);
     high.add(marking);
   }
@@ -121,7 +207,7 @@ function addAircraftSurfaceDetails(group: THREE.Group, radius: number, length: n
   high.add(pitot);
   group.add(high);
   group.userData.surfaceMarkings = markings;
-  registerAssetDetailLod(group, { nearDistance: 58, mediumDistance: 145, high: [high] });
+  registerAssetDetailLod(group, { nearDistance: 58, mediumDistance: 145, high: [high, ...markings] });
   group.userData.surfaceDetailCount = high.children.length;
 }
 
@@ -174,7 +260,7 @@ function finishAircraft(group: THREE.Group, length: number, engines: readonly TH
 }
 
 export function createF14Model() {
-  const g = new THREE.Group(), metal = skin(0x9ba5a7);
+  const g = new THREE.Group(), metal = skin(0x9ba5a7), mountBatches: AirWeaponMountBatches = new Map();
   const spine = axialCapsule(0.58, 5.6, metal); spine.position.z = -0.45; spine.scale.y = 0.82; g.add(spine);
   const nose = axialCone(0.56, 2.55, metal); nose.position.z = -4.65; g.add(nose);
   g.add(canopy(1.55, 0.72, 0.48, -2.45));
@@ -196,14 +282,32 @@ export function createF14Model() {
   markings.forEach((marking, index) => {
     const side = index === 0 ? -1 : 1;
     variableWings[index].add(marking);
-    marking.position.set(side * 1.72, 0.13, -0.02);
+    marking.position.set(side * 1.72, 0.048, -0.02);
+    addFormationLight(g, variableWings[index], side, [side * 3.1, 0.06, -0.55]);
   });
-  addFormationLights(g, 3.75);
+  for (const [index, side] of [-1, 1].entries()) {
+    const parent = variableWings[index], sideName = side < 0 ? "port" : "starboard";
+    addAirWeaponMount(g, parent, mountBatches, `wing-${sideName}-outer`, [side * 2.7, -0.31, -0.1], [
+      { offset: [0, 0.095, 0], size: [0.11, 0.06, 0.95] },
+      { offset: [0, 0.208, -0.12], size: [0.1, 0.165, 0.42] },
+    ]);
+    addAirWeaponMount(g, parent, mountBatches, `wing-${sideName}-inner`, [side * 1.8, -0.38, 0.18], [
+      { offset: [0, 0.177, 0], size: [0.16, 0.08, 1.1] },
+      { offset: [0, 0.289, -0.13], size: [0.14, 0.145, 0.52] },
+    ]);
+    for (const [tunnelIndex, z] of [-0.5, 0.85].entries()) {
+      addAirWeaponMount(g, g, mountBatches, `tunnel-${sideName}-${tunnelIndex + 1}`, [side * 0.62, -0.75, z], [
+        { offset: [0, 0.177, 0], size: [0.42, 0.08, 0.95] },
+        { offset: [0, 0.27, -0.14], size: [0.18, 0.12, 0.38] },
+      ]);
+    }
+  }
+  finishAirWeaponMounts(mountBatches);
   return finishAircraft(g, 9.6, [new THREE.Vector3(-1.02, -0.16, 3.72), new THREE.Vector3(1.02, -0.16, 3.72)], ["tandem-canopy", "variable-sweep-wings", "twin-nacelles", "twin-tails", "stabilators", "intake-ramps"]);
 }
 
 export function createTu16Model() {
-  const g = new THREE.Group(), metal = skin(0xa6aaa5);
+  const g = new THREE.Group(), metal = skin(0xa6aaa5), mountBatches: AirWeaponMountBatches = new Map();
   const body = axialCapsule(0.74, 9.4, metal, 18); body.scale.y = 0.92; g.add(body);
   const glazedNose = new THREE.Mesh(new THREE.SphereGeometry(0.68, 16, 10), glass); glazedNose.scale.set(1, 0.8, 1.45); glazedNose.position.z = -5.45; g.add(glazedNose);
   const cockpit = canopy(1.0, 0.68, 0.34, -4.35); cockpit.position.y = 0.45; g.add(cockpit);
@@ -216,13 +320,24 @@ export function createTu16Model() {
   }
   const vertical = fin([[0, -1.0], [2.25, -0.2], [2.4, 0.65], [0, 0.85]], metal, 0.12); vertical.position.set(0, 0.7, 3.75); g.add(vertical);
   const ventralRadar = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), panel); ventralRadar.scale.set(1, 0.5, 1.4); ventralRadar.position.set(0, -0.78, 1.2); g.add(ventralRadar);
-  addAircraftSurfaceDetails(g, 0.74, 12, 6, "ussr");
-  addFormationLights(g, 6.0);
+  addAircraftSurfaceDetails(g, 0.74, 12, 6, "ussr", [
+    [-3.55, 0.075, -0.8],
+    [3.55, 0.075, -0.8],
+  ]);
+  for (const side of [-1, 1]) {
+    const sideName = side < 0 ? "port" : "starboard";
+    addFormationLight(g, g, side, [side * 5.72, 0.025, -1.52]);
+    addAirWeaponMount(g, g, mountBatches, `wing-${sideName}-ksr`, [side * 3.85, -1.08, -0.85], [
+      { offset: [0, 0.62, -0.39], size: [0.26, 0.82, 0.46] },
+      { offset: [0, 0.17, -0.15], size: [0.34, 0.16, 0.62] },
+    ]);
+  }
+  finishAirWeaponMounts(mountBatches);
   return finishAircraft(g, 12, [new THREE.Vector3(-2.55, -0.3, 1.62), new THREE.Vector3(2.55, -0.3, 1.62)], ["glazed-nose", "swept-wings", "wing-engine-pods", "high-tailplane", "single-fin", "ventral-radar"]);
 }
 
 export function createA6Model() {
-  const g = new THREE.Group(), metal = skin(0x8d9997);
+  const g = new THREE.Group(), metal = skin(0x8d9997), mountBatches: AirWeaponMountBatches = new Map();
   const body = axialCapsule(0.68, 6.2, metal); body.position.z = -0.15; body.scale.y = 0.9; g.add(body);
   const bluntNose = new THREE.Mesh(new THREE.SphereGeometry(0.64, 16, 10), metal); bluntNose.scale.set(1, 0.88, 1.35); bluntNose.position.z = -4.0; g.add(bluntNose);
   const cockpit = canopy(1.3, 0.95, 0.42, -2.7); cockpit.scale.x = 1.2; g.add(cockpit);
@@ -235,12 +350,20 @@ export function createA6Model() {
   const vertical = fin([[0, -0.75], [1.65, -0.1], [1.75, 0.58], [0, 0.72]], metal); vertical.position.set(0, 0.62, 2.65); g.add(vertical);
   const speedBrake = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.05, 0.42), panel); speedBrake.position.set(0, 0.62, 0.75); g.add(speedBrake);
   addAircraftSurfaceDetails(g, 0.68, 8.8, 3.85, "us");
-  addFormationLights(g, 3.85);
+  for (const side of [-1, 1]) {
+    const sideName = side < 0 ? "port" : "starboard";
+    addFormationLight(g, g, side, [side * 3.68, 0.065, -0.42]);
+    addAirWeaponMount(g, g, mountBatches, `wing-${sideName}-strike`, [side * 2.15, -0.52, 0.25], [
+      { offset: [0, 0.16, 0], size: [0.18, 0.06, 1.05] },
+      { offset: [0, 0.335, -0.2], size: [0.13, 0.29, 0.62] },
+    ]);
+  }
+  finishAirWeaponMounts(mountBatches);
   return finishAircraft(g, 8.8, [new THREE.Vector3(-0.72, -0.12, 2.92), new THREE.Vector3(0.72, -0.12, 2.92)], ["side-by-side-canopy", "blunt-radome", "shoulder-intakes", "straight-swept-wings", "single-fin", "dorsal-speed-brake"]);
 }
 
 export function createMig29Model() {
-  const g = new THREE.Group(), metal = skin(0x89958f), radome = skin(0x68726e);
+  const g = new THREE.Group(), metal = skin(0x89958f), radome = skin(0x68726e), mountBatches: AirWeaponMountBatches = new Map();
   const body = axialCapsule(0.5, 5.1, metal); body.position.z = -0.55; body.scale.y = 0.82; g.add(body);
   const nose = axialCone(0.48, 2.35, radome); nose.position.z = -4.25; g.add(nose);
   g.add(canopy(1.35, 0.72, 0.45, -2.45));
@@ -254,7 +377,23 @@ export function createMig29Model() {
     const stabilator = wing(side, 1.32, 1.15, 0.42, 0.4, metal); stabilator.position.set(side * 0.65, 0.02, 2.85); g.add(stabilator);
     const jet = nozzle(0.35, 0.62); jet.position.set(side * 0.86, -0.2, 3.05); g.add(jet);
   }
-  addFormationLights(g, 3.45);
   addAircraftSurfaceDetails(g, 0.5, 8.65, 3.45, "ussr");
+  for (const side of [-1, 1]) {
+    const sideName = side < 0 ? "port" : "starboard";
+    addFormationLight(g, g, side, [side * 3.46, 0.025, -0.3]);
+    addAirWeaponMount(g, g, mountBatches, `wing-${sideName}-outer`, [side * 2.65, -0.34, 0.18], [
+      { offset: [0, 0.055, 0], size: [0.11, 0.05, 0.72] },
+      { offset: [0, 0.17, 0], size: [0.12, 0.26, 0.38] },
+    ]);
+    addAirWeaponMount(g, g, mountBatches, `wing-${sideName}-middle`, [side * 1.85, -0.43, 0.18], [
+      { offset: [0, 0.075, 0], size: [0.13, 0.06, 0.86] },
+      { offset: [0, 0.22, 0], size: [0.14, 0.34, 0.46] },
+    ]);
+    addAirWeaponMount(g, g, mountBatches, `wing-${sideName}-inner`, [side * 1.15, -0.45, 0.02], [
+      { offset: [0, 0.085, 0], size: [0.14, 0.06, 0.9] },
+      { offset: [0, 0.23, 0], size: [0.15, 0.36, 0.48] },
+    ]);
+  }
+  finishAirWeaponMounts(mountBatches);
   return finishAircraft(g, 8.65, [new THREE.Vector3(-0.86, -0.2, 3.25), new THREE.Vector3(0.86, -0.2, 3.25)], ["bubble-canopy", "lerx", "twin-nacelles", "separate-intakes", "canted-twin-tails", "stabilators"]);
 }

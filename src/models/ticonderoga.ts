@@ -87,6 +87,7 @@ function flagTexture() {
   return texture;
 }
 export function buildTiconderoga() {
+  // Ship-local axes: +X bow, -Z starboard, +Z port.
   const ship = new THREE.Group(),
     hullMat = new THREE.MeshStandardMaterial({
       color: 0x748183,
@@ -232,7 +233,7 @@ export function buildTiconderoga() {
       arrayMat,
       dark,
       new THREE.Vector3(longitudinal(5.8), 12.25, -3.22),
-      new THREE.Euler(0, 0, 0),
+      new THREE.Euler(0, Math.PI, 0),
     ),
   );
   arrays.push(
@@ -248,7 +249,7 @@ export function buildTiconderoga() {
       arrayMat,
       dark,
       new THREE.Vector3(longitudinal(-8.6), 11.65, 3.22),
-      new THREE.Euler(0, Math.PI, 0),
+      new THREE.Euler(0, 0, 0),
     ),
   );
   ship.add(...arrays);
@@ -401,13 +402,13 @@ export function buildTiconderoga() {
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(-10.8), 13.5, -3.7),
+      new THREE.Vector3(longitudinal(-10.8), 13, -3.7),
       Math.PI + 0.3,
     ),
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(-10.8), 13.5, 3.7),
+      new THREE.Vector3(longitudinal(-10.8), 13, 3.7),
       Math.PI - 0.3,
     ),
   ];
@@ -489,19 +490,22 @@ export function buildTiconderoga() {
       canister.position.set(longitudinal(x), 8.2, side * 4);
       highDetail.add(canister);
     }
-  const surfaceStrikeHardpoints: ModelWeaponHardpoint[] = [];
+  const surfaceStrikeHardpoints: ModelWeaponHardpoint[] = [],
+    surfaceStrikeLaunchers: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     const harpoon = createMk141Launcher(
       superMat,
       dark,
-      `mk141-${side > 0 ? "starboard" : "port"}`,
+      `mk141-${side > 0 ? "port" : "starboard"}`,
     );
     harpoon.position.set(longitudinal(-1.5), 7.2, side * 2.15);
-    harpoon.rotation.y = side * 0.42;
+    // Cant each bank outboard instead of across the ship's centreline.
+    harpoon.rotation.y = -side * 0.42;
     surfaceStrikeHardpoints.push(
       ...(harpoon.userData.weaponHardpoints as ModelWeaponHardpoint[]),
     );
-    highDetail.add(harpoon);
+    surfaceStrikeLaunchers.push(harpoon);
+    ship.add(harpoon);
     const ewArray = createSlq32Array(arrayMat, dark);
     ewArray.position.set(longitudinal(1.8), 13.2, side * 3.38);
     ewArray.rotation.y = side > 0 ? 0 : Math.PI;
@@ -577,6 +581,8 @@ export function buildTiconderoga() {
         }),
       );
     anchor.position.copy(origin).sub(new THREE.Vector3(-4, 15, 0));
+    // Cancels the anchor offset until either the flagship or fleet runtime animates it.
+    puff.position.set(-4, 15, 0);
     anchor.add(puff);
     smokePuffs.push(puff);
     highDetail.add(anchor);
@@ -633,7 +639,7 @@ export function buildTiconderoga() {
   const navigationLights: THREE.PointLight[] = [],
     lightBulbs: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
-    const color = side > 0 ? 0x42ff74 : 0xff493e,
+    const color = side < 0 ? 0x42ff74 : 0xff493e,
       light = new THREE.PointLight(color, 3, 18),
       bulb = new THREE.Mesh(
         new THREE.SphereGeometry(0.14, 8, 6),
@@ -641,6 +647,13 @@ export function buildTiconderoga() {
       );
     light.position.set(longitudinal(10.5), 17, side * 3.7);
     bulb.position.copy(light.position);
+    strut(
+      ship,
+      new THREE.Vector3(longitudinal(10.5), 16.82, side * 2.55),
+      bulb.position,
+      0.06,
+      dark,
+    );
     navigationLights.push(light);
     lightBulbs.push(bulb);
     ship.add(light, bulb);
@@ -737,6 +750,7 @@ export function buildTiconderoga() {
       aftCiws,
       rastTrack,
       breakwater,
+      ...surfaceStrikeLaunchers,
       ...directors,
       ...arrays,
     ],

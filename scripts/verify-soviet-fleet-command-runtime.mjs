@@ -90,7 +90,7 @@ try {
     beforeLaunch.launches.includes("KSR-5") ||
     !(areaIndex >= 0 && areaIndex < detectIndex && detectIndex < orderIndex && orderIndex < launchIndex) ||
     launchAt + 0.01 < windowStart ||
-    !guided.hardpoints.includes("red-TU-16K") || !guided.hardpoints.includes("centerline-ksr:empty:none") ||
+    !guided.hardpoints.includes("red-TU-16K") || !guided.hardpoints.includes("wing-port-ksr:empty:none") ||
     disabled.operational !== "false" || disabled.delivered !== 0 || disabled.active !== 0 ||
     !disabled.orders.split("|").every((state) => state.endsWith(":none"))
   ) process.exitCode = 1;

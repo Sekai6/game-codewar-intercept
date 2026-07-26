@@ -82,7 +82,7 @@ try {
     errors.length || active.waves !== 1 || active.assignments !== 2 || active.spread > 0.15 ||
     areaIndex < 0 || orderIndex <= areaIndex || assignments.length !== 2 || !twoReleasesObserved || launches.length < 2 || !legalLaunchTimes ||
     active.events.includes("blue-surface-ship") ||
-    (active.hardpoints.match(/centerline-ksr:empty:none/g) ?? []).length < 2 ||
+    (active.hardpoints.match(/wing-port-ksr:empty:none/g) ?? []).length < 2 ||
     disabled.waves !== 0 || disabled.assignments !== 0 || disabled.events.includes("SALVO ASSIGNMENT")
   ) process.exitCode = 1;
 } finally {

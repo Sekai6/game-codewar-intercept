@@ -21,7 +21,9 @@ const PROFILES: Record<AirWeaponId, WeaponVisualProfile> = {
   "AIM-9L": { length: 1.55, radius: .09, noseLength: .31, foreFinSpan: .25, aftFinSpan: .42, wingChord: .26, bodyColor: 0xd7d8d1, bandColor: 0x4f4b3f, planform: "cruciform" },
   "R-27R": { length: 2.35, radius: .16, noseLength: .5, foreFinSpan: .58, aftFinSpan: .68, wingChord: .52, bodyColor: 0xe7e7df, bandColor: 0xa74232, planform: "long-chord" },
   "R-73": { length: 1.58, radius: .105, noseLength: .3, foreFinSpan: .28, aftFinSpan: .44, wingChord: .28, bodyColor: 0xe2e2d8, bandColor: 0x6d4935, planform: "cruciform" },
-  "KSR-5": { length: 4.15, radius: .34, noseLength: .78, foreFinSpan: .34, aftFinSpan: 1.18, wingChord: 1.05, bodyColor: 0xd7d5c9, bandColor: 0xb5312c, planform: "delta" },
+  // Keep the Kingfish close to its real 10.52 m x 0.92 m x 2.61 m
+  // proportions while retaining the project's common 0.72 mounted scale.
+  "KSR-5": { length: 5.05, radius: .215, noseLength: .78, foreFinSpan: .82, aftFinSpan: .48, wingChord: .96, bodyColor: 0xd7d5c9, bandColor: 0xb5312c, planform: "delta" },
   "AGM-84A": { length: 2.55, radius: .18, noseLength: .5, foreFinSpan: .56, aftFinSpan: .62, wingChord: .42, bodyColor: 0xdadbd3, bandColor: 0x5b6362, planform: "cruciform" },
 };
 

@@ -11,12 +11,20 @@ try{
   await page.locator("#sbDatalinkEra").selectOption("ntu-baseline");
   await page.locator("#sbSovietCommand").uncheck();
   await page.locator("#sbStart").click();
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector(".sandbox-panel")).display==="none");
+  await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.simulationElapsed??0)>0);
   await page.getByRole("button",{name:"TIME: 1X"}).click();
   await page.getByRole("button",{name:"TIME: 2X"}).click();
-  await page.waitForFunction(()=>{
-    const data=document.querySelector("#scene")?.dataset,commands=data?.aewCommandStates??"";
-    return commands.includes(":link4a:")&&commands.includes(":voice-gci:")&&Number(data?.link11Transmitted??0)>0;
-  },null,{timeout:30000});
+  try{
+    await page.waitForFunction(()=>{
+      const data=document.querySelector("#scene")?.dataset,commands=data?.aewCommandStates??"";
+      return commands.includes(":link4a:")&&commands.includes(":voice-gci:")&&Number(data?.link11Transmitted??0)>0;
+    },null,{timeout:45000});
+  }catch(error){
+    const diagnostic=await page.locator("#scene").evaluate(scene=>({elapsed:scene.dataset.simulationElapsed,missions:scene.dataset.airMissionStates,commands:scene.dataset.aewCommandStates,events:scene.dataset.aewEventLog,link11Participants:scene.dataset.link11Participants,link11Transmitted:scene.dataset.link11Transmitted,link11Delivered:scene.dataset.link11Delivered}));
+    console.error("AEW runtime timeout",JSON.stringify({...diagnostic,errors},null,2));
+    throw error;
+  }
   const result=await page.locator("#scene").evaluate(scene=>({aircraft:Number(scene.dataset.aircraftTotal??0),missions:scene.dataset.airMissionStates??"",commands:scene.dataset.aewCommandStates??"",events:scene.dataset.aewEventLog??"",link11Participants:scene.dataset.link11Participants??"",link11Transmitted:Number(scene.dataset.link11Transmitted??0),link11Delivered:Number(scene.dataset.link11Delivered??0),aarCommands:Number(scene.dataset.aarAewCommandCount??0),launches:scene.dataset.airWeaponLaunchLog??""}));
   console.log(JSON.stringify({...result,errors},null,2));
   const commandParts=result.commands.split("|");

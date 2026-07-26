@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createAirWeaponModel } from "../dist-test/models/air-weapons.js";
+import { airWeaponVisualProfiles, createAirWeaponModel } from "../dist-test/models/air-weapons.js";
 
 const weapons = [
   ["AIM-54A", "active-radar"],
@@ -36,5 +36,21 @@ const result = weapons.map(([id, guidance]) => {
 console.log(JSON.stringify(result, null, 2));
 const distinctLengths = new Set(result.map((weapon) => weapon.length)).size;
 const distinctPlanforms = new Set(result.map((weapon) => weapon.planform)).size;
-if (result.some((weapon) => weapon.meshes < 12 || weapon.mapped < 2 || !weapon.flame || !weapon.lod) || distinctLengths < 6 || distinctPlanforms !== 3)
+const ksr5 = airWeaponVisualProfiles()["KSR-5"];
+const ksr5FinenessRatio = ksr5.length / (ksr5.radius * 2);
+const ksr5SpanRatio = (ksr5.radius * 2 + Math.max(ksr5.foreFinSpan, ksr5.aftFinSpan)) / ksr5.length;
+const ksr5Rendered = result.find((weapon) => weapon.id === "KSR-5");
+if (
+  result.some((weapon) => weapon.meshes < 12 || weapon.mapped < 2 || !weapon.flame || !weapon.lod) ||
+  distinctLengths < 6 ||
+  distinctPlanforms !== 3 ||
+  !ksr5Rendered ||
+  ksr5.planform !== "delta" ||
+  ksr5.foreFinSpan <= ksr5.aftFinSpan ||
+  ksr5FinenessRatio < 11 ||
+  ksr5FinenessRatio > 12.5 ||
+  ksr5SpanRatio < .23 ||
+  ksr5SpanRatio > .27 ||
+  ksr5Rendered.length < 5
+)
   process.exitCode = 1;

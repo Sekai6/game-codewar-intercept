@@ -227,6 +227,7 @@ function createMk10Launcher(deckMat: THREE.Material, darkMat: THREE.Material) {
   return launcher;
 }
 export function buildLongBeach(color = 0x7a8583, scale = 1) {
+  // Ship-local axes: +X bow, -Z starboard, +Z port.
   const g = new THREE.Group();
   g.scale.setScalar(scale);
   const hullMat = new THREE.MeshStandardMaterial({
@@ -570,7 +571,12 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       }),
     ),
   );
-  g.add(aftDirector);
+  const aftDirectorPedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.72, 0.95, 0.95, 10),
+    darkMat,
+  );
+  aftDirectorPedestal.position.set(-7, 10.27, 0);
+  g.add(aftDirectorPedestal, aftDirector);
   for (const side of [-1, 1]) {
     const rail = new THREE.Mesh(
       new THREE.CylinderGeometry(0.06, 0.06, 42, 6),
@@ -624,7 +630,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     number.position.set(17.5, 3.7, side * 3.38);
     number.rotation.y = side > 0 ? 0 : Math.PI;
     g.add(number);
-    const lampColor = side > 0 ? 0x36ff78 : 0xff3a32,
+    const lampColor = side < 0 ? 0x36ff78 : 0xff3a32,
       nav = new THREE.PointLight(lampColor, 3, 18),
       bulb = new THREE.Mesh(
         new THREE.SphereGeometry(0.16, 8, 6),
@@ -632,6 +638,13 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       );
     nav.position.set(6, 14, side * 3.7);
     bulb.position.copy(nav.position);
+    addStrut(
+      g,
+      new THREE.Vector3(6, 13.92, side * 2.55),
+      bulb.position,
+      0.065,
+      darkMat,
+    );
     navigationLights.push(nav);
     lightBulbs.push(bulb);
     g.add(nav, bulb);
@@ -693,18 +706,21 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     if (o.name === "launcherArm") forwardLauncher.userData.arms.push(o);
   });
   g.add(forwardLauncher);
-  const surfaceStrikeHardpoints: ModelWeaponHardpoint[] = [];
+  const surfaceStrikeHardpoints: ModelWeaponHardpoint[] = [],
+    surfaceStrikeLaunchers: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     const harpoon = createMk141Launcher(
       deckMat,
       darkMat,
-      `mk141-${side > 0 ? "starboard" : "port"}`,
+      `mk141-${side > 0 ? "port" : "starboard"}`,
     );
     harpoon.position.set(-12.5, 6.28, side * 2.05);
-    harpoon.rotation.y = side * 0.4;
+    // Cant each bank away from the centreline so a departing round clears the ship.
+    harpoon.rotation.y = -side * 0.4;
     surfaceStrikeHardpoints.push(
       ...(harpoon.userData.weaponHardpoints as ModelWeaponHardpoint[]),
     );
+    surfaceStrikeLaunchers.push(harpoon);
     g.add(harpoon);
   }
   const safetyMat = new THREE.MeshStandardMaterial({
@@ -795,11 +811,21 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   sps49.add(antennaFeed);
   aftMast.add(sps49);
   g.add(aftMast);
-  const directors: THREE.Group[] = [];
+  const directors: THREE.Group[] = [],
+    directorSupports: THREE.Mesh[] = [];
   for (const [x, z, heading] of [
     [9, -3.4, -0.38],
     [-8, 3.4, 2.72],
   ] as const) {
+    if (x < 0) {
+      const support = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.05, 1.35, 2.5, 12),
+        deckMat,
+      );
+      support.position.set(x, 11.05, z);
+      directorSupports.push(support);
+      g.add(support);
+    }
     const director = new THREE.Group();
     director.position.set(x, 13, z);
     director.rotation.y = heading;
@@ -987,6 +1013,8 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         depthWrite: false,
       }),
     );
+    // Fleet-owned companion ships do not run the flagship smoke-position loop.
+    puff.position.set(-4, 15, 0);
     smokePuffs.push(puff);
     highDetail.add(puff);
   }
@@ -1145,6 +1173,9 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       gunMount,
       portGun,
       aftDirector,
+      aftDirectorPedestal,
+      ...directorSupports,
+      ...surfaceStrikeLaunchers,
       ...directors,
     ],
   };

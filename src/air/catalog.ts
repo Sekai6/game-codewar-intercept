@@ -23,19 +23,23 @@ const a6Aerodynamics = {referenceMassKg:15500,wingAreaM2:49.1,zeroLiftDragCoeffi
 const mig29Aerodynamics = {referenceMassKg:14500,wingAreaM2:38,zeroLiftDragCoefficient:.023,inducedDragFactor:.052,liftCurveSlopePerDeg:.106,criticalAngleOfAttackDeg:24,controlResponseSeconds:.38,engineSpoolUpSeconds:3.4,engineSpoolDownSeconds:2.7};
 const fighterHardpoints = [
   ...[-1, 1].flatMap((side) => [
-    { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.7,-.42,.15] as const, compatibleWeapons:["AIM-9L"] as const, releaseDelay:.18, ignitionDelay:.12 },
-    { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.8,-.48,.45] as const, compatibleWeapons:["AIM-54A","AIM-7F"] as const, releaseDelay:.22, ignitionDelay:.16 },
+    { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.7,-.31,-.1] as const, compatibleWeapons:["AIM-9L"] as const, releaseDelay:.18, ignitionDelay:.12 },
+    { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.8,-.38,.18] as const, compatibleWeapons:["AIM-54A","AIM-7F"] as const, releaseDelay:.22, ignitionDelay:.16 },
   ]),
-  ...[-1,1].flatMap((side)=>[0,1].map(index=>({id:`tunnel-${side<0?"port":"starboard"}-${index+1}`,position:[side*.62,-.64,-.5+index*1.35] as const,compatibleWeapons:["AIM-54A","AIM-7F"] as const,releaseDelay:.2,ignitionDelay:.14}))),
+  ...[-1,1].flatMap((side)=>[0,1].map(index=>({id:`tunnel-${side<0?"port":"starboard"}-${index+1}`,position:[side*.62,-.75,-.5+index*1.35] as const,compatibleWeapons:["AIM-54A","AIM-7F"] as const,releaseDelay:.2,ignitionDelay:.14}))),
 ];
-const badgerHardpoints = [
-  { id:"centerline-ksr", position:[0,-1.15,.4] as const, compatibleWeapons:["KSR-5"] as const, releaseDelay:.65, ignitionDelay:.8 },
-];
+const badgerHardpoints = [-1,1].map(side=>({
+  id:`wing-${side<0?"port":"starboard"}-ksr`,
+  position:[side*3.85,-1.08,-.85] as const,
+  compatibleWeapons:["KSR-5"] as const,
+  releaseDelay:.65,
+  ignitionDelay:.8,
+}));
 const intruderHardpoints = [-1,1].map(side=>({id:`wing-${side<0?"port":"starboard"}-strike`,position:[side*2.15,-.52,.25] as const,compatibleWeapons:["AGM-84A"] as const,releaseDelay:.35,ignitionDelay:.3}));
 const fulcrumHardpoints = [-1, 1].flatMap((side) => [
-  { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.65,-.38,.45] as const, compatibleWeapons:["R-73"] as const, releaseDelay:.16, ignitionDelay:.1 },
-  { id:`wing-${side<0?"port":"starboard"}-middle`, position:[side*1.85,-.42,.25] as const, compatibleWeapons:["R-27R","R-73"] as const, releaseDelay:.2, ignitionDelay:.14 },
-  { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.15,-.44,.05] as const, compatibleWeapons:["R-27R"] as const, releaseDelay:.22, ignitionDelay:.15 },
+  { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.65,-.34,.18] as const, compatibleWeapons:["R-73"] as const, releaseDelay:.16, ignitionDelay:.1 },
+  { id:`wing-${side<0?"port":"starboard"}-middle`, position:[side*1.85,-.43,.18] as const, compatibleWeapons:["R-27R","R-73"] as const, releaseDelay:.2, ignitionDelay:.14 },
+  { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.15,-.45,.02] as const, compatibleWeapons:["R-27R"] as const, releaseDelay:.22, ignitionDelay:.15 },
 ]);
 export const AIR_PLATFORM_DEFINITIONS: readonly AirPlatformDefinition[] = [
   { id:"F-14A", name:"F-14A Tomcat", nation:"United States", role:"Fleet air defense", mission:"cap", radarCrossSection:8, infraredSignature:1.1, flight:{cruiseSpeed:5.1,maxSpeed:11.5,stallSpeed:2.1,acceleration:1.1,drag:0.018,maxLoadFactor:7.5,maxRollRateDeg:120,maxPitchRateDeg:28,fuelSeconds:900,aerodynamics:f14Aerodynamics,thrust:f14Thrust}, sensor:{name:"AN/AWG-9",range:1750,updateInterval:0.8,fieldOfViewDeg:120,precision:0.88}, datalink:{link16:true,minimumEra:"jtids-transition",terminalName:"JTIDS Class 2",terminalReliability:0.96,timeSyncQuality:0.97}, ecm:{strength:0.56,burnThroughRange:35}, countermeasures:{chaff:30,flares:30,program:{chaffBurst:2,flareBurst:2,interval:0.18,cooldown:5,triggerTti:20}}, loadout:{...emptyLoadout(),"AIM-54A":4,"AIM-7F":2,"AIM-9L":2}, fireControlChannels:{datalink:6,illumination:1}, hardpoints:fighterHardpoints, buildModel:createF14Model, shipDefenseTemplate:"Kh-22" },

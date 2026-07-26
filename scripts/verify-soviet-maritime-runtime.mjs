@@ -27,6 +27,10 @@ async function start(enabled) {
 
 try {
   await start(true);
+  await page.waitForFunction(() =>
+    (document.querySelector("#scene")?.dataset.sovietMaritimeEmconObserved ?? "").includes("red-TU-16K"),
+  null, { timeout: 12_000 });
+  const emconObserved = await page.locator("#scene").evaluate((scene) => scene.dataset.sovietMaritimeEmconObserved ?? "");
   await page.waitForFunction(() => {
     const data = document.querySelector("#scene")?.dataset;
     return Number(data?.sovietMaritimeDelivered ?? 0) > 0;
@@ -75,14 +79,14 @@ try {
     active: Number(scene.dataset.sovietMaritimeActiveCues ?? 0),
     cues: scene.dataset.sovietMaritimeCueStates ?? "",
   }));
-  const result = { guided, disabled, ordering: { cueAt, detectAt, launchAt, cueIndex, detectIndex, launchIndex }, errors };
+  const result = { guided: { ...guided, emconObserved }, disabled, ordering: { cueAt, detectAt, launchAt, cueIndex, detectIndex, launchIndex }, errors };
   console.log(JSON.stringify(result, null, 2));
   if (
     errors.length || guided.operational !== "true" || guided.delivered <= 0 ||
     !guided.cues.match(/:(?:legenda|uspekh-u):(?!.*blue-surface-ship)/) ||
-    !guided.emcon.includes("red-TU-16K") ||
+    !emconObserved.includes("red-TU-16K") ||
     !(cueIndex >= 0 && cueIndex < detectIndex && detectIndex < launchIndex && cueAt <= detectAt && detectAt <= launchAt) ||
-    !guided.hardpoints.includes("red-TU-16K") || !guided.hardpoints.includes("centerline-ksr:empty:none") ||
+    !guided.hardpoints.includes("red-TU-16K") || !guided.hardpoints.includes("wing-port-ksr:empty:none") ||
     disabled.operational !== "false" || disabled.delivered !== 0 || disabled.active !== 0 ||
     !disabled.cues.split("|").every((state) => state.endsWith(":none"))
   ) process.exitCode = 1;

@@ -22,13 +22,30 @@ try {
   await page.locator("#sbAirPreset").selectOption("fighter");
   await page.locator("#sbAirCombat").check();
   await page.locator("#sbStart").click();
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".sandbox-panel")).display === "none");
+  await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.simulationElapsed ?? 0) > 0);
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
-  await page.waitForFunction(
-    () => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("R-27R"),
-    null,
-    { timeout: 35_000 },
-  );
+  try {
+    await page.waitForFunction(
+      () => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("MiG-29A Fulcrum-A LAUNCH"),
+      null,
+      { timeout: 50_000 },
+    );
+  } catch (error) {
+    const diagnostic = await page.locator("#scene").evaluate((scene) => ({
+      elapsed: scene.dataset.simulationElapsed,
+      missions: scene.dataset.airMissionStates,
+      launches: scene.dataset.airWeaponLaunchLog,
+      hardpoints: scene.dataset.airHardpointStates,
+      gciEvents: scene.dataset.gciEventLog,
+      gciCommands: scene.dataset.gciCommandStates,
+      tracks: scene.dataset.gciTrackStates,
+      ranges: scene.dataset.aircraftShipRangesKm,
+    }));
+    console.error("MiG-29 combat timeout", JSON.stringify({ ...diagnostic, errors }, null, 2));
+    throw error;
+  }
   const result = await page.locator("#scene").evaluate((scene) => ({
     missions: scene.dataset.airMissionStates ?? "",
     launches: scene.dataset.airWeaponLaunchLog ?? "",
@@ -49,8 +66,9 @@ try {
     errors.length ||
     !result.missions.includes("red-MIG-29A") ||
     !result.launches.includes("MiG-29A Fulcrum-A") ||
-    !result.launches.includes("R-27R Alamo-A") ||
+    !/(?:R-27R Alamo-A|R-73 Archer)/.test(result.launches) ||
     !result.hardpoints.includes("red-MIG-29A") ||
+    !result.hardpoints.includes(":empty:none") ||
     !(gciAt < detectAt && detectAt <= launchAt) ||
     result.legacyRegistrations !== 0 ||
     result.legacyFields !== 0

@@ -12,45 +12,66 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/?shortAirValidation=1", { waitUntil: "domcontentloaded", timeout: 15_000 });
   await page.locator("#sbPlatform").selectOption("AIRBORNE");
-  await page.locator("#sbAirPreset").selectOption("joint");
   await page.locator("#sbHighQualityEnvironment").check();
   await page.locator("#sbWebGpuUltra").check();
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.webGpuUltraStatus === "active", null, { timeout: 20_000 });
-  await page.locator("#sbStart").click();
-  await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.aircraftTotal ?? 0) === 6, null, { timeout: 20_000 });
-  await page.keyboard.press("Space");
-  await page.waitForTimeout(250);
   const captured = new Set();
-  for (let attempt = 0; attempt < 8 && captured.size < 4; attempt++) {
-    await page.keyboard.press("6");
-    await page.mouse.move(720, 450);
-    await page.mouse.wheel(0, 240);
-    await page.waitForTimeout(900);
-    const id = await page.locator("#scene").getAttribute("data-camera-aircraft-id") ?? "";
-    const type = id.match(/(F-14A|MIG-29A|TU-16K|A-6E)/)?.[1];
-    if (!type || captured.has(type)) continue;
-    await page.locator("#scene").screenshot({ path: `verification-aircraft-${type.toLowerCase()}-ultra.png` });
-    captured.add(type);
-  }
-  if (!captured.has("MIG-29A")) {
-    await page.getByRole("button", { name: "SCENARIO SETUP" }).click();
-    await page.locator("#sbAirPreset").selectOption("fighter");
+  const scene = page.locator("#scene");
+
+  async function startPreset(preset, expectedAircraft, first = false) {
+    if (!first) await page.getByRole("button", { name: "SCENARIO SETUP" }).click();
+    await page.locator("#sbAirPreset").selectOption(preset);
     await page.locator("#sbStart").click();
-    await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.aircraftTotal ?? 0) === 4, null, { timeout: 20_000 });
+    await page.waitForFunction(
+      expected => Number(document.querySelector("#scene")?.dataset.aircraftTotal ?? 0) === expected,
+      expectedAircraft,
+      { timeout: 20_000 },
+    );
     await page.keyboard.press("Space");
-    await page.keyboard.press("8");
-    await page.mouse.move(720, 450);
-    await page.mouse.wheel(0, 240);
-    await page.waitForTimeout(900);
-    const id = await page.locator("#scene").getAttribute("data-camera-aircraft-id") ?? "";
-    if (id.includes("MIG-29A")) {
-      await page.locator("#scene").screenshot({ path: "verification-aircraft-mig-29a-ultra.png" });
-      captured.add("MIG-29A");
+    await page.waitForTimeout(250);
+  }
+
+  async function captureTypes(types, maxAttempts) {
+    for (let attempt = 0; attempt < maxAttempts && types.some(type => !captured.has(type)); attempt++) {
+      await page.keyboard.press("6");
+      await page.mouse.move(720, 450);
+      await page.mouse.wheel(0, 240);
+      await page.waitForTimeout(700);
+      const id = await scene.getAttribute("data-camera-aircraft-id") ?? "";
+      const type = types.find(candidate => id.includes(candidate));
+      if (!type || captured.has(type)) continue;
+      const slug = type.toLowerCase();
+      await scene.screenshot({ path: `verification-aircraft-${slug}-ultra.png` });
+      const box = await scene.boundingBox();
+      if (box) {
+        const startX = box.x + box.width * .5;
+        const startY = box.y + box.height * .5;
+        await page.mouse.move(startX, startY);
+        await page.mouse.down();
+        await page.mouse.move(startX + box.width * .14, startY - box.height * .04, { steps: 12 });
+        await page.mouse.up();
+        await page.waitForTimeout(350);
+        await scene.screenshot({ path: `verification-aircraft-${slug}-side-ultra.png` });
+        await page.mouse.move(startX + box.width * .14, startY - box.height * .04);
+        await page.mouse.down();
+        await page.mouse.move(startX, startY, { steps: 12 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+      }
+      captured.add(type);
     }
   }
+
+  await startPreset("joint", 6, true);
+  await captureTypes(["F-14A", "TU-16K", "A-6E"], 10);
+  await startPreset("fighter", 4);
+  await captureTypes(["MIG-29A"], 6);
+  await startPreset("aew", 6);
+  await captureTypes(["E-2C", "TU-126"], 10);
+
   const result = { captured: [...captured], mappedMaterials: Number(await page.locator("#scene").getAttribute("data-pbr-mapped-materials") ?? 0), errors };
   console.log(JSON.stringify(result, null, 2));
-  if (captured.size < 4 || result.mappedMaterials < 4 || errors.length) process.exitCode = 1;
+  if (captured.size < 6 || result.mappedMaterials < 4 || errors.length) process.exitCode = 1;
 } finally {
   await browser.close();
 }

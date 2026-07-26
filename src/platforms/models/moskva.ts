@@ -19,6 +19,7 @@ const MOSKVA_HULL: readonly HullStation[] = [
 ];
 
 function createMoskvaModel() {
+  // Ship-local axes: +X bow, -Z starboard, +Z port.
   const ship = new THREE.Group();
   const slots = createPlatformModelSlots();
   const hullMaterial = applySurfaceDetail(new THREE.MeshStandardMaterial({ color: 0x75807e, metalness: 0.14, roughness: 0.5 }), "painted-metal", 0.3);
@@ -111,7 +112,7 @@ function createMoskvaModel() {
         launcher.add(saddle, tube, rear, cover, forwardClamp, aftClamp, hardpoint);
         ship.add(launcher);
         const index = (side > 0 ? 8 : 0) + bank * 2 + tier;
-        addWeaponHardpoint(slots, hardpoint, `bazalt-${String(index + 1).padStart(2, "0")}`, "bazalt-canisters", new THREE.Vector3(1, 0, 0), cover, "blow-off", side < 0 ? "port" : "starboard");
+        addWeaponHardpoint(slots, hardpoint, `bazalt-${String(index + 1).padStart(2, "0")}`, "bazalt-canisters", new THREE.Vector3(1, 0, 0), cover, "blow-off", side < 0 ? "starboard" : "port");
       }
 
   const forwardMast = new THREE.Group();
@@ -272,7 +273,7 @@ function createMoskvaModel() {
       ship.add(turret);
       addPointDefenseMount(
         slots,
-        `ak-630-${side > 0 ? "starboard" : "port"}-${index + 1}`,
+        `ak-630-${side > 0 ? "port" : "starboard"}-${index + 1}`,
         turret,
         muzzle,
         THREE.MathUtils.degToRad(side > 0 ? 75 : -75),
@@ -310,13 +311,25 @@ function createMoskvaModel() {
       mast.position.set(x, (height + 14) * .5, 0);
       proxy.add(mast);
     }
-    if (medium) {
-      for (const side of [-1, 1]) {
-        const canisters = new THREE.Mesh(new THREE.BoxGeometry(22, 2.4, 1.8), missileMaterial);
-        canisters.position.set(4.5, 8.4, side * 4.7);
-        canisters.rotation.y = -side * .1;
-        proxy.add(canisters);
-      }
+    const topPairProxy = new THREE.Mesh(
+      new THREE.BoxGeometry(medium ? 5.4 : 4.6, medium ? 2.35 : 1.7, 0.16),
+      radarMaterial,
+    );
+    topPairProxy.position.set(7, medium ? 26.9 : 25.8, 0);
+    const topSteerProxy = new THREE.Mesh(
+      new THREE.BoxGeometry(medium ? 6.6 : 5.2, medium ? 1.05 : 0.7, 0.14),
+      radarMaterial,
+    );
+    topSteerProxy.position.set(-10.5, medium ? 24 : 23.2, 0);
+    proxy.add(topPairProxy, topSteerProxy);
+    for (const side of [-1, 1]) {
+      const canisters = new THREE.Mesh(
+        new THREE.BoxGeometry(medium ? 22 : 20, medium ? 2.4 : 1.45, medium ? 1.8 : 1.2),
+        missileMaterial,
+      );
+      canisters.position.set(4.5, medium ? 8.4 : 7.8, side * (medium ? 4.7 : 4.35));
+      canisters.rotation.y = -side * .1;
+      proxy.add(canisters);
     }
     return proxy;
   };

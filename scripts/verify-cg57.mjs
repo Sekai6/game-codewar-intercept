@@ -6,7 +6,7 @@ const executablePath =
 const browser = await chromium.launch({
   headless: true,
   executablePath,
-  args: ["--use-angle=swiftshader"],
+  args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
 const page = await browser.newPage({
   viewport: { width: 1600, height: 1000 },
