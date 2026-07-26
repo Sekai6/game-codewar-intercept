@@ -1,5 +1,8 @@
 # 验证与发布
 
+> 文档数据戳：v1.0.0 · 2026-07-26<br>
+> 本页描述 v1.0.0 当前实现；后续版本可能变更。
+
 [返回 README](../../README.md) | [机制手册](SIMULATION.md) | [架构与扩展](ARCHITECTURE.md) | [操作与 AAR](OPERATIONS.md)
 
 ## 基础门槛
@@ -27,6 +30,19 @@ npm run build
 | WebGPU Ultra | `verify:webgpu-ultra`, `verify:webgpu-ultra-active` |
 
 完整命令清单以 `package.json` 的 `scripts` 为准。
+
+## v1.0 证据矩阵
+
+| 功能 | 权威证据 | 类型 |
+|---|---|---|
+| CG-57 独立 Mk 41 发射 | `verify:fleet-launch-cycle`、`cg57-final-frame-14.png` | 浏览器 + 实体事件 |
+| F-14/Tu-16K/A-6E 联合闭环 | `verify:joint-air` | 浏览器运行时 |
+| Link 11/16 年代差异 | `verify:link11`、`verify:link16`、`verify:datalink-era-runtime` | 逻辑 + 运行时 |
+| ECM/诱饵分型 | `verify:air-countermeasures`、`verify:air-asm-ecm` | 逻辑 |
+| Tacview 导出 | `verify:acmi-export`、`verify:fleet-aar` | ACMI 内容 |
+| WebGPU Ultra fallback | `verify:webgpu-ultra`、`verify:webgpu-ultra-active` | 浏览器能力检测 |
+
+截图只证明画面状态，不能单独证明实体发射；每项交战验收都应同时检查运行时事件、弹药和 owner。
 
 ## 浏览器验证规则
 
@@ -59,4 +75,3 @@ npm run build
 - 性能数值为游戏化缩放，不是现实装备数据库。
 - WebGPU Ultra 仍是实验路径，受浏览器、驱动和平台能力限制。
 - `main.ts` 仍包含兼容路径和较多装配代码，后续需继续收敛。
-

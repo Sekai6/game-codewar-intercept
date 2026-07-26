@@ -1,5 +1,8 @@
 # Architecture
 
+> Documentation snapshot: v1.0.0 · 2026-07-26<br>
+> This page describes the v1.0.0 implementation and may change later.
+
 The optional Ultra aurora environment is owned by `src/visual/aurora-runtime.ts`. It encapsulates the separate menu opt-in, Ultra gate, lighting/ocean overrides, diagnostics, and lifecycle; `src/visual/aurora-environment.ts` owns the layered curtain shader. `main.ts` only assembles dependencies and invokes the runtime lifecycle.
 
 The simulation is organized around capabilities rather than ship-name checks.

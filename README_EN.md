@@ -1,5 +1,12 @@
 # NTU Intercept
 
+> Documentation snapshot: v1.0.0 · 2026-07-26<br>
+> This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
+
+![USS Lake Champlain CG-57 Ultra combat validation](cg57-final-frame-14.png)
+
+*USS Lake Champlain (CG-57) Mk 41 physical-launch validation under the Ultra lighting path. This is project evidence, not real-world performance data.*
+
 NTU Intercept is a Cold War naval and joint-air combat sandbox built with TypeScript, Three.js, and Vite. Real platform, radar, and weapon names establish the historical setting; all performance values are game-scaled and must not be treated as engineering, training, or real-world capability data.
 
 [中文](README.md) | [Simulation (Chinese)](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations (Chinese)](docs/zh/OPERATIONS.md) | [Verification (Chinese)](docs/zh/VERIFICATION.md)

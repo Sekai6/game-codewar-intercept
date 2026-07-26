@@ -1,5 +1,7 @@
 # Changelog
 
+> Documentation snapshot: v1.0.0 · 2026-07-26. Later releases may revise these notes.
+
 ## 1.0.0 - 2026-07-26
 
 ### Added
@@ -34,4 +36,3 @@
 - `npm run verify:acmi-export`
 - `npm run verify:webgpu-ultra`
 - `npm run verify:webgpu-ultra-active`
-

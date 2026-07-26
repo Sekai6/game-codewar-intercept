@@ -1,5 +1,8 @@
 # 架构与扩展
 
+> 文档数据戳：v1.0.0 · 2026-07-26<br>
+> 本页描述 v1.0.0 当前实现；后续版本可能变更。
+
 [返回 README](../../README.md) | [机制手册](SIMULATION.md) | [操作与 AAR](OPERATIONS.md) | [验证与发布](VERIFICATION.md)
 
 ## 所有权原则
@@ -27,6 +30,19 @@
 | `src/visual/` | 渲染能力，不拥有战斗真值 |
 
 英文源码级说明见 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
+
+## 关键类型
+
+| 类型 | 所有者 | 用途 |
+|---|---|---|
+| `CombatEntity` / `TargetableEntity` | 实体运行时 | 阵营、位置、速度、RCS、存活和损伤契约 |
+| `AirPlatformDefinition` / `AirPlatformInstance` | `src/air/` | 空机目录数据与单机状态 |
+| `NavalForceRuntime` | `src/fleet/` | 编队态势、角色和任务协调 |
+| `ForceEngagementAssignment` | `src/fleet/` | 交战意图，不是发射事件 |
+| `ShipLauncherAdapter` | `src/ships/` | 将舰队任务接入本舰发射器 |
+| `DefenseTarget` | `src/ship-defense/` | 舰空防御的统一目标引用 |
+
+依赖方向应保持 `scenario -> runtime -> observation -> decision -> local executor -> event -> visual/AAR`。视觉、导出和舰队协调器都不能反向生成实体行为。
 
 ## 集成方向
 
@@ -69,3 +85,4 @@ catalog/scenario -> entity runtime -> observation/track -> decision/order
 2. 将跨域适配放入命名 bridge/integration 模块。
 3. 让 `main.ts` 最终只承担依赖装配、固定帧调度、输入和 UI 映射。
 
+新增单位应优先增加目录定义和场景数据，随后补充逻辑、模型、AAR 和验证。可导航的当前实体说明见 [Wiki 平台](../../wiki/PLATFORMS/README.md) 与 [Wiki 武器](../../wiki/WEAPONS/README.md)。

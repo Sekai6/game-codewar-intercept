@@ -1,5 +1,8 @@
 # WebGPU Ultra
 
+> Documentation snapshot: v1.0.0 · 2026-07-26<br>
+> This page describes the v1.0.0 implementation and may change later.
+
 `WEBGPU ULTRA` is an opt-in rendering tier. It does not replace the stable WebGL 2 renderer.
 
 The first implementation uses a hybrid backend:

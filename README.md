@@ -1,8 +1,15 @@
 # NTU Intercept
 
+> 文档数据戳：v1.0.0 · 2026-07-26<br>
+> 本页描述 v1.0.0 当前实现；后续版本可能调整机制、画面和单位数据。
+
+![USS Lake Champlain CG-57 Ultra combat validation](cg57-final-frame-14.png)
+
+*Ultra 光照下的 USS Lake Champlain (CG-57) Mk 41 实体发射验证。画面是项目内测试证据，不代表现实装备性能。*
+
 NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联合交战沙盘。项目使用真实舰船、飞机、雷达和武器名称建立时代背景，但所有性能参数均经过游戏化缩放，不应作为工程、训练或现实装备能力资料。
 
-[English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md)
+[English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md) | [Wiki](wiki/README.md)
 
 ![舰队实体发射验证](verification-fleet-launch-cycle.png)
 
@@ -60,6 +67,7 @@ npm run build
 | 阅读现有英文源码级架构说明 | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | WebGPU Ultra 状态和限制 | [WEBGPU_ULTRA.md](docs/WEBGPU_ULTRA.md) |
 | v1.0 功能、边界与证据 | [CHANGELOG.md](CHANGELOG.md) |
+| 按机制、平台、武器阅读 | [项目 Wiki](wiki/README.md) |
 
 ## 源码地图
 

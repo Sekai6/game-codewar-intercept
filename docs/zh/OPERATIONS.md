@@ -1,5 +1,8 @@
 # 操作与 AAR
 
+> 文档数据戳：v1.0.0 · 2026-07-26<br>
+> 本页描述 v1.0.0 当前实现；后续版本可能变更。
+
 [返回 README](../../README.md) | [机制手册](SIMULATION.md) | [架构与扩展](ARCHITECTURE.md) | [验证与发布](VERIFICATION.md)
 
 ## 启动
@@ -21,6 +24,10 @@ npm run dev
 - `END EXERCISE / AAR`：结束当前推演并打开复盘。
 
 界面实际按钮文本是控制说明的权威来源；新增控制时应同时更新本页和浏览器验证。
+
+## 设置与观测
+
+Link 11 是 NTU 基线；Link 16 只有在年代设置允许时才可选，苏联平台不接入 Link 16。`SHIP ECM`、飞机 ECM、SRBOC、箔条和热焰弹分别控制不同实体能力，不能把 ECM 开关理解成全局命中率减益。数字键可在舰船、飞机、导弹和战术全景之间切换；选择飞机后 HUD 显示任务、推力档位、燃油、挂载和航迹质量。
 
 ## 镜头
 
@@ -44,6 +51,8 @@ shipId / launcherLabel / launchPoint / weapon / time
 
 任务接受或队列预留不等于 `PHYSICAL LAUNCH`。
 
+建议复盘顺序：先按时间看 `assigned -> accepted -> weapons-away`，再按 owner 检查弹药与发射点，最后检查导弹的航迹、导引头阶段、诱饵竞争和毁伤事件。这样可以区分“任务存在”与“该舰确实发射”。
+
 ## Tacview ACMI
 
 结束推演后可下载 `.acmi` 文件并导入 Tacview。导出内容包括：
@@ -64,4 +73,3 @@ shipId / launcherLabel / launchPoint / weapon / time
 ## 性能注意
 
 浏览器验收严格串行，每次只启动一个 Chromium renderer。不要并行运行多个 WebGPU、体积云、FFT 海洋或长时间联合场景截图任务。验证脚本默认使用固定短场景和 renderer 限制，避免过度占用 CPU/GPU。
-

@@ -1,5 +1,8 @@
 # Native WebGPU Renderer Migration
 
+> Documentation snapshot: v1.0.0 · 2026-07-26<br>
+> This page describes the v1.0.0 implementation and may change later.
+
 The production scene remains on the validated hybrid WebGL 2 + WebGPU compute path while native renderer parity is built behind `/webgpu-lab.html`.
 
 The first gate proves, on one `WebGPURenderer` and one depth buffer:
