@@ -1,7 +1,18 @@
 # AIM-54A Phoenix
 
-> v1.0.0 · 2026-07-26 | [Parameters](MISSILE_PARAMETERS.md) | [中文](../../WEAPONS/AIM54A_PHOENIX.md)
+> Data snapshot: v1.0.0. Historical names are retained; numeric values are game-scaled.
 
-The F-14A carries four AIM-54A missiles for long-range fleet-air-defense interception. Game values: range 12-1380, speed 19, six-second boost, 17 deg/s turn limit, seeker range 170, 55-degree FOV, damage 72, and countermeasure resistance 0.72.
+Source: `src/air/catalog.ts`, `src/air/guidance.ts`, `src/air/missile-runtime.ts`.
 
-The missile uses launch-aircraft support and datalink midcourse guidance before active-radar terminal acquisition. Its 24-second sustain, loft profile, energy loss, 110-second flight limit, track quality, launch-zone logic, and target maneuver mean catalog maximum range is not guaranteed engagement range. Chaff and ECM remain relevant before burn-through.
+| Field | Value |
+|---|---:|
+| Target / seeker | Aircraft / active radar |
+| Range | 12-1380 simulation nm |
+| Speed / boost | 19 / 6 s |
+| Turn limit | 17 deg/s |
+| Seeker | 170 nm, 55 deg FOV |
+| Mid-course update | 0.8 s via F-14 track |
+| Damage / proximity | 72 / 5 nm |
+
+Runtime: `boost -> midcourse -> active-search -> acquired/lost -> terminal`. Before capture it uses only platform track updates. Loft altitude is 210 and active transition range is 360. ECM/chaff compete with seeker quality. Verify with `npm run verify:air-guidance` and inspect AAR state events.
+

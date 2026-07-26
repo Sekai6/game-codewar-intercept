@@ -1,11 +1,15 @@
-# RIM-67 and SM-2
+# RIM-67 Standard Missile (SM-2ER)
 
-> v1.0.0 · 2026-07-26 | [Parameters](MISSILE_PARAMETERS.md) | [中文](../../WEAPONS/RIM67_SM2.md)
+> Data snapshot: v1.0.0. Numeric values are game-scaled.
 
-| Weapon | Range | Max speed | Boost | Turn | Terminal support range |
-|---|---:|---:|---:|---:|---:|
-| RIM-67 | 20-750 | 12.5 | 5.2 s | 18 deg/s | 180 |
-| SM-2MR | 15-450 | 13.5 | 4.4 s | 22 deg/s | 100 |
-| SM-2ER | 22-900 | 14.2 | 6.2 s | 16 deg/s | 190 |
+Source: `src/interceptor-data.ts`, `src/ship-defense/`, launcher runtime.
 
-These envelopes do not authorize fire. Every shot requires the firing ship's organic track, channels, magazine, launcher state, departure animation, and guidance ownership. Long Beach uses Mk 10 transactions; CG-57 uses its own forward/aft Mk 41 cells. A fleet coordinator cannot spawn these missiles.
+| Field | Value |
+|---|---:|
+| Range / speed | 22-900 nm / 14.2 |
+| Boost / turn limit | 6.2 s / 16 deg/s |
+| Terminal range | 190 nm |
+| Guidance | ship track plus illumination |
+
+Legal launch requires channel reservation, launcher queue, cell/open-door/separation event and ammunition decrement before missile creation. No `SHIP SAM AUTO LAUNCH` bypass is valid. Verify with launcher logs and Tacview object birth.
+

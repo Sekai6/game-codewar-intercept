@@ -1,11 +1,23 @@
 # AIM-54A Phoenix
 
-> Data snapshot: v1.0.0 · 2026-07-26
+> Data snapshot: v1.0.0. Names are historical; numeric values are game-scaled.
 
-远程空空导弹。发射后使用 F-14 航迹/数据链进行中段更新，进入主动搜索器包线后自主捕获；捕获前不能读取敌机真值。导引、过载和燃料参数位于 `src/air/catalog.ts` 与 `src/air/guidance.ts`。验证：`npm run verify:air-guidance`。
+## Source of truth
+`src/air/catalog.ts` (`AIR_WEAPONS["AIM-54A"]`), `src/air/guidance.ts`, and `src/air/missile-runtime.ts`.
 
-## 交战链
+## Runtime profile
+| Field | Value |
+|---|---:|
+| Target / seeker | Aircraft / active radar |
+| Range (min/max) | 12 / 1380 simulation nm |
+| Speed / boost | 19 / 6 s |
+| Turn limit | 17 deg/s |
+| Terminal seeker | 170 nm, 55 deg FOV |
+| Mid-course update | 0.8 s; F-14 data-link track |
+| Damage / proximity | 72 / 5 nm |
 
-发射条件包含航迹质量、目标距离/方位、发射机能量和挂点库存。中段按预测拦截点飞行并接受允许的数据链更新；末端主动头在有限视场内搜索。远射时目标机动会扩大预测误差，导弹爬升/转弯也会消耗能量，所以名义射程不能直接当作有效击杀距离。
+The state sequence is `boost -> midcourse -> active-search -> acquired/lost -> terminal`. Before active capture, the missile may only use launch-platform track updates; it never reads target truth. Loft altitude is 210 and the active transition window is 360 simulation nm.
 
-复盘应检查 `midcourse -> active-search -> acquired/lost -> terminal` 阶段、F-14 是否仍能提供更新、Tu-16K 是否使用 ECM，以及导弹在末端是否仍有足够速度和过载。
+## Countermeasures and checks
+Radar jamming and chaff compete with seeker quality; burn-through is resolved by the shared guidance runtime. Check `midcourse`, `active-search`, capture/loss, and terminal events in telemetry/Tacview. Run `npm run verify:air-guidance`.
+

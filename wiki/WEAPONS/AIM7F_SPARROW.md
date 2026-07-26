@@ -1,5 +1,23 @@
 # AIM-7F Sparrow
 
-> Data snapshot: v1.0.0 · 2026-07-26
+> Data snapshot: v1.0.0. Numeric values are game-scaled.
 
-半主动雷达制导空空导弹，要求发射平台持续照射；照射中断会降低或终止末段解算。雷达 ECM/箔条可影响其导引，热焰弹不应直接改变其雷达捕获。
+## Source
+`src/air/catalog.ts` (`AIM-7F`) and `src/air/guidance.ts`.
+
+## Runtime profile
+| Field | Value |
+|---|---:|
+| Guidance / target | Semi-active radar / aircraft |
+| Range (min/max) | 5 / 460 simulation nm |
+| Speed / boost | 15 / 4 s |
+| Turn limit | 24 deg/s |
+| Seeker | 36 nm, 42 deg FOV |
+| Illumination | F-14/MiG-29 channel required; update 0.4 s |
+| Damage / proximity | 64 / 4 nm |
+
+The missile uses `boost -> midcourse -> terminal`. It cannot complete terminal guidance when the launching aircraft loses continuous illumination. Track age, pointing error, ECM and chaff affect the radar solution; flares do not.
+
+## Verification
+Inspect illumination start/stop and seeker loss events in AAR. Run `npm run verify:air-guidance`.
+

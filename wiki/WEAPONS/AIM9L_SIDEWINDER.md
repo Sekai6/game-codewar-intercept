@@ -1,5 +1,22 @@
 # AIM-9L Sidewinder
 
-> Data snapshot: v1.0.0 · 2026-07-26
+> Data snapshot: v1.0.0. Numeric values are game-scaled.
 
-红外空空导弹，依靠目标热特征、方位和视场捕获；发动机推力变化、背景和热焰弹会影响结果。箔条和纯雷达 ECM 不应直接代替红外反制逻辑。
+## Source
+`src/air/catalog.ts` and `src/air/guidance.ts`.
+
+## Runtime profile
+| Field | Value |
+|---|---:|
+| Guidance / target | Infrared / aircraft |
+| Range (min/max) | 2 / 115 simulation nm |
+| Speed / boost | 12 / 3 s |
+| Turn limit | 42 deg/s |
+| Seeker | 52 nm, 48 deg FOV |
+| Damage / proximity | 58 / 3.5 nm |
+
+After boost the seeker searches the IR field of view. Engine damage lowers target heat; afterburner raises it. Flares compete only with IR guidance and do not change radar tracks. Capture can be lost when aspect, background or countermeasure score exceeds the seeker margin.
+
+## Verification
+Check IR capture/loss, flare deployment and proximity-fuze events in telemetry. Run `npm run verify:air-guidance`.
+

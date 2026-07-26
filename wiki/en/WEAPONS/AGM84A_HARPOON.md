@@ -1,7 +1,16 @@
 # AGM-84A Harpoon
 
-> v1.0.0 · 2026-07-26 | [Parameters](MISSILE_PARAMETERS.md) | [中文](../../WEAPONS/AGM84A_HARPOON.md)
+> Data snapshot: v1.0.0. Numeric values are game-scaled.
 
-A-6E aircraft carry two AGM-84A weapons on independent wing hardpoints. Game range is 25-430, speed 6.2, turn limit 12 deg/s, active seeker range 115, damage 22, and resistance 0.64.
+Source: `src/air/catalog.ts`, `src/threats/harpoon.ts`, `src/air/missile-runtime.ts`.
 
-Release requires an aircraft-owned hardpoint transaction. The missile then flies boost, sea-skimming cruise, terminal descent, and active search. It reuses the anti-ship ECM, burn-through, decoy competition, target-loss coast, and ship-damage pipeline; it is not spawned as a generic damage event.
+| Field | Value |
+|---|---:|
+| Range / speed | 25-430 nm / 6.2 |
+| Boost / turn limit | 3 s / 12 deg/s |
+| Seeker | 115 nm, 50 deg FOV |
+| Altitudes | boost 4.5, cruise 0.9, terminal 0.12 |
+| Terminal | starts at 130; skim/pop-up |
+
+Released from an A-6E hardpoint, it runs boost, cruise and terminal search. The shared profile models weave, HOJ, burn-through (22) and chaff competition; ECM never teleports or directly steers the missile.
+

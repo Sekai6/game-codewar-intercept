@@ -1,7 +1,17 @@
 # KSR-5 Kingfish
 
-> v1.0.0 · 2026-07-26 | [Parameters](MISSILE_PARAMETERS.md) | [中文](../../WEAPONS/KSR5_KINGFISH.md)
+> Data snapshot: v1.0.0. Numeric values are game-scaled.
 
-The Tu-16K carries one centerline KSR-5. Game range is 80-900, speed 10.4, eight-second boost, turn limit 7 deg/s, seeker range 125, damage 48, and countermeasure resistance 0.66.
+Source: `src/air/catalog.ts`, `src/air/missile-runtime.ts`, shared anti-ship guidance.
 
-The aircraft must approach, establish its release condition, release from the physical hardpoint, and then egress. The weapon transitions from boosted departure to anti-ship cruise and active terminal search and remains targetable by shipboard SAMs and CIWS.
+| Field | Value |
+|---|---:|
+| Target / guidance | Ship / active anti-ship radar |
+| Range | 80-900 simulation nm |
+| Speed / boost | 10.4 / 8 s |
+| Turn limit | 7 deg/s |
+| Altitudes | boost 92, cruise 6, terminal 0.8 |
+| Seeker / damage | 125 nm, 50 deg / 48 |
+
+The Tu-16K hardpoint releases the missile, consumes the store, then commands bomber egress. The common runtime applies radar horizon, track quality, ECM, burn-through and decoy competition.
+
