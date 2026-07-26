@@ -17,6 +17,8 @@ The project does not treat “inside a range circle” as a launch or a hit. A t
 
 Its three main strengths are observable sensor uncertainty, non-bypassable per-ship launch ownership, and an AAR/Tacview timeline that lets you audit who actually fired from which launcher. Start with the [Wiki](wiki/README.md), especially [fleet air defense](wiki/MECHANICS/FLEET_AAW.md) and the [joint-air scenario](wiki/SCENARIOS/JOINT_AIR.md).
 
+The project also exposes a substantial telemetry surface: **428 runtime diagnostic fields**, fixed-step AAR snapshots, categorized event streams, Link 11/16 delivery diagnostics, fleet/C2 observations, and Tacview ACMI objects. See [Telemetry and analysis](docs/zh/TELEMETRY.md) for the current inventory, data flow, analysis use cases, and export boundaries.
+
 [中文](README.md) | [Simulation (Chinese)](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations (Chinese)](docs/zh/OPERATIONS.md) | [Verification (Chinese)](docs/zh/VERIFICATION.md)
 
 ![Fleet physical-launch verification](verification-fleet-launch-cycle.png)
@@ -67,6 +69,7 @@ npm run build
 | Simulation loop, sensors, guidance, EW, and damage | [Simulation manual (Chinese)](docs/zh/SIMULATION.md) |
 | Source ownership, module boundaries, and extension points | [Architecture](ARCHITECTURE.md) and [architecture guide (Chinese)](docs/zh/ARCHITECTURE.md) |
 | Controls, cameras, AAR, and Tacview | [Operations guide (Chinese)](docs/zh/OPERATIONS.md) |
+| Telemetry inventory, observability, and analysis | [Telemetry and analysis (Chinese)](docs/zh/TELEMETRY.md) |
 | Test matrix and v1.0 release gates | [Verification guide (Chinese)](docs/zh/VERIFICATION.md) |
 | WebGPU Ultra implementation status | [WebGPU Ultra](docs/WEBGPU_ULTRA.md) |
 | WebGPU renderer migration | [Renderer migration](docs/WEBGPU_RENDERER_MIGRATION.md) |
