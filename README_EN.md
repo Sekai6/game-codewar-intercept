@@ -3,11 +3,17 @@
 > Documentation snapshot: v1.0.0 · 2026-07-26<br>
 > This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
-![USS Lake Champlain CG-57 Ultra combat validation](cg57-final-frame-14.png)
+![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
-*USS Lake Champlain (CG-57) Mk 41 physical-launch validation under the Ultra lighting path. This is project evidence, not real-world performance data.*
+*USS Lake Champlain (CG-57) combat validation under the WebGPU Ultra aurora environment. This is project evidence, not real-world performance data.*
 
 NTU Intercept is a Cold War naval and joint-air combat sandbox built with TypeScript, Three.js, and Vite. Real platform, radar, and weapon names establish the historical setting; all performance values are game-scaled and must not be treated as engineering, training, or real-world capability data.
+
+## Why it is different
+
+The project does not treat “inside a range circle” as a launch or a hit. A target is first measured with sensor error, track age, horizon and electronic-warfare effects; fire control then decides whether the observation is weapon-quality; the owning ship finally performs a real launcher transaction. A mission assignment, HUD label, or export record cannot substitute for that chain.
+
+Its three main strengths are observable sensor uncertainty, non-bypassable per-ship launch ownership, and an AAR/Tacview timeline that lets you audit who actually fired from which launcher. Start with the [Wiki](wiki/README.md), especially [fleet air defense](wiki/MECHANICS/FLEET_AAW.md) and the [joint-air scenario](wiki/SCENARIOS/JOINT_AIR.md).
 
 [中文](README.md) | [Simulation (Chinese)](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations (Chinese)](docs/zh/OPERATIONS.md) | [Verification (Chinese)](docs/zh/VERIFICATION.md)
 

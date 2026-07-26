@@ -3,11 +3,23 @@
 > 文档数据戳：v1.0.0 · 2026-07-26<br>
 > 本页描述 v1.0.0 当前实现；后续版本可能调整机制、画面和单位数据。
 
-![USS Lake Champlain CG-57 Ultra combat validation](cg57-final-frame-14.png)
+![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
-*Ultra 光照下的 USS Lake Champlain (CG-57) Mk 41 实体发射验证。画面是项目内测试证据，不代表现实装备性能。*
+*WebGPU Ultra 极光环境下的 USS Lake Champlain (CG-57) 作战验证画面。画面是项目内测试证据，不代表现实装备性能。*
 
 NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联合交战沙盘。项目使用真实舰船、飞机、雷达和武器名称建立时代背景，但所有性能参数均经过游戏化缩放，不应作为工程、训练或现实装备能力资料。
+
+## 为什么这个项目值得看
+
+它不是把导弹画成一条直线、把“进入射程”当成命中的展示程序，而是把一次交战拆成可以检查的因果链：目标先被传感器以误差探测，航迹经过老化和数据链延迟，火控再判断是否达到武器级质量，舰艇最后通过自己的发射器、弹药和物理挂点完成离舰。任何一步失败，画面和 AAR 都应留下可解释的结果。
+
+项目的核心闪光点有三处：
+
+1. **真实的观测边界**：雷达地平线、RCS、扫描刷新、测量误差、ECM 和诱饵会改变“什么时候知道”，而不是只改变一个命中率数字。
+2. **不可旁路的实体交战**：舰队协调器只分配任务；每艘舰独立验证本舰航迹、火控、通道、弹药和 Mk 10/Mk 41 状态机，只有物理离架才算 `weapons-away`。
+3. **可复盘的联合战斗**：舰船、飞机、导弹和诱饵都能进入 AAR/Tacview，能从 owner、发射点、航迹和时间线核对“谁真的发射了什么”。
+
+从[联合空战 Wiki](wiki/SCENARIOS/JOINT_AIR.md)或[多舰防空机制](wiki/MECHANICS/FLEET_AAW.md)开始，可以快速看到这些机制如何串起来。
 
 [English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md) | [Wiki](wiki/README.md)
 

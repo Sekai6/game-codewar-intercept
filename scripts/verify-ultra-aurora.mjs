@@ -11,6 +11,11 @@ try {
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/?shortAirValidation=1", { waitUntil: "domcontentloaded", timeout: 15_000 });
+  const cg57Option = await page.locator("#sbShip option").evaluateAll(options =>
+    options.find(option => option.textContent?.includes("CG-57"))?.value,
+  );
+  if (!cg57Option) throw new Error("CG-57 ship selector option was not found");
+  await page.locator("#sbShip").selectOption(cg57Option);
   const extraToggleExists = await page.locator("#sbAuroraEnvironment").count() === 1;
   await page.locator("#sbWebGpuUltra").check();
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.webGpuUltraStatus === "active", null, { timeout: 20_000 });
@@ -34,12 +39,13 @@ try {
   await page.keyboard.press("1");
   await page.waitForTimeout(450);
   await canvas.screenshot({ path: "verification-ultra-aurora-ship.png" });
+  await canvas.screenshot({ path: "readme-cg57-ultra-aurora.png" });
   await page.getByRole("button", { name: "SCENARIO SETUP" }).click();
   await page.locator("#sbAuroraEnvironment").uncheck();
   await page.locator("#sbWebGpuUltra").uncheck();
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.webGpuUltraStatus === "idle", null, { timeout: 10_000 });
   const disabled = await canvas.evaluate(element => ({ ultra: element.dataset.webGpuUltraStatus, enabled: element.dataset.auroraEnvironment }));
-  const result = { extraToggleExists, baselineWithoutExtra, active, disabled, errors };
+  const result = { cg57Option, extraToggleExists, baselineWithoutExtra, active, disabled, errors };
   console.log(JSON.stringify(result, null, 2));
   if (!extraToggleExists || baselineWithoutExtra !== "false" || active.enabled !== "true" || active.layers !== 3 || active.ultra !== "active" || active.godRays !== "0.00" || disabled.ultra !== "idle" || errors.length) process.exitCode = 1;
 } finally {

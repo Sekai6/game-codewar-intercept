@@ -35,7 +35,7 @@ npm run build
 
 | 功能 | 权威证据 | 类型 |
 |---|---|---|
-| CG-57 独立 Mk 41 发射 | `verify:fleet-launch-cycle`、`cg57-final-frame-14.png` | 浏览器 + 实体事件 |
+| CG-57 独立 Mk 41 发射 | `verify:fleet-launch-cycle`、`readme-cg57-ultra-aurora.png` | 浏览器 + 实体事件 |
 | F-14/Tu-16K/A-6E 联合闭环 | `verify:joint-air` | 浏览器运行时 |
 | Link 11/16 年代差异 | `verify:link11`、`verify:link16`、`verify:datalink-era-runtime` | 逻辑 + 运行时 |
 | ECM/诱饵分型 | `verify:air-countermeasures`、`verify:air-asm-ecm` | 逻辑 |

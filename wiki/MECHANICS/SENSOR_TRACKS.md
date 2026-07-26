@@ -14,3 +14,20 @@
 
 - 实现：[src/air/sensors.ts](../../src/air/sensors.ts)、[src/ships/sensor-runtime.ts](../../src/ships/sensor-runtime.ts)
 - 验证：`npm run verify:air-sensors`、`npm run verify:track-source-ids`
+
+## 为什么目标会晚出现
+
+掠海高度造成的雷达地平线阴影、扫描周期和 ECM 可能共同压缩预警窗口；这不是生成器把目标瞬移进场。扫描成功后仍有分类不确定性，低质量航迹可以用于搜索和排序，却不能自动满足所有导弹的火控门槛。
+
+## 航迹生命周期
+
+```text
+未发现 -> 测量成功 -> tentative -> weapon-quality
+                    |             |
+                    v             v
+                误差/老化       共享给编队
+                    |
+                 drop/失联
+```
+
+数据链共享会增加延迟和不确定度；本舰传感器恢复后才重新形成有机航迹。Link 11/16 的价值是预警和排序，而不是凭空创造发射权限。

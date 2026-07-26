@@ -4,6 +4,8 @@ dist-test/
 KEYS/
 *.env
 *.png
+!readme-cg57-ultra-aurora.png
+!verification-fleet-launch-cycle.png
 
 # Local development artifacts
 *.log
