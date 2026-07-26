@@ -20,3 +20,5 @@
 | MiG-29A | Front-line fighter | Intercept | 5.2 | 5.3 / 11.2 | 9.0 | N019 Rubin | 4 R-27R, 2 R-73 |
 
 E-2C Hawkeye and Tu-126 Moss are AEW entities with their own flight state, radar scan, track store, command behavior, damage, and datalink/C2 boundaries. Soviet aircraft do not receive Link 16.
+
+Every platform page now includes source-aligned mobility, sensor, weapon, EW, damage, AI, AAR, and model details. The platform catalog is a game implementation reference; historical names do not make its scaled values real-world performance data.

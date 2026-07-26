@@ -13,6 +13,7 @@
 - [F-14A Tomcat](F14A_TOMCAT.md)
 - [A-6E Intruder](A6E_INTRUDER.md)
 - [Tu-16K Badger-G](TU16K_BADGER_G.md)
+- [MiG-29A Fulcrum-A](MIG29A_FULCRUM.md)
 - [E-2C Hawkeye](E2C_HAWKEYE.md)
 - [Tu-126 Moss](TU126_MOSS.md)
 
@@ -26,6 +27,7 @@
 | F-14A | CAP、远程截击 | Phoenix 两阶段制导、加力与编队 | 是否在合理发射区建立能量优势？ |
 | A-6E | 低空反舰 | 航路点、Harpoon、脱离 | 导弹是否从真实挂点释放？ |
 | Tu-16K | 远程反舰突击 | KSR-5、编队释放、有限规避 | 是否在舰队防区外形成发射条件？ |
+| MiG-29A | 前线截击 | R-27R 照射、R-73 红外、加力 | GCI cue 是否仍经过本机航迹？ |
 | E-2C / Tu-126 | AEW 与指挥提示 | 扫描、航迹质量、网络延迟 | 提示是否被误当成直接开火权？ |
 
 所有平台均是独立实体：位置、速度、传感器、弹药、损伤和任务状态不存放在“舰队总血量”或“编队总弹药”中。
