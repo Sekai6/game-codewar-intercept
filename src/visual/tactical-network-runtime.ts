@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { TacticalNetworkObservation, TacticalNetworkNodeView } from "../datalink/observability.js";
 import type { SovietC2Observation, SovietC2NodeView } from "../soviet-c2/observability.js";
 import type { FleetObservation } from "../fleet/observability.js";
+import { fleetVisualCommands } from "../fleet/visuals.js";
 
 export interface TacticalNetworkRuntime {
   readonly visible:boolean;
@@ -32,28 +33,20 @@ export function createTacticalNetworkRuntime(options:Options):TacticalNetworkRun
   function sovietNodeMarker(node:SovietC2NodeView){const radius=node.kind==="fleet-command"?2.4:2;
     const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(radius),new THREE.MeshBasicMaterial({color:node.kind==="gci-controller"?COLORS.gci:COLORS.soviet,transparent:true,opacity:node.operational?.9:.25,depthTest:false}));mesh.position.copy(node.position).add(new THREE.Vector3(0,6,0));mesh.renderOrder=903;group.add(mesh);}
   function sovietArea(area:SovietC2Observation["maritimeAreas"][number]){const ring=new THREE.Mesh(new THREE.RingGeometry(.92,1,48),new THREE.MeshBasicMaterial({color:COLORS.sovietArea,transparent:true,opacity:clamp(area.quality*.62,.18,.48),side:THREE.DoubleSide,depthTest:false}));ring.rotation.x=-Math.PI/2;ring.rotation.z=-area.uncertaintyBearing;ring.scale.set(area.uncertaintyMajor,area.uncertaintyMinor,1);ring.position.copy(area.estimatedPosition).add(new THREE.Vector3(0,.35,0));ring.renderOrder=901;group.add(ring);line(area.launchRegionCenter,area.estimatedPosition,COLORS.sovietArea,.28);}
-  function fleetChain(fleet:FleetObservation,time:number){
-    const ships=new Map(fleet.members.map(member=>[member.id,member]));
-    const tracks=new Map(fleet.tracks.map(track=>[track.id,track]));
-    const anchor=fleet.members.find(member=>member.commandRoles.includes("otc"));
-    for(const member of fleet.members){
-      const color=member.commandRoles.includes("aawc")?0xffe06a:member.formationRole==="picket"?0x8fd8ff:0x9aa8b8;
-      const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.45,20),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.72,side:THREE.DoubleSide,depthTest:false}));
-      marker.rotation.x=-Math.PI/2;marker.position.set(member.x,member.y+.7,member.z);marker.renderOrder=904;group.add(marker);
-      if(anchor&&member.id!==anchor.id){
-        line(new THREE.Vector3(anchor.x,anchor.y+2,anchor.z),new THREE.Vector3(member.x,member.y+2,member.z),color,.24);
-        const errorRadius=THREE.MathUtils.clamp(member.stationError*.08,.8,5.5);
-        const errorRing=new THREE.Mesh(new THREE.RingGeometry(errorRadius*.82,errorRadius,20),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.34,side:THREE.DoubleSide,depthTest:false}));
-        errorRing.rotation.x=-Math.PI/2;errorRing.position.set(member.x,member.y+.8,member.z);errorRing.renderOrder=903;group.add(errorRing);
+  function fleetChain(fleet:FleetObservation){
+    for(const command of fleetVisualCommands(fleet)){
+      if(command.kind==="member"){
+        const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.45,20),new THREE.MeshBasicMaterial({color:command.color,transparent:true,opacity:.72,side:THREE.DoubleSide,depthTest:false}));
+        marker.rotation.x=-Math.PI/2;marker.position.set(command.x,command.y+.7,command.z);marker.renderOrder=904;group.add(marker);
+      } else if(command.kind==="formation-line"||command.kind==="task-line"){
+        line(new THREE.Vector3(...command.from),new THREE.Vector3(...command.to),command.color,command.kind==="task-line"?.55:.24);
+      } else if(command.kind==="station-error"){
+        const ring=new THREE.Mesh(new THREE.RingGeometry(command.radius*.82,command.radius,20),new THREE.MeshBasicMaterial({color:command.color,transparent:true,opacity:.34,side:THREE.DoubleSide,depthTest:false}));
+        ring.rotation.x=-Math.PI/2;ring.position.set(command.x,command.y+.8,command.z);ring.renderOrder=903;group.add(ring);
+      } else {
+        const arrow=new THREE.Mesh(new THREE.ConeGeometry(1.1,3.2,8),new THREE.MeshBasicMaterial({color:command.color,depthTest:false}));
+        arrow.position.set(...command.at);arrow.lookAt(new THREE.Vector3(...command.to));arrow.rotateX(Math.PI/2);arrow.renderOrder=905;group.add(arrow);
       }
-    }
-    for(const assignment of fleet.assignments){
-      const shooter=ships.get(assignment.shooterId),track=tracks.get(assignment.targetId);if(!shooter||!track)continue;
-      const start=new THREE.Vector3(shooter.x,shooter.y+4,shooter.z),end=new THREE.Vector3(track.x,track.y+4,track.z);
-      const active=assignment.status==="weapons-away"||assignment.weaponsAway>0;
-      line(start,end,active?0xff6a5f:0xffd166,active?.78:.42);
-      const arrow=new THREE.Mesh(new THREE.ConeGeometry(1.1,3.2,8),new THREE.MeshBasicMaterial({color:active?0xff6a5f:0xffd166,depthTest:false}));
-      arrow.position.lerpVectors(start,end,.5);arrow.lookAt(end);arrow.rotateX(Math.PI/2);arrow.renderOrder=905;group.add(arrow);
     }
   }
   function rebuild(time:number){clearGroup();const observation=lastObservation,accepts=(network:string)=>mode==="all"||mode===network;
@@ -70,7 +63,7 @@ export function createTacticalNetworkRuntime(options:Options):TacticalNetworkRun
       const progress=(time-event.time)/Math.max(.05,event.delay!);line(a.position,b.position,COLORS[event.network],.22);
       const pulse=new THREE.Mesh(new THREE.SphereGeometry(1.15,10,6),new THREE.MeshBasicMaterial({color:COLORS[event.network],depthTest:false}));pulse.position.lerpVectors(a.position,b.position,clamp(progress,0,1)).add(new THREE.Vector3(0,5,0));pulse.renderOrder=904;group.add(pulse);}
     for(const track of observation.tracks.filter(track=>accepts(track.network)))uncertaintyTrack(track);
-    if(lastFleetObservation&&mode==="all")fleetChain(lastFleetObservation,time);
+    if(lastFleetObservation&&mode==="all")fleetChain(lastFleetObservation);
     const soviet=lastSovietObservation,showSoviet=mode==="all"||mode==="soviet";
     if(soviet&&showSoviet){for(const node of soviet.nodes)sovietNodeMarker(node);for(const area of soviet.maritimeAreas)sovietArea(area);
       for(const command of soviet.gciCommands){line(command.participantPosition,command.interceptPoint,COLORS.gci,clamp(command.quality,.25,.75));const marker=new THREE.Mesh(new THREE.RingGeometry(2.6,3.2,24),new THREE.MeshBasicMaterial({color:COLORS.gci,transparent:true,opacity:.7,side:THREE.DoubleSide,depthTest:false}));marker.rotation.x=-Math.PI/2;marker.position.copy(command.interceptPoint);marker.renderOrder=902;group.add(marker);}
