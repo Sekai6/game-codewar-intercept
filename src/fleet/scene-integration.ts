@@ -14,6 +14,7 @@ import { observeFleet, type FleetObservation } from "./observability.js";
 import { ShipLauncherAdapter, type ShipPhysicalLaunch } from "../ships/launcher-adapter.js";
 import { ShipElectronicWarfareRuntime, type ShipCountermeasureSnapshot } from "../ships/electronic-warfare-runtime.js";
 import { ShipCiwsRuntime, type ShipCiwsTargetProfile } from "../ships/ciws-runtime.js";
+import { ShipDamageControlRuntime } from "../ships/damage-control-runtime.js";
 import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
@@ -57,6 +58,8 @@ export class FleetSceneIntegration {
   private readonly electronicWarfare = new ShipElectronicWarfareRuntime();
   private readonly electronicWarfareVisuals: FleetElectronicWarfareVisuals;
   private readonly ciws = new ShipCiwsRuntime();
+  private readonly damageControl = new ShipDamageControlRuntime();
+  private currentTime = 0;
   private ciwsEnabled = true;
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
@@ -74,6 +77,7 @@ export class FleetSceneIntegration {
     flagship.applyDamage = options.applyFlagshipDamage;
     this.companions = [...this.force.ships.values()].filter((ship) => ship.id !== this.flagshipId);
     for (const ship of this.companions) {
+      ship.applyDamage = (damage, hitPoint) => this.damageControl.applyImpact(ship, damage, hitPoint, this.currentTime);
       ship.model.userData.fleetShipId = ship.id;
       ship.model.userData.fleetRole = this.force.formationRoles.get(ship.id);
       ship.model.traverse((object) => {
@@ -112,6 +116,7 @@ export class FleetSceneIntegration {
   }
 
   update(now: number, dt: number) {
+    this.currentTime = now;
     this.syncFlagship();
     reassessFleetCommand(this.force, now);
     updateFleetFormation({
@@ -119,7 +124,10 @@ export class FleetSceneIntegration {
       dt,
       externallyIntegratedShipIds: this.externalShips,
     });
-    for (const ship of this.force.ships.values()) this.electronicWarfare.update(ship, dt);
+    for (const ship of this.force.ships.values()) {
+      if (!this.externalShips.has(ship.id)) this.damageControl.update(ship, now, dt);
+      this.electronicWarfare.update(ship, dt);
+    }
     this.electronicWarfareVisuals.update(
       [...this.force.ships.values()].flatMap((ship) => ship.electronicWarfare.decoys),
     );
@@ -204,6 +212,7 @@ export class FleetSceneIntegration {
   }
   setCiwsEnabled(enabled: boolean) { this.ciwsEnabled = enabled; }
   isCiwsEnabled() { return this.ciwsEnabled; }
+  damageDiagnostics() { return this.damageControl.diagnostics(); }
 
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
@@ -229,6 +238,11 @@ export class FleetSceneIntegration {
       ship.speedKnots = entry.initialSpeedKnots ?? ship.definition.platform.patrolSpeedKnots;
       ship.commandedSpeedKnots = ship.speedKnots;
       ship.hullIntegrity = 100;
+      ship.damageControl.fireIntensity = 0;
+      ship.damageControl.flooding = 0;
+      ship.damageControl.damageControlCapacity = 100;
+      ship.damageControl.lastImpactAt = Number.NEGATIVE_INFINITY;
+      ship.damageControl.casualtyCount = 0;
       ship.alive = true;
       ship.localTracks.clear();
       ship.networkTracks.clear();
@@ -248,6 +262,7 @@ export class FleetSceneIntegration {
     this.link11.reset(this.force);
     this.airDefense.reset(this.force);
     this.ciws.reset();
+    this.damageControl.reset();
     for (const launcher of this.launchers) launcher.reset();
     this.electronicWarfareVisuals.reset();
   }

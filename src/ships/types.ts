@@ -47,6 +47,14 @@ export interface ShipElectronicWarfareState {
   decoys: ShipRadarDecoy[];
 }
 
+export interface ShipDamageControlState {
+  fireIntensity: number;
+  flooding: number;
+  damageControlCapacity: number;
+  lastImpactAt: number;
+  casualtyCount: number;
+}
+
 export interface ShipCombatantInstance extends TargetableEntity {
   kind: "ship";
   definition: ShipDefinition;
@@ -58,6 +66,7 @@ export interface ShipCombatantInstance extends TargetableEntity {
   maneuverMode: ShipManeuverMode;
   hullIntegrity: number;
   subsystemHealth: Map<SubsystemId, number>;
+  damageControl: ShipDamageControlState;
   magazines: ShipMagazineState;
   electronicWarfare: ShipElectronicWarfareState;
   localTracks: Map<string, ShipTrackEstimate>;

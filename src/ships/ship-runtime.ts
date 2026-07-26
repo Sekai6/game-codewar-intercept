@@ -53,6 +53,13 @@ export function createShipCombatant(input: CreateShipCombatantInput): ShipCombat
     maneuverMode: "patrol",
     hullIntegrity: 100,
     subsystemHealth: new Map(SUBSYSTEMS.map((id) => [id, 100])),
+    damageControl: {
+      fireIntensity: 0,
+      flooding: 0,
+      damageControlCapacity: 100,
+      lastImpactAt: Number.NEGATIVE_INFINITY,
+      casualtyCount: 0,
+    },
     magazines: {
       rounds,
       ciws: input.loadout?.ciws ?? input.definition.ammo.ciws,
