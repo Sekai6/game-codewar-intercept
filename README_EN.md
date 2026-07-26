@@ -1,11 +1,17 @@
 # NTU Intercept
 
-> [English Wiki](wiki/en/README.md) · [Complete missile parameter catalog](wiki/en/WEAPONS/MISSILE_PARAMETERS.md)
+**A 3D Cold War naval and joint-air combat sandbox.** The observable chain runs from radar measurements, track quality, datalinks, and fire-control authorization through physical launchers, phased guidance, electronic warfare, damage, and AAR.
 
 > Documentation snapshot: v1.0.0 · 2026-07-26<br>
 > This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
-[Live Demo](https://cwi.kisara.info) · [GitHub repository](https://github.com/Sekai6/game-coldwar-intercept) · `v1.0.0`
+## Live Demo
+
+### [▶ Run NTU Intercept](https://cwi.kisara.info)
+
+No installation is required. Desktop Edge or Chrome is recommended. Initial asset and shader compilation may take several seconds. Use High quality on limited hardware; WebGPU Ultra, compute clouds, and the FFT ocean are experimental high-load features.
+
+[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [v1.0.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.0.0)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -13,19 +19,34 @@
 
 NTU Intercept is a Cold War naval and joint-air combat sandbox built with TypeScript, Three.js, and Vite. Real platform, radar, and weapon names establish the historical setting; all performance values are game-scaled and must not be treated as engineering, training, or real-world capability data.
 
+### What to watch in the demo
+
+1. Wait for search radar to build uncertain incoming tracks and watch quality, age, and uncertainty change.
+2. Enable `NAVAL FORCE` to observe shared cues while each ship still requires its own fire-control authorization.
+3. Use number keys, `L`, and `C` to follow ships, aircraft, missiles, the firing ship, and cinematic views; verify physical Mk 10/Mk 41 departure.
+4. End the exercise to inspect the AAR timeline, object tracks, launch ownership, and optional Tacview ACMI export.
+
 ## Why it is different
 
 The project does not treat “inside a range circle” as a launch or a hit. A target is first measured with sensor error, track age, horizon and electronic-warfare effects; fire control then decides whether the observation is weapon-quality; the owning ship finally performs a real launcher transaction. A mission assignment, HUD label, or export record cannot substitute for that chain.
 
 Its three main strengths are observable sensor uncertainty, non-bypassable per-ship launch ownership, and an AAR/Tacview timeline that lets you audit who actually fired from which launcher. Start with the [Wiki](wiki/README.md), especially [fleet air defense](wiki/MECHANICS/FLEET_AAW.md) and the [joint-air scenario](wiki/SCENARIOS/JOINT_AIR.md).
 
-The project also exposes a substantial telemetry surface: **428 runtime diagnostic fields**, fixed-step AAR snapshots, categorized event streams, Link 11/16 delivery diagnostics, fleet/C2 observations, and Tacview ACMI objects. See [Telemetry and analysis](docs/zh/TELEMETRY.md) for the current inventory, data flow, analysis use cases, and export boundaries.
+[Simulation manual](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations](docs/zh/OPERATIONS.md) | [Verification](docs/zh/VERIFICATION.md) | [English Wiki](wiki/en/README.md)
 
-[中文](README.md) | [Simulation (Chinese)](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations (Chinese)](docs/zh/OPERATIONS.md) | [Verification (Chinese)](docs/zh/VERIFICATION.md)
+## Validation Evidence
 
 ![Fleet physical-launch verification](verification-fleet-launch-cycle.png)
 
+*Multi-ship physical-launch verification: a companion ship must use its own track, magazine, launcher cell, and departure cycle; neither the flagship nor the fleet coordinator may spawn its missile.*
+
 ## Current Capabilities
+
+| Status | Capability |
+|---|---|
+| **Stable** | Core simulation loop, radar tracks, shipboard AAW, physical launchers, ECM/decoys, AAR, and ACMI |
+| **Optional** | Multi-ship force, joint-air combat, AEW/GCI, Link 11, and era-gated Link 16 |
+| **Experimental** | WebGPU Ultra, compute volumetric clouds, FFT ocean, compute particles, and temporal reconstruction |
 
 - Independent ship entities: USS Long Beach (CGN-9), USS Lake Champlain (CG-57), and Moskva.
 - Independent air entities: F-14A, A-6E, Tu-16K, MiG-29A, E-2C, and Tu-126.
@@ -37,6 +58,10 @@ The project also exposes a substantial telemetry surface: **428 runtime diagnost
 - Advanced flight AI, aerodynamic envelopes, throttle regimes, fuel, and damage management.
 - WebGL high-quality rendering and an experimental WebGPU Ultra path.
 - After Action Review and Tacview ACMI export.
+
+## Telemetry and Analysis
+
+The project exposes **428 runtime diagnostic fields** plus fixed-step AAR snapshots, seven event categories, Link 11/16 delivery diagnostics, fleet/C2 observations, and Tacview objects. These support monitoring, regression verification, track/energy analysis, and external plotting. See [Telemetry and analysis](docs/zh/TELEMETRY.md) and the [English telemetry overview](wiki/en/MECHANICS/TELEMETRY.md).
 
 ## Simulation Invariants
 
@@ -68,16 +93,15 @@ npm run build
 
 | Topic | Document |
 |---|---|
-| Simulation loop, sensors, guidance, EW, and damage | [Simulation manual (Chinese)](docs/zh/SIMULATION.md) |
-| Source ownership, module boundaries, and extension points | [Architecture](ARCHITECTURE.md) and [architecture guide (Chinese)](docs/zh/ARCHITECTURE.md) |
-| Controls, cameras, AAR, and Tacview | [Operations guide (Chinese)](docs/zh/OPERATIONS.md) |
-| Telemetry inventory, observability, and analysis | [Telemetry and analysis (Chinese)](docs/zh/TELEMETRY.md) |
-| Test matrix and v1.0 release gates | [Verification guide (Chinese)](docs/zh/VERIFICATION.md) |
+| Run the demo and learn controls, cameras, AAR, and Tacview | [Live demo](https://cwi.kisara.info) · [Operations guide](docs/zh/OPERATIONS.md) |
+| Understand sensors, guidance, EW, flight, and damage | [English mechanics Wiki](wiki/en/MECHANICS/README.md) · [Simulation manual](docs/zh/SIMULATION.md) |
+| Inspect platforms and missile parameters | [Platform catalog](wiki/en/PLATFORMS/README.md) · [Missile parameter catalog](wiki/en/WEAPONS/MISSILE_PARAMETERS.md) |
+| Study telemetry, AAR, and data analysis | [English telemetry overview](wiki/en/MECHANICS/TELEMETRY.md) · [Detailed inventory](docs/zh/TELEMETRY.md) |
+| Extend platforms and understand ownership boundaries | [Architecture](ARCHITECTURE.md) · [Architecture guide](docs/zh/ARCHITECTURE.md) |
+| Run regression tests or prepare a release | [Verification guide](docs/zh/VERIFICATION.md) · [CHANGELOG](CHANGELOG.md) |
 | WebGPU Ultra implementation status | [WebGPU Ultra](docs/WEBGPU_ULTRA.md) |
-| WebGPU renderer migration | [Renderer migration](docs/WEBGPU_RENDERER_MIGRATION.md) |
-| v1.0 feature boundaries and evidence | [CHANGELOG.md](CHANGELOG.md) |
 
-The English source-level architecture document is maintained alongside the code. The new detailed operator and simulation manuals currently use Chinese as their authoritative language; translations should preserve the same file boundaries rather than rebuilding a monolithic README.
+The complete English Wiki mirrors all current Chinese Wiki paths. Some source-level operator and verification manuals remain Chinese-first; the English Wiki provides the maintained English mechanism, platform, weapon, and scenario reference.
 
 ## Source Map
 

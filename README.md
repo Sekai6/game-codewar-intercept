@@ -1,17 +1,30 @@
 # NTU Intercept
 
-> 遥测能力入口：项目当前包含 428 个运行时诊断字段、AAR 快照、事件流、Link 11/16 网络诊断和 Tacview 导出。详见 [遥测与分析](docs/zh/TELEMETRY.md)。
+**冷战海空联合交战与导弹拦截 3D 沙盘。** 从雷达探测、航迹质量、数据链和火控授权，到实体发射器、分阶段制导、电子战、毁伤与 AAR，整条交战链都可以观察和复核。
 
 > 文档数据戳：v1.0.0 · 2026-07-26<br>
 > 本页描述 v1.0.0 当前实现；后续版本可能调整机制、画面和单位数据。
 
-[在线演示](https://cwi.kisara.info) · [GitHub 仓库](https://github.com/Sekai6/game-coldwar-intercept) · `v1.0.0`
+## 在线演示
+
+### [▶ 立即运行 NTU Intercept](https://cwi.kisara.info)
+
+无需安装。推荐使用桌面版 Edge 或 Chrome；首次加载及着色器编译可能需要数秒。性能有限时使用 High 画质，WebGPU Ultra、计算云和 FFT 海洋属于实验性高负载功能。
+
+[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [v1.0.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.0.0)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
 *WebGPU Ultra 极光环境下的 USS Lake Champlain (CG-57) 作战验证画面。画面是项目内测试证据，不代表现实装备性能。*
 
 NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联合交战沙盘。项目使用真实舰船、飞机、雷达和武器名称建立时代背景，但所有性能参数均经过游戏化缩放，不应作为工程、训练或现实装备能力资料。
+
+### 进入演示后看什么
+
+1. 等待搜索雷达建立带误差的来袭目标航迹，观察质量、年龄和不确定度变化。
+2. 开启 `NAVAL FORCE` 后观察舰队共享提示，但每艘舰仍须用本舰火控完成武器授权。
+3. 用数字键、`L` 和 `C` 切换舰船、飞机、导弹、发射舰与电影镜头，确认 Mk 10/Mk 41 物理离架。
+4. 结束演习后进入 AAR，核对事件时间线、实体轨迹、发射所有权，并可导出 Tacview ACMI。
 
 ## 为什么这个项目值得看
 
@@ -27,9 +40,19 @@ NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联�
 
 [English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md) | [Wiki](wiki/README.md)
 
+## 实机验证画面
+
 ![舰队实体发射验证](verification-fleet-launch-cycle.png)
 
+*多舰防空实体发射验证：附属舰必须通过自己的航迹、弹药、发射单元和物理离架流程，不能由旗舰或舰队协调器旁路生成导弹。*
+
 ## 当前能力
+
+| 状态 | 能力 |
+|---|---|
+| **Stable** | 核心模拟回路、雷达航迹、舰载防空、实体发射器、ECM/诱饵、AAR 与 ACMI |
+| **Optional** | 多舰编队、联合空战、AEW/GCI、Link 11 与年代限制下的 Link 16 |
+| **Experimental** | WebGPU Ultra、计算体积云、FFT 海洋、计算粒子与时域重建 |
 
 - 独立舰艇实体：USS Long Beach (CGN-9)、USS Lake Champlain (CG-57) 与 Moskva。
 - 独立空中实体：F-14A、A-6E、Tu-16K、MiG-29A、E-2C 与 Tu-126。
@@ -41,6 +64,10 @@ NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联�
 - 高级飞行 AI、空气动力学包线、推力档位、燃油与损伤管理。
 - WebGL 高画质和实验性 WebGPU Ultra 渲染路径。
 - AAR 与 Tacview ACMI 导出。
+
+## 遥测与数据分析
+
+项目当前暴露 **428 个运行时诊断字段**，并记录固定步长 AAR 快照、七类事件流、Link 11/16 传输诊断、舰队/C2 状态和 Tacview 对象。它们可用于监视、回归验证、航迹/能量曲线分析和外部绘图。完整数据域与边界见[遥测与分析](docs/zh/TELEMETRY.md)。
 
 ## 真实性边界
 
@@ -76,14 +103,13 @@ npm run build
 
 | 目标 | 文档 |
 |---|---|
-| 理解每帧 OODA、传感器、制导和毁伤 | [机制手册](docs/zh/SIMULATION.md) |
-| 了解目录、所有权边界和新增平台流程 | [架构与扩展](docs/zh/ARCHITECTURE.md) |
-| 查看控制、镜头、场景和 Tacview 导出 | [操作与 AAR](docs/zh/OPERATIONS.md) |
-| 运行测试或准备发布 | [验证与发布](docs/zh/VERIFICATION.md) |
-| 阅读现有英文源码级架构说明 | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| WebGPU Ultra 状态和限制 | [WEBGPU_ULTRA.md](docs/WEBGPU_ULTRA.md) |
-| v1.0 功能、边界与证据 | [CHANGELOG.md](CHANGELOG.md) |
-| 按机制、平台、武器阅读 | [项目 Wiki](wiki/README.md) |
+| 立即试玩并了解镜头、控制和 AAR | [在线演示](https://cwi.kisara.info) · [操作指南](docs/zh/OPERATIONS.md) |
+| 理解 OODA、传感器、制导、电子战和毁伤 | [机制手册](docs/zh/SIMULATION.md) · [机制 Wiki](wiki/MECHANICS/README.md) |
+| 查看舰船、飞机和每型导弹参数 | [平台目录](wiki/PLATFORMS/README.md) · [导弹参数总表](wiki/WEAPONS/MISSILE_PARAMETERS.md) |
+| 研究遥测、AAR 和 Tacview 数据 | [遥测与分析](docs/zh/TELEMETRY.md) · [AAR 机制](wiki/MECHANICS/DAMAGE_AND_AAR.md) |
+| 开发新平台或理解所有权边界 | [架构与扩展](docs/zh/ARCHITECTURE.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |
+| 运行回归测试或准备发布 | [验证与发布](docs/zh/VERIFICATION.md) · [CHANGELOG](CHANGELOG.md) |
+| 了解 WebGPU Ultra 状态和限制 | [WEBGPU_ULTRA.md](docs/WEBGPU_ULTRA.md) |
 
 ## 源码地图
 
