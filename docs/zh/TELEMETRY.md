@@ -19,6 +19,37 @@
 
 428 个字段不是单纯的 UI 文本；它们由模拟运行时更新，可用于浏览器自动化验收和回归对比。字段命名集中在 `src/main.ts` 的诊断更新区，AAR 结构定义在 `src/combat-types.ts`。
 
+## 字段目录
+
+下面按字段前缀解析完整遥测面。每组中的字段都直接来自 `canvas.dataset`；字段的实时值可以在浏览器开发者工具中用 `document.querySelector('#scene').dataset.<field>` 读取。
+
+| 前缀/域 | 典型字段 | 解释 |
+|---|---|---|
+| `aar*` | `aarAircraftCount`, `aarAirWeaponCount`, `aarDatalinkTracks`, `aarSovietC2Events` | 最新 AAR 快照中实体、数据链和 C2 集合的数量 |
+| `air*` | `aircraftStates`, `airWeaponKinematics`, `airSeekerEventLog`, `airCountermeasureEventLog` | 飞机、空战武器、导引头、干扰弹和损伤事件 |
+| `advancedAir*` | `advancedAirPilotStates`, `advancedAirTacticalStates`, `advancedAirManeuverLog` | 高级飞行 AI 的感知、任务、威胁、编队、飞行员和机动状态 |
+| `link11*` | `link11Queued`, `link11Delivered`, `link11RollCalls`, `link11MeanDelay` | Link 11 队列、轮询、发送、交付和延迟 |
+| `link16*` | `link16Queued`, `link16DroppedCapacity`, `link16TrackStates` | Link 16 参与者、航迹传输、容量/链路/重复丢弃 |
+| `fleet*` | `fleetAawAssignments`, `fleetPhysicalLaunches`, `fleetMemberStates` | 多舰编队、任务分配、成员状态和物理发射证据 |
+| `gci*` / `soviet*` | `gciCommandStates`, `sovietMaritimeCueStates`, `sovietSalvoPlanStates` | 苏联 GCI、海上目标指示、舰队命令和齐射计划 |
+| `surface*` | `surfaceTrackQuality`, `surfaceStrikePhases`, `surfaceSeekerStates` | 反舰武器的航迹、阶段、末制导和毁伤评估 |
+| `ship*` / `platform*` | `shipAirMissileTracks`, `platformDefenseChannels`, `platformEcmState` | 舰载防空、平台防御通道、ECM、损伤和交战状态 |
+| `vls*` / `mk10*` | `vlsFwdLaunchHistory`, `vlsSpent`, `mk10LauncherStates` | VLS 单元、弹药、发射间隔、卡弹和 Mk 10 状态机 |
+| `enemyPlatform*` | `enemyPlatformTrackAge`, `enemyPlatformFiredOrder`, `enemyPlatformBdaTrackQuality` | 敌方平台观测、授权、发射计划和战损评估 |
+| `environment*` / `webGpuUltra*` | `environmentSunAltitudeDeg`, `webGpuUltraOcean`, `webGpuUltraError` | 环境、海洋、云、WebGPU 后端和渲染诊断，不代表战斗真值 |
+| `surface*` / `radar*` | `radarPrimaryTracks`, `surfaceTrackUncertainty`, `surfaceEsmCueQuality` | 雷达航迹、地平线限制、ESM 提示和测量不确定度 |
+
+### 字段语义约定
+
+- `*States`：当前状态快照，适合实时监视。
+- `*Log` / `*EventLog`：离散事件序列，适合时间线和事件计数。
+- `*Tracks` / `*TrackStates`：观测航迹，不是目标真值；必须结合质量、年龄和不确定度解释。
+- `*Launch*` / `*WeaponsAway`：发射链证据；只有物理离架后才应视为真实发射。
+- `*Quality`、`*Uncertainty`、`*Age`：观测可信度三元组，不能只看距离或命中结果。
+- `*Diagnostics`、`*Error`、`*Backend`：运行时或渲染诊断，不参与武器命中判定。
+
+字段总表的权威来源是 `src/main.ts` 中所有 `canvas.dataset.*` 写入点；AAR 结构化字段则以 `src/combat-types.ts` 类型定义为准。这样可以避免文档复制一份容易过期的静态字段列表。
+
 ## 数据流
 
 ```text

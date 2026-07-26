@@ -2462,6 +2462,7 @@ const resultPanel = document.createElement("div");
 resultPanel.className = "result-panel aar-panel";
 resultPanel.style.display = "none";
 document.body.appendChild(resultPanel);
+
 let placementMode: false | "enemy" | "ship" = false;
 const sandbox = document.createElement("div");
 sandbox.style.cssText =
