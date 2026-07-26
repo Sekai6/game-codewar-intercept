@@ -9,6 +9,10 @@
 
 </div>
 
+## Fleet system (phase one)
+
+The fleet expansion now has a dedicated domain foundation. `src/ships/` creates independent `ShipCombatantInstance` objects; each ship owns its model, kinematics, hull and subsystem health, magazines, local and network tracks, and engagement ledger. `src/fleet/` owns doctrine, formation and command roles, scenario data, and `NavalForceRuntime`. The first `blue-ntu-screen` scenario contains CGN-9 and CG-57. Its NTU Link 11 doctrine remains cue-only: a network track cannot grant weapon authority and the firing ship must still establish a local fire-control track. This phase is not yet connected to the `main.ts` combat loop, so existing single-ship combat behavior remains unchanged. Run `npm run verify:fleet-domain` to verify that ship resources and state are independent.
+
 > [!IMPORTANT]
 > This project uses real ship, radar, weapon, and missile names to establish its period and system relationships. All performance figures are game-scaled. This is not a weapon-performance database, an engineering analysis tool, or a training system, and it must not be interpreted as a statement of real equipment capability.
 
