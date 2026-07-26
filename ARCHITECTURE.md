@@ -67,6 +67,8 @@ The simulation is organized around capabilities rather than ship-name checks.
 - `src/surface-doctrine.ts`: pure salvo-sizing logic for in-flight limits, estimated effects, and ammunition conservation.
 - `src/ships/electronic-warfare-runtime.ts`: per-ship ECM and physical SRBOC-decoy state, inventory, damage gates, motion, and signal decay.
 - `src/fleet/electronic-warfare-visuals.ts`: read-only scene representation of fleet decoy entities; it cannot resolve seeker contests or consume rounds.
+- `src/air/ship-defense-bridge.ts`: side-neutral air-contact intake across every live friendly surface defender, with stable-ID deduplication.
+- `src/ships/ciws-runtime.ts`: organic-track-gated per-ship close-in defense using physical mounts, arcs, slew, cooldown, health, and owned ammunition.
 - `src/combat-types.ts`: shared runtime domain types.
 - `src/interceptor-data.ts`: ship-launched interceptor flight profiles.
 - `src/threats/catalog.ts`: incoming-threat registry and derived `EnemyType`.

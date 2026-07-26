@@ -50,6 +50,14 @@ try {
   }, null, { timeout: 20_000 });
   await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
     .includes("blue-cg-57:ECM=1,SRBOC=1,R=12,D=0"));
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetCiws ?? "")
+    .includes("blue-cg-57:AUTO=1,R=1800,M=2/2,E=0"));
+  await page.getByRole("button", { name: "CIWS: AUTO" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetCiws ?? "")
+    .includes("blue-cg-57:AUTO=0,R=1800,M=2/2,E=0"));
+  await page.getByRole("button", { name: "CIWS: HOLD" }).click();
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetCiws ?? "")
+    .includes("blue-cg-57:AUTO=1,R=1800,M=2/2,E=0"));
   await page.getByRole("button", { name: "SHIP ECM: AUTO" }).click();
   await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetElectronicWarfare ?? "")
     .includes("blue-cg-57:ECM=0,SRBOC=1"));
@@ -107,6 +115,7 @@ try {
     engagements: canvas.dataset.fleetEngagements,
     localEngagements: canvas.dataset.fleetLocalEngagements,
     electronicWarfare: canvas.dataset.fleetElectronicWarfare,
+    ciws: canvas.dataset.fleetCiws,
   }));
   await page.keyboard.press("n");
   await page.waitForFunction(() => document.querySelector("#scene")?.dataset.networkObserver === "true");
@@ -132,6 +141,17 @@ try {
   result.errors = errors;
   result.defaultCount = defaultCount;
   result.disabledCount = disabledCount;
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  await page.locator("#sbShip").selectOption("ticonderoga");
+  await page.locator("#sbAirCombat").uncheck();
+  await page.locator("#sbStart").click();
+  await page.locator("#sbFleetMode").evaluate((input) => {
+    input.checked = true;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.fleetCiws ?? "")
+    .includes("blue-cgn-9:AUTO=1,R=1200,M=2/2,E=0"));
+  result.swappedCompanionCiws = await page.locator("#scene").evaluate((canvas) => canvas.dataset.fleetCiws);
   await page.screenshot({ path: "verification-fleet-scene.png", fullPage: true });
   console.log(JSON.stringify(result, null, 2));
   if (errors.length || result.defaultCount !== 0 || result.disabledCount !== 0
@@ -146,6 +166,8 @@ try {
       || !result.engagements.split("|").every((entry) => /:(assigned|weapons-away):[01]$/.test(entry))
       || !result.localEngagements.includes("blue-cgn-9:0")
       || !result.electronicWarfare.includes("blue-cg-57:ECM=1,SRBOC=1,R=12")
+      || !result.ciws.includes("blue-cg-57:AUTO=1,R=1800,M=2/2")
+      || !result.swappedCompanionCiws.includes("blue-cgn-9:AUTO=1,R=1200,M=2/2")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || result.networkObserverFleetShips !== 2

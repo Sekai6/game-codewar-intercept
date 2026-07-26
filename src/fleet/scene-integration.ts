@@ -13,6 +13,7 @@ import { updateForceEngagements } from "./engagement-runtime.js";
 import { observeFleet, type FleetObservation } from "./observability.js";
 import { ShipLauncherAdapter, type ShipPhysicalLaunch } from "../ships/launcher-adapter.js";
 import { ShipElectronicWarfareRuntime, type ShipCountermeasureSnapshot } from "../ships/electronic-warfare-runtime.js";
+import { ShipCiwsRuntime, type ShipCiwsTargetProfile } from "../ships/ciws-runtime.js";
 import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
@@ -39,6 +40,9 @@ export interface FleetSceneIntegrationOptions {
   launchInterceptor?: (event: ShipPhysicalLaunch) => Interceptor;
   launchEffect?: (origin: THREE.Vector3, direction: THREE.Vector3) => void;
   log?: (message: string) => void;
+  resolveCiwsHit?: (target: DefenseTarget, damage: number) => boolean;
+  ciwsTargetProfile?: (target: DefenseTarget) => ShipCiwsTargetProfile;
+  createCiwsTracer?: (target: THREE.Vector3, origin: THREE.Vector3) => void;
 }
 
 export class FleetSceneIntegration {
@@ -52,6 +56,8 @@ export class FleetSceneIntegration {
   private readonly launchers: ShipLauncherAdapter[] = [];
   private readonly electronicWarfare = new ShipElectronicWarfareRuntime();
   private readonly electronicWarfareVisuals: FleetElectronicWarfareVisuals;
+  private readonly ciws = new ShipCiwsRuntime();
+  private ciwsEnabled = true;
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
@@ -128,10 +134,19 @@ export class FleetSceneIntegration {
     this.link11.update(this.force, now, enabled);
   }
 
-  updateAirDefense(now: number) {
+  updateAirDefense(now: number, dt: number) {
     updateForceEngagements(this.force, now);
     this.airDefense.update(this.force, now);
     for (const launcher of this.launchers) launcher.executeAssignments(now);
+    if (this.ciwsEnabled && this.options.resolveDefenseTarget && this.options.resolveCiwsHit) {
+      for (const ship of this.companions) this.ciws.update(ship, now, dt, {
+        resolveTarget: (targetId) => this.options.resolveDefenseTarget?.(targetId),
+        resolveHit: this.options.resolveCiwsHit,
+        targetProfile: this.options.ciwsTargetProfile,
+        createTracer: this.options.createCiwsTracer,
+        log: this.options.log,
+      });
+    }
   }
 
   networkDiagnostics() { return this.link11.diagnostics(); }
@@ -178,6 +193,17 @@ export class FleetSceneIntegration {
       activeDecoys: ship.electronicWarfare.decoys.filter((decoy) => decoy.alive).length,
     }));
   }
+  ciwsDiagnostics() { return this.ciws.diagnostics(); }
+  ciwsCapabilityDiagnostics() {
+    return this.companions.map((ship) => ({
+      shipId: ship.id,
+      physicalMounts: ship.definition.ciws?.mounts
+        .filter((mount) => Boolean(ship.model.getObjectByName(mount.objectName))).length ?? 0,
+      declaredMounts: ship.definition.ciws?.mounts.length ?? 0,
+    }));
+  }
+  setCiwsEnabled(enabled: boolean) { this.ciwsEnabled = enabled; }
+  isCiwsEnabled() { return this.ciwsEnabled; }
 
   companionTargets(): readonly TargetableEntity[] {
     return this.companions;
@@ -221,6 +247,7 @@ export class FleetSceneIntegration {
     this.sensors.reset();
     this.link11.reset(this.force);
     this.airDefense.reset(this.force);
+    this.ciws.reset();
     for (const launcher of this.launchers) launcher.reset();
     this.electronicWarfareVisuals.reset();
   }

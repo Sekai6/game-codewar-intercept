@@ -23,6 +23,8 @@
 
 第八阶段为每个舰队成员加入独立电子战状态。舰型目录声明 ECM 强度、烧穿距离、SRBOC 库存、冷却、投放包线、诱饵 RCS 与寿命；`src/ships/electronic-warfare-runtime.ts` 按本舰 AN/SLQ-32、Mk 36 SRBOC 健康和库存执行。箔条不是命中率减值，而是从目标舰实体位置释放、保留速度、扩散、衰减并进入反舰导弹导引头信号竞争的对象；`src/fleet/electronic-warfare-visuals.ts` 只呈现这些运行时实体。空射反舰武器按稳定目标舰 ID 查询反制，旗舰继续走原有回路，僚舰只扣本舰库存。`SHIP ECM` 与 `SRBOC` 仍是两个独立开关，关闭舰队模式不会创建这套运行时。`verify:ship-electronic-warfare`、`verify:fleet-electronic-warfare` 和单 renderer `verify:fleet-scene` 分别验证物理状态、目标路由及前端开关传播。
 
+第九阶段加入每舰近防回路。`src/air/ship-defense-bridge.ts` 会逐一询问所有存活蓝方舰船，因此瞄准护航舰的空射反舰导弹也进入同一个 `DefenseTargetRegistry`，而不是只注册瞄准旗舰的武器。`src/ships/ciws-runtime.ts` 只接受本舰雷达形成的导弹航迹，并逐舰检查 Phalanx 物理挂载、前后射界、转动误差、目标逼近速度、TTI、系统健康、冷却与本舰弹药；通过门限后才从实际炮位产生曳光并调用目标实体的标准毁伤接口。目标真值不能授权射击，网络提示不能替代本舰航迹，`CIWS: HOLD` 会同时约束护航舰。CGN-9 与 CG-57 的能力均位于舰型目录，互换旗舰时不会丢失近防。`verify:fleet-defense-targets`、`verify:ship-ciws` 与单 renderer `verify:fleet-scene` 覆盖多舰目标入口、近防门禁及控制传播。
+
 ## 联合空中作战
 
 场景面板提供独立的 `ADVANCED FLIGHT AI` 开关。关闭时继续使用低成本的 `flight-dynamics.ts` 点质量包线；开启时才执行 `src/air/ai/flight-director.ts` 与 `src/air/flight/` 下的模块化高级飞行管线，不在后台计算被禁用的高级模型。高级模型使用统一物理单位计算指数大气密度、真实动压、速度/高度相关的可用过载、有限 G 建立率、寄生与诱导阻力、协调转弯率、爬升能量损失、能量高度和比剩余功率 `Ps`。飞机不能由脚本瞬间改变航向；高 G 规避会掉速，高空低动压会压低可用过载，AoA 越界会进入包线保护或失速恢复。每架飞机的上述状态均进入运行时诊断。

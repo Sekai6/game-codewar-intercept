@@ -115,6 +115,31 @@ export const LONG_BEACH_METADATA: Omit<ShipDefinition, "build"> = {
     channels: 3,
     illuminators: 2,
   },
+  electronicWarfare: {
+    ecmStrength: 0.62,
+    burnThroughRange: 72,
+    decoyRounds: 12,
+    decoyCooldownSeconds: 2.4,
+    decoyDeployRange: 90,
+    decoyRcs: 8,
+    decoyLifeSeconds: 14,
+  },
+  ciws: {
+    mounts: [
+      { objectName: "ciwsFore", label: "FORE", centerBearingDeg: 90, arcDeg: 210 },
+      { objectName: "ciwsAft", label: "AFT", centerBearingDeg: -90, arcDeg: 210 },
+    ],
+    maximumRange: 15,
+    minimumClosingSpeed: 0.5,
+    minimumTti: 0.35,
+    burstRounds: 60,
+    cooldownSeconds: 0.6,
+    traverseRateDeg: 65,
+    firingToleranceDeg: 12,
+    basePk: 0.44,
+    maximumPk: 0.7,
+    damage: 42,
+  },
 };
 
 export function createShipCatalog() {

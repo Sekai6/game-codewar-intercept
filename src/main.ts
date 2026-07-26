@@ -7,6 +7,7 @@ import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import "./style.css";
 import { exportTacviewAcmi } from "./aar/acmi-exporter";
+import { collectShipDefenseContacts } from "./air/ship-defense-bridge";
 import { DatalinkAarRecorder } from "./aar/datalink-recorder";
 import { SovietC2AarRecorder } from "./aar/soviet-c2-recorder";
 import { FleetAarRecorder } from "./aar/fleet-recorder";
@@ -663,8 +664,11 @@ function allDefenseTargets() {
 
 function synchronizeAirDefenseTargets() {
   const activeIds = new Set<string>();
-  const defenderEntity = airScenarioContext().blueShip;
-  for (const contact of airCombat.shipDefenseContacts(defenderEntity)) {
+  const context = airScenarioContext();
+  for (const contact of collectShipDefenseContacts(
+    context.targets ?? [context.blueShip],
+    (defender) => airCombat.shipDefenseContacts(defender),
+  )) {
     activeIds.add(contact.entity.id);
     let target = airDefenseTargets.get(contact.entity.id);
     if (!target) {
@@ -2269,6 +2273,7 @@ function rebuildFleetIntegration() {
     canvas.dataset.fleetShipCount = "0";
     canvas.dataset.fleetCompanionTargets = "";
     canvas.dataset.fleetElectronicWarfare = "";
+    canvas.dataset.fleetCiws = "";
     return;
   }
   const scenario = blueNtuScreenForFlagship(activeShip.id, fleetFormation);
@@ -2311,6 +2316,20 @@ function rebuildFleetIntegration() {
       event.order.track,
     ),
     launchEffect: createVlsLaunchEffect,
+    resolveCiwsHit: (target, damage) => {
+      const destroyed = resolveAirDefenseHit(target, damage);
+      if (destroyed) {
+        target.phase = "destroyed";
+        target.mesh.visible = false;
+        destroyMissileVisual(target, "intercept");
+      } else createExplosion(target.mesh.position.clone());
+      return destroyed;
+    },
+    ciwsTargetProfile: (target) => ({
+      pkPenalty: incomingProfiles[target.threatType].ciwsPenalty,
+      pkCap: incomingProfiles[target.threatType].ciwsPkCap,
+    }),
+    createCiwsTracer: (target, origin) => createCiwsTracer(scene, target, origin),
     log,
   });
   canvas.dataset.fleetId = fleetIntegration.force.id;
@@ -2318,6 +2337,7 @@ function rebuildFleetIntegration() {
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
   fleetIntegration.setElectronicWarfareEnabled(shipEcmEnabled);
   fleetIntegration.setCountermeasuresEnabled(srbocEnabled);
+  fleetIntegration.setCiwsEnabled(ciwsEnabled);
 }
 let aarSnapshots: AarSnapshot[] = [],
   aarEvents: AarEvent[] = [],
@@ -6334,7 +6354,7 @@ function updateCombat(dt: number) {
     }] : []),
   );
   fleetIntegration?.updateNetwork(elapsed, link16Input.checked);
-  fleetIntegration?.updateAirDefense(elapsed);
+  fleetIntegration?.updateAirDefense(elapsed, dt);
   const radarState = combatPicture.getSearchState(),
     primaryTracks = [...combatPicture.tracks.values()].filter((track) =>
       track.sensorContributors.includes(primarySensor),
@@ -6361,6 +6381,7 @@ function updateCombat(dt: number) {
   updateShipManeuver(dt);
   fleetIntegration?.setElectronicWarfareEnabled(shipEcmEnabled);
   fleetIntegration?.setCountermeasuresEnabled(srbocEnabled);
+  fleetIntegration?.setCiwsEnabled(ciwsEnabled);
   fleetIntegration?.update(elapsed, dt);
   if (fleetIntegration) {
     canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
@@ -6416,6 +6437,16 @@ function updateCombat(dt: number) {
       .join("|");
     canvas.dataset.fleetElectronicWarfare = fleetIntegration.electronicWarfareDiagnostics()
       .map((state) => `${state.shipId}:ECM=${state.ecmEnabled ? 1 : 0},SRBOC=${state.decoyEnabled ? 1 : 0},R=${state.rounds},D=${state.activeDecoys}`)
+      .join("|");
+    const fleetFlagshipId = fleetIntegration.flagshipId;
+    const fleetCiwsEvents = fleetIntegration.ciwsDiagnostics();
+    const fleetCiwsEnabled = fleetIntegration.isCiwsEnabled();
+    const fleetCiwsCapabilities = new Map(
+      fleetIntegration.ciwsCapabilityDiagnostics().map((entry) => [entry.shipId, entry]),
+    );
+    canvas.dataset.fleetCiws = [...fleetIntegration.force.ships.values()]
+      .filter((ship) => ship.id !== fleetFlagshipId)
+      .map((ship) => `${ship.id}:AUTO=${fleetCiwsEnabled ? 1 : 0},R=${ship.magazines.ciws},M=${fleetCiwsCapabilities.get(ship.id)?.physicalMounts ?? 0}/${fleetCiwsCapabilities.get(ship.id)?.declaredMounts ?? 0},E=${fleetCiwsEvents.filter((event) => event.shipId === ship.id).length}`)
       .join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);

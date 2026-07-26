@@ -897,4 +897,20 @@ export const TICONDEROGA_METADATA: Omit<ShipDefinition, "build"> = {
     decoyRcs: 8.5,
     decoyLifeSeconds: 14,
   },
+  ciws: {
+    mounts: [
+      { objectName: "ciwsFore", label: "FORE", centerBearingDeg: 90, arcDeg: 210 },
+      { objectName: "ciwsAft", label: "AFT", centerBearingDeg: -90, arcDeg: 210 },
+    ],
+    maximumRange: 15,
+    minimumClosingSpeed: 0.5,
+    minimumTti: 0.35,
+    burstRounds: 60,
+    cooldownSeconds: 0.55,
+    traverseRateDeg: 70,
+    firingToleranceDeg: 12,
+    basePk: 0.46,
+    maximumPk: 0.72,
+    damage: 42,
+  },
 };

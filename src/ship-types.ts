@@ -92,6 +92,24 @@ export interface ShipDefinition {
     decoyRcs: number;
     decoyLifeSeconds: number;
   };
+  ciws?: {
+    mounts: readonly {
+      objectName: string;
+      label: string;
+      centerBearingDeg: number;
+      arcDeg: number;
+    }[];
+    maximumRange: number;
+    minimumClosingSpeed: number;
+    minimumTti: number;
+    burstRounds: number;
+    cooldownSeconds: number;
+    traverseRateDeg: number;
+    firingToleranceDeg: number;
+    basePk: number;
+    maximumPk: number;
+    damage: number;
+  };
   hullColor: number;
   surfaceStrike?: {
     weapon: "RGM-84 Harpoon";
