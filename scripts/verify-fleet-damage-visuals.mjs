@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import * as THREE from "three";
+import { FleetDamageVisuals } from "../dist-test/fleet/damage-visuals.js";
+
+const puff = new THREE.Mesh(new THREE.SphereGeometry(1), new THREE.MeshBasicMaterial({ opacity: 0, transparent: true }));
+const hullMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
+const model = new THREE.Group();
+model.userData.smokePuffs = [puff];
+model.userData.hullMat = hullMat;
+model.add(puff);
+const ship = { id: "escort", model, damageControl: { fireIntensity: 45, flooding: 25 } };
+const visuals = new FleetDamageVisuals();
+visuals.update([ship], 2);
+assert.equal(puff.visible, true);
+assert.ok(puff.material.opacity > 0);
+assert.notEqual(hullMat.color.getHex(), 0x777777);
+ship.damageControl.fireIntensity = 0;
+ship.damageControl.flooding = 0;
+visuals.reset([ship]);
+assert.equal(puff.visible, false);
+assert.equal(hullMat.color.getHex(), 0x777777);
+console.log(JSON.stringify({ smokeDrivenByDamage: true, hullTintDrivenByDamage: true, reset: true }));

@@ -26,6 +26,7 @@
 第九阶段加入每舰近防回路。`src/air/ship-defense-bridge.ts` 会逐一询问所有存活蓝方舰船，因此瞄准护航舰的空射反舰导弹也进入同一个 `DefenseTargetRegistry`，而不是只注册瞄准旗舰的武器。`src/ships/ciws-runtime.ts` 只接受本舰雷达形成的导弹航迹，并逐舰检查 Phalanx 物理挂载、前后射界、转动误差、目标逼近速度、TTI、系统健康、冷却与本舰弹药；通过门限后才从实际炮位产生曳光并调用目标实体的标准毁伤接口。目标真值不能授权射击，网络提示不能替代本舰航迹，`CIWS: HOLD` 会同时约束护航舰。CGN-9 与 CG-57 的能力均位于舰型目录，互换旗舰时不会丢失近防。`verify:fleet-defense-targets`、`verify:ship-ciws` 与单 renderer `verify:fleet-scene` 覆盖多舰目标入口、近防门禁及控制传播。
 
 第十阶段为可选舰队成员加入独立分区损伤与损管运行时。火灾、进水与子系统伤亡会持续影响本舰推进、传感器、火控、ECM、SRBOC、CIWS 和发射能力；关键指挥系统失效后，现有舰队指挥运行时会重新分配 AAWC。
+舰队观察层和 AAR 记录每舰损伤状态；`src/fleet/damage-visuals.ts` 只驱动护航舰烟雾挂点和舰体材质，不参与命中或射击授权。
 舰队观察层和 AAR 现在记录每舰火灾、进水、受损/失效系统数量及 disabled 转换，损伤事件仍按舰艇实体分离。
 
 ## 联合空中作战

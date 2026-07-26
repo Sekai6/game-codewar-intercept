@@ -16,6 +16,7 @@ import { ShipElectronicWarfareRuntime, type ShipCountermeasureSnapshot } from ".
 import { ShipCiwsRuntime, type ShipCiwsTargetProfile } from "../ships/ciws-runtime.js";
 import { ShipDamageControlRuntime } from "../ships/damage-control-runtime.js";
 import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
+import { FleetDamageVisuals } from "./damage-visuals.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -57,6 +58,7 @@ export class FleetSceneIntegration {
   private readonly launchers: ShipLauncherAdapter[] = [];
   private readonly electronicWarfare = new ShipElectronicWarfareRuntime();
   private readonly electronicWarfareVisuals: FleetElectronicWarfareVisuals;
+  private readonly damageVisuals = new FleetDamageVisuals();
   private readonly ciws = new ShipCiwsRuntime();
   private readonly damageControl = new ShipDamageControlRuntime();
   private currentTime = 0;
@@ -131,6 +133,7 @@ export class FleetSceneIntegration {
     this.electronicWarfareVisuals.update(
       [...this.force.ships.values()].flatMap((ship) => ship.electronicWarfare.decoys),
     );
+    this.damageVisuals.update(this.companions, now);
     for (const launcher of this.launchers) launcher.update(now, dt);
   }
 
@@ -263,12 +266,14 @@ export class FleetSceneIntegration {
     this.airDefense.reset(this.force);
     this.ciws.reset();
     this.damageControl.reset();
+    this.damageVisuals.reset(this.companions);
     for (const launcher of this.launchers) launcher.reset();
     this.electronicWarfareVisuals.reset();
   }
 
   dispose() {
     this.electronicWarfareVisuals.dispose();
+    this.damageVisuals.dispose();
     for (const ship of this.companions) this.options.scene.remove(ship.model);
   }
 }
