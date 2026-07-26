@@ -96,8 +96,13 @@ function shooterUtility(
   if (!weapon) return undefined;
   const rounds = ship.magazines.rounds.get(weapon) ?? 0;
   const formationBonus = force.formationRoles.get(ship.id) === "picket" ? 24 : 0;
+  // AAWC must distribute simultaneous shots across independent ships when
+  // they have organic weapon-quality tracks. Otherwise the OTC wins every
+  // utility comparison and the screen is only decorative.
+  const allocationPenalty = plannedChannels * 42;
   const utility = localTrack.quality * 100 + fireControl * 35 + launcherHealth * 20
-    + Math.min(30, rounds) + channels.launch * 5 + formationBonus - range * 0.025;
+    + Math.min(30, rounds) + channels.launch * 5 + formationBonus
+    - allocationPenalty - range * 0.025;
   return { ship, localTrack, weapon, utility };
 }
 
