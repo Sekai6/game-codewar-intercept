@@ -1,9 +1,6 @@
-# Weapons
+# Weapons Index
 
-> v1.0.0 · 2026-07-26
+Air-to-air: [Phoenix](AIM54A_PHOENIX.md), [Sparrow](AIM7F_SPARROW.md), [Sidewinder](AIM9L_SIDEWINDER.md), [R-27R](R27R_ALAMO.md). Air-to-ship: [KSR-5](KSR5_KINGFISH.md), [AGM-84A](AGM84A_HARPOON.md). Ship air defense: [RIM-67](RIM67_SM2.md).
 
-[Wiki home](../README.md) | [中文](../../WEAPONS/README.md)
+See [Missile Parameters](MISSILE_PARAMETERS.md) for the full field table.
 
-The simulation currently models air-to-air, air-to-surface, incoming anti-ship, and shipboard SAM weapons. See the [complete missile parameter catalog](MISSILE_PARAMETERS.md) for values taken directly from the source definitions.
-
-Guidance is not a hit-probability shortcut: weapons transition through propulsion and guidance phases, obey turn and energy limits, compete with ECM/decoys, and retain launcher/shooter/target ownership in AAR and ACMI.
