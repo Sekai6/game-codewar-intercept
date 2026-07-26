@@ -203,7 +203,7 @@ Radar scan -> noisy track -> 3D fire-control solution -> launcher slew
 <a id="current-scope"></a>
 ### Current Scope
 
-The current build is a single-ship air-defense and surface-action sandbox. The Slava-class Moskva is both a visible launch platform with sixteen physical P-500 slots and a searchable, trackable, damageable surface target. Both CGN-9 and CG-57 can launch RGM-84 Harpoons from physical Mk 141 hardpoints. Fleet-level CEC, aviation, submarines, multiplayer, and a complete mission-authoring system remain out of scope. Ship and weapon visuals are generated procedurally.
+The default build remains a single-ship air-defense and surface-action sandbox, while the optional `NAVAL FORCE` mode runs independent fleet members through the standard sensor, command, local-fire-control, launcher, and damage paths. The Slava-class Moskva is both a visible launch platform with sixteen physical P-500 slots and a searchable, trackable, damageable surface target. Both CGN-9 and CG-57 can launch RGM-84 Harpoons from physical Mk 141 hardpoints. Fleet-level CEC, submarines, multiplayer, and a complete mission-authoring system remain out of scope. Ship and weapon visuals are generated procedurally.
 
 <a id="quick-start"></a>
 ## 2. Quick Start
@@ -746,7 +746,7 @@ The AAR panel includes `EXPORT TACVIEW`, which writes the quarter-second ship, a
 
 Extended telemetry includes heading and pitch derived from physical velocity, speed, vertical speed, platform health, mission/guidance state, disabled state, decoy allegiance, launch parent, and target. Render-model axis corrections never enter ACMI, preventing sideways or inverted missiles. The exporter pre-scans every snapshot and converts game entity references into Tacview numeric object IDs; legal weapon releases emit structured `HasFired` events. Only explicitly disabled or destroyed entities emit `Destroyed`; ordinary weapon termination, misses, and expired decoys are deleted without false kill events, while destroyed entities receive one terminal frame and cannot remain frozen in later snapshots.
 
-Link 11, Link 16, and Soviet C2 are recorded as structured AAR layers. The replay draws GCI intercept points, Uspekh-U/Legenda uncertainty areas, fleet approach orders, and salvo assignments, and provides a dedicated `SOVIET C2` event filter. The timeline exposes the causal sequence from strategic area cue and fleet mission order through organic detection, weapon authorization, physical release, and terminal guidance. ACMI exports command objects with `C2Layer` plus `WeaponAuthority=No` or `WeaponAuthority=OrganicTrackRequired`; none of these objects shares identity with a truth aircraft, ship, or weapon.
+Link 11, Link 16, fleet coordination, and Soviet C2 are recorded as structured AAR layers. Fleet snapshots preserve each member's role, station error, magazines, local/network track counts, track contributors, assignment lifecycle, rejection reason, actual shooter, and physical weapons-away count. The replay draws GCI intercept points, Uspekh-U/Legenda uncertainty areas, fleet approach orders, and salvo assignments, and provides a dedicated `SOVIET C2` event filter. The timeline exposes the causal sequence from strategic area cue and fleet mission order through organic detection, weapon authorization, physical release, and terminal guidance. ACMI exports every fleet member as an independent warship and maps each interceptor `Parent` to its real firing ship; command objects carry `C2Layer` plus `WeaponAuthority=No` or `WeaponAuthority=OrganicTrackRequired`.
 
 <a id="adding-ships-and-weapons"></a>
 ### Adding Ships and Weapons
@@ -790,8 +790,8 @@ The repository contains development verification screenshots for the hull, radar
 <a id="known-boundaries"></a>
 ## 18. Known Boundaries and Future Work
 
-- USS Long Beach and USS Lake Champlain are selectable, but each scenario still contains one defending ship with no escorts, AEW aircraft, or CEC network.
-- Surface combat currently covers one friendly ship against one enemy launch platform; formation-level target assignment and CEC remain future work.
+- USS Long Beach and USS Lake Champlain are selectable in the optional fleet scenario; the original single-ship scenario remains the default.
+- Surface combat now has a modular multi-ship domain with formation roles, Link 11 cue sharing, AAWC task allocation, owned launcher execution, and fleet AAR. CEC, submarines, multiplayer, and full mission authoring remain future work.
 - Curvature, weather, sea state, and radar propagation use simplified relationships.
 - There is no continuous six-degree-of-freedom aerodynamic rigid body; flight is a 3D point-mass approximation.
 - Seekers and ECM are explainable probability/signal models, not RF engineering simulations.
@@ -801,7 +801,7 @@ The repository contains development verification screenshots for the hull, radar
 - The sea mesh is still updated on the CPU. The planned WebGPU FFT backend requires spectrum generation, horizontal/vertical inverse FFT passes, displacement/normal textures, a Jacobian foam pass, and a postprocessing path compatible with WebGPU nodes; WebGL remains the fallback.
 - Incoming smoke currently uses one missile-local fixed particle pool, so it bends with the missile during a turn. Persistent world-space trails require a separate scene-level particle history pool.
 
-Logical next steps include fleet track sharing, CEC network penalties, additional platforms, repair/power networks, mission saves, and richer AAR data export.
+Logical next steps include fleet visual task-chain overlays, CEC as a separate era layer, additional platforms, repair/power networks, mission saves, and richer cross-session AAR statistics.
 
 <a id="license-and-security"></a>
 ## 19. License and Security
