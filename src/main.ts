@@ -1417,26 +1417,26 @@ function updateVlsLaunchEffects(dt: number) {
     const age = effect.age;
     effect.flame.scale.set(
       0.8 + Math.sin(age * 35) * 0.12,
-      Math.max(0.15, 1 - age * 1.7),
+      Math.max(0.15, 1 - age * 0.55),
       0.8 + Math.sin(age * 31) * 0.12,
     );
     (effect.flame.material as THREE.MeshBasicMaterial).opacity = Math.max(
       0,
-      0.9 - age * 1.7,
+      0.9 - age * 0.32,
     );
-    effect.light.intensity = Math.max(0, 13 - age * 20);
+    effect.light.intensity = Math.max(0, 13 - age * 5.5);
     effect.smoke.forEach((puff, n) => {
       const spread = age * (1.1 + n * 0.045);
       puff.position.x = Math.sin(n * 2.4) * spread;
       puff.position.z = Math.cos(n * 1.7) * spread;
-      puff.position.y = 0.2 + age * (1.3 + n * 0.08);
+      puff.position.y = 0.2 + age * (1.05 + n * 0.06);
       puff.scale.setScalar(0.45 + age * (1.6 + n * 0.04));
       (puff.material as THREE.MeshBasicMaterial).opacity = Math.max(
         0,
-        0.28 - age * 0.16,
+        0.28 - age * 0.05,
       );
     });
-    if (age > 2.1) {
+    if (age > 5.5) {
       scene.remove(effect.group);
       vlsLaunchEffects.splice(index, 1);
     }
