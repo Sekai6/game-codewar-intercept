@@ -1,4 +1,4 @@
-import type { NavalForceScenario } from "./types.js";
+import type { FleetFormation, NavalForceScenario } from "./types.js";
 
 export const NAVAL_FORCE_SCENARIOS: Readonly<Record<string, NavalForceScenario>> = {
   "blue-ntu-screen": {
@@ -31,27 +31,31 @@ export const NAVAL_FORCE_SCENARIOS: Readonly<Record<string, NavalForceScenario>>
   },
 };
 
-export function blueNtuScreenForFlagship(definitionId: string): NavalForceScenario {
+export function blueNtuScreenForFlagship(definitionId: string, formation: FleetFormation = "screen"): NavalForceScenario {
   const base = NAVAL_FORCE_SCENARIOS["blue-ntu-screen"];
-  if (definitionId === "long-beach") return base;
+  if (definitionId === "long-beach") {
+    if (formation === base.formation) return base;
+    return { ...base, formation, ships: base.ships.map(({ station: _station, ...ship }) => ship) };
+  }
   const flagship = base.ships.find((ship) => ship.definitionId === definitionId);
   if (!flagship) throw new Error(`No NTU fleet station for flagship definition: ${definitionId}`);
   const escorts = base.ships.filter((ship) => ship.definitionId !== definitionId);
   return {
     ...base,
     id: `${base.id}-${definitionId}-flagship`,
+    formation,
     ships: [
       {
         ...flagship,
         position: base.ships[0].position,
-        station: [0, 0, 0],
+        station: formation === "screen" ? [0, 0, 0] : undefined,
         formationRole: "command",
         commandRoles: ["otc", "aawc"],
       },
       ...escorts.map((ship, index) => ({
         ...ship,
         position: [-180 - index * 70, 0, -80 - index * 60] as const,
-        station: [-180 - index * 70, 0, -120 - index * 60] as const,
+        station: formation === "screen" ? [-180 - index * 70, 0, -120 - index * 60] as const : undefined,
         formationRole: "picket" as const,
         commandRoles: ["asuwc"] as const,
       })),

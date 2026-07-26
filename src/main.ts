@@ -23,6 +23,7 @@ import {
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
 import { fleetCameraFrame } from "./fleet/camera";
+import type { FleetFormation } from "./fleet/types";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
@@ -234,6 +235,10 @@ composer.addPass(temporalReconstructionPass);
 composer.addPass(outputPass);
 const displayPixelRatio = Math.min(devicePixelRatio, 2);
 const visualValidationParams = new URLSearchParams(location.search);
+const requestedFleetFormation = visualValidationParams.get("fleetFormation");
+const fleetFormation: FleetFormation = requestedFleetFormation === "line-abreast" || requestedFleetFormation === "column" || requestedFleetFormation === "dispersed"
+  ? requestedFleetFormation
+  : "screen";
 const ultraAtmosphereMode = visualValidationParams.get("ultraAtmosphere") ?? "both";
 const ultraOceanFftEnabled = visualValidationParams.get("oceanFFT") !== "off";
 const ultraOceanWakeEnabled = visualValidationParams.get("oceanWake") !== "off";
@@ -2265,7 +2270,7 @@ function rebuildFleetIntegration() {
     canvas.dataset.fleetCompanionTargets = "";
     return;
   }
-  const scenario = blueNtuScreenForFlagship(activeShip.id);
+  const scenario = blueNtuScreenForFlagship(activeShip.id, fleetFormation);
   fleetIntegration = new FleetSceneIntegration({
     scene,
     scenario,
