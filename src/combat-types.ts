@@ -219,6 +219,23 @@ export type AarSovietC2Snapshot = {
   fleetOrders: Array<{ id: string; participantId: string; commandNodeId: string; sourceReportTrackId: string; x: number; y: number; z: number; attackWindowStart: number; attackWindowEnd: number; expiresAt: number }>;
   salvoAssignments: Array<{ id: string; waveId: string; participantId: string; sourceOrderId: string; sourceReportTrackId: string; sequence: number; total: number; releaseAt: number; plannedArrivalAt: number; x: number; y: number; z: number; expiresAt: number }>;
 };
+export type AarFleetSnapshot = {
+  id: string;
+  datalinkEra: string;
+  link11Enabled: boolean;
+  formation: string;
+  members: Array<{
+    id: string; name: string; hullNumber: string; side: "blue" | "red";
+    x: number; y: number; z: number; heading: number; speedKnots: number;
+    hull: number; alive: boolean; formationRole: string; commandRoles: string[];
+    stationStatus: string; stationError: number;
+    magazines: { rim67: number; sm2mr: number; sm2er: number };
+    localTracks: number; networkTracks: number;
+  }>;
+  tracks: Array<{ id: string; classification: string; quality: number; uncertainty: number; age: number; contributors: string[]; weaponAuthority: false }>;
+  assignments: Array<{ id: string; targetId: string; shooterId: string; localTrackId: string; weapon: string; requestedShots: number; weaponsAway: number; status: string; rejectionReason?: string; updatedAt: number }>;
+  engagements: Array<{ targetId: string; shooters: string[]; weaponsCommitted: number; estimatedPk: number; status: string; updatedAt: number }>;
+};
 export type AarAewCommand = {
   id:string; controllerId:string; participantId:string; controllerTrackId:string;
   mode:"link4a"|"voice-gci"; x:number; y:number; z:number;
@@ -238,6 +255,7 @@ export type AarSnapshot = {
     id: number;
     weapon: WeaponType;
     targetId: number | string;
+    shooterId?: string;
   })[];
   chaff: (AarKinematics & {
     id: number;
@@ -278,5 +296,6 @@ export type AarSnapshot = {
   })[];
   datalink?: AarDatalinkSnapshot;
   sovietC2?: AarSovietC2Snapshot;
+  fleet?: AarFleetSnapshot;
   aewCommands?: AarAewCommand[];
 };

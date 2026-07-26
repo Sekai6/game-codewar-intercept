@@ -9,6 +9,7 @@ import "./style.css";
 import { exportTacviewAcmi } from "./aar/acmi-exporter";
 import { DatalinkAarRecorder } from "./aar/datalink-recorder";
 import { SovietC2AarRecorder } from "./aar/soviet-c2-recorder";
+import { FleetAarRecorder } from "./aar/fleet-recorder";
 import { downloadTextFile } from "./aar/download";
 import { CombatPicture, radarHorizonWorldUnits, type Track } from "./sim";
 import {
@@ -21,6 +22,7 @@ import {
 } from "./ship-types";
 import { createShipCatalog } from "./ship-catalog";
 import { FleetSceneIntegration } from "./fleet/scene-integration";
+import { observeFleet } from "./fleet/observability";
 import { blueNtuScreenForFlagship } from "./fleet/scenarios";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./ships/types";
 import {
@@ -312,6 +314,7 @@ let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }>
 const airCombat = new AirCombatSystem(scene);
 const datalinkAarRecorder = new DatalinkAarRecorder();
 const sovietC2AarRecorder = new SovietC2AarRecorder();
+const fleetAarRecorder = new FleetAarRecorder();
 const tacticalNetworkRuntime = createTacticalNetworkRuntime({
   scene,
   parent: document.querySelector("#app") as HTMLElement,
@@ -3255,6 +3258,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     aarEvents = [];
     datalinkAarRecorder.reset();
     sovietC2AarRecorder.reset();
+    fleetAarRecorder.reset();
     nextAarSnapshot = 0;
     resultPanel.style.display = "none";
   },
@@ -3674,7 +3678,10 @@ function captureAarSnapshot(force = false) {
     airCombat.sovietC2Observation(elapsed),
     elapsed,
   );
-  aarEvents.push(...datalinkSample.events, ...sovietC2Sample.events);
+  const fleetSample = fleetIntegration
+    ? fleetAarRecorder.sample(observeFleet(fleetIntegration.force, elapsed, fleetIntegration.isLink11Enabled(), fleetIntegration.networkActivities(elapsed)), elapsed)
+    : undefined;
+  aarEvents.push(...datalinkSample.events, ...sovietC2Sample.events, ...(fleetSample?.events ?? []));
   aarEvents.sort((a, b) => a.time - b.time);
   const headingFromVelocity = (velocity: THREE.Vector3) =>
     velocity.lengthSq() > 1e-6 ? Math.atan2(velocity.x, -velocity.z) : 0;
@@ -3718,6 +3725,7 @@ function captureAarSnapshot(force = false) {
         ...kinematics(x.i.mesh.position, x.i.velocity),
         weapon: x.i.weapon,
         targetId: defenseSourceForTarget(x.i.target),
+        shooterId: (x.i.mesh.userData.launchShipId as string | undefined) ?? "blue-surface-ship",
       })),
     chaff: chaffClouds.map((c, id) => ({
       id: c.serial || id + 1,
@@ -3767,6 +3775,7 @@ function captureAarSnapshot(force = false) {
     })),
     datalink: datalinkSample.snapshot,
     sovietC2: sovietC2Sample.snapshot,
+    fleet: fleetSample?.snapshot,
     aewCommands: airCombat.aewCommands(elapsed).map(command=>({
       id:command.id,controllerId:command.controllerId,participantId:command.participantId,
       controllerTrackId:command.controllerTrackId,mode:command.mode,

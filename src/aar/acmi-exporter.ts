@@ -68,6 +68,44 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
       ...snapshot.ship,
     },
   ];
+  if (snapshot.fleet) {
+    objects.splice(0, 1);
+    for (const member of snapshot.fleet.members) {
+      objects.push({
+        key: `fleet-ship:${member.id}`,
+        name: `${member.name} ${member.hullNumber}`,
+        type: "Sea+Warship",
+        coalition: member.side === "blue" ? "Blue" : "Red",
+        x: member.x, y: member.y, z: member.z,
+        heading: member.heading,
+        speed: member.speedKnots,
+        health: member.hull,
+        state: member.alive ? "operational" : "destroyed",
+        disabled: !member.alive,
+        properties: {
+          ForceId: snapshot.fleet.id,
+          FormationRole: member.formationRole,
+          CommandRoles: member.commandRoles.join("|"),
+          StationStatus: member.stationStatus,
+          StationError: member.stationError.toFixed(1),
+          SAM_RIM67: member.magazines.rim67,
+          SAM_SM2MR: member.magazines.sm2mr,
+          SAM_SM2ER: member.magazines.sm2er,
+          LocalTracks: member.localTracks,
+          NetworkTracks: member.networkTracks,
+        },
+      });
+    }
+    for (const track of snapshot.fleet.tracks) {
+      objects.push({
+        key: `fleet-track:${track.id}`,
+        name: `FLEET CUE ${track.classification} ${track.id}`,
+        type: "Misc+Bullseye", coalition: "Neutral", x: 0, y: 0, z: 0,
+        state: "cue-only",
+        properties: { ForceId: snapshot.fleet.id, Contributors: track.contributors.join("|"), TrackQuality: track.quality.toFixed(3), Uncertainty: track.uncertainty.toFixed(1), TrackAge: track.age.toFixed(2), EngagementQuality: "Cue", WeaponAuthority: "No" },
+      });
+    }
+  }
   if (snapshot.enemyPlatform)
     objects.push({
       key: "ship:red",
@@ -89,7 +127,7 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
   for (const item of snapshot.missiles)
     objects.push({ key: `threat:${item.id}`, name: item.threatType, type: "Weapon+Missile", coalition: "Red", state: item.phase, parent: item.parentId, ...item });
   for (const item of snapshot.interceptors)
-    objects.push({ key: `sam:${item.id}`, name: item.weapon, type: "Weapon+Missile", coalition: "Blue", target: item.targetId, parent: "blue-surface-ship", state: "engaged", ...item });
+    objects.push({ key: `sam:${item.id}`, name: item.weapon, type: "Weapon+Missile", coalition: "Blue", target: item.targetId, parent: item.shooterId ?? "blue-surface-ship", state: "engaged", ...item });
   for (const item of snapshot.surfaceStrikes)
     objects.push({ key: `surface:${item.id}`, name: "RGM-84 Harpoon", type: "Weapon+Missile", coalition: "Blue", target: item.targetId ?? "red-surface-ship", parent: "blue-surface-ship", state: item.phase, ...item });
   for (const item of snapshot.aircraft)
@@ -202,6 +240,12 @@ export function exportTacviewAcmi(
     ["blue-surface-ship", "ship:blue"],
     ["red-surface-ship", "ship:red"],
   ]);
+  for (const snapshot of snapshots) {
+    for (const member of snapshot.fleet?.members ?? []) {
+      aliases.set(member.id, `fleet-ship:${member.id}`);
+      if (member.commandRoles.includes("otc")) aliases.set("blue-surface-ship", `fleet-ship:${member.id}`);
+    }
+  }
   for (const snapshot of snapshots) {
     for (const aircraft of snapshot.aircraft)
       aliases.set(aircraft.id, `aircraft:${aircraft.id}`);

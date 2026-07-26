@@ -13,6 +13,7 @@ export interface ShipTrackEstimate {
   source: "local-radar" | "link11" | "link16";
   updatedAt: number;
   weaponQuality: boolean;
+  contributors?: string[];
 }
 
 export interface ShipMagazineState {
@@ -39,4 +40,3 @@ export interface ShipCombatantInstance extends TargetableEntity {
   launcherChannels: number;
   illuminatorChannels: number;
 }
-

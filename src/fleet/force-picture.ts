@@ -8,11 +8,11 @@ function associationDistance(a: ShipTrackEstimate, b: ShipTrackEstimate) {
 
 export function buildForcePicture(force: NavalForceRuntime, now: number) {
   const candidates = [...force.ships.values()].flatMap((ship) => [
-    ...ship.localTracks.values(),
-    ...ship.networkTracks.values(),
-  ]).filter((track) => now - track.updatedAt <= (track.source === "link11" ? 24 : 8));
+    ...[...ship.localTracks.values()].map((track) => ({ track, contributor: `${ship.id}:organic-radar` })),
+    ...[...ship.networkTracks.values()].map((track) => ({ track, contributor: `${ship.id}:${track.source}` })),
+  ]).filter(({ track }) => now - track.updatedAt <= (track.source === "link11" ? 24 : 8));
   const fused = new Map<string, ShipTrackEstimate>();
-  for (const candidate of candidates.sort((a, b) => b.quality - a.quality)) {
+  for (const { track: candidate, contributor } of candidates.sort((a, b) => b.track.quality - a.track.quality)) {
     const associated = [...fused.entries()].find(([, current]) =>
       current.classification === candidate.classification
       && current.position.distanceTo(candidate.position) <= associationDistance(current, candidate));
@@ -22,6 +22,7 @@ export function buildForcePicture(force: NavalForceRuntime, now: number) {
         position: candidate.position.clone(),
         velocity: candidate.velocity.clone(),
         weaponQuality: false,
+        contributors: [contributor],
       });
       continue;
     }
@@ -38,6 +39,8 @@ export function buildForcePicture(force: NavalForceRuntime, now: number) {
     current.uncertainty = Math.min(current.uncertainty, candidate.uncertainty) * 0.92;
     current.updatedAt = Math.max(current.updatedAt, candidate.updatedAt);
     current.weaponQuality = false;
+    if (!current.contributors?.includes(contributor))
+      current.contributors = [...(current.contributors ?? []), contributor];
     fused.set(key, current);
   }
   force.picture = fused;

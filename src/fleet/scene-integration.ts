@@ -125,6 +125,7 @@ export class FleetSceneIntegration {
   }
 
   networkDiagnostics() { return this.link11.diagnostics(); }
+  isLink11Enabled() { return this.link11.isEnabled(); }
   networkActivities(now: number) { return this.link11.activities(now); }
   launcherDiagnostics() { return this.launchers.map((launcher) => launcher.diagnostics()); }
 

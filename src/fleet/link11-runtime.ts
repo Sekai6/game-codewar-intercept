@@ -99,6 +99,6 @@ export class FleetLink11Runtime {
   }
 
   diagnostics(): Readonly<Link11Diagnostics> { return this.network.diagnostics(); }
-  activities(now: number): readonly TacticalNetworkActivity[] { return this.network.recentActivities(now); }
   isEnabled() { return this.enabled; }
+  activities(now: number): readonly TacticalNetworkActivity[] { return this.network.recentActivities(now); }
 }
