@@ -21,7 +21,7 @@ export interface FleetShipScenarioEntry {
   definitionId: string;
   position: readonly [number, number, number];
   heading: number;
-  station: readonly [number, number, number];
+  station?: readonly [number, number, number];
   formationRole: FleetFormationRole;
   commandRoles: readonly FleetCommandRole[];
   initialSpeedKnots?: number;

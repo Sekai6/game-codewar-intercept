@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { ShipDefinition } from "../ship-types.js";
 import { createShipCombatant } from "../ships/ship-runtime.js";
 import { FLEET_DOCTRINES } from "./doctrine.js";
+import { defaultFormationStation } from "./formation-presets.js";
 import type { FleetCommandRole, NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export function createNavalForceRuntime(
@@ -33,7 +34,7 @@ export function createNavalForceRuntime(
     });
     ships.set(ship.id, ship);
     formationRoles.set(ship.id, entry.formationRole);
-    stations.set(ship.id, entry.station);
+    stations.set(ship.id, entry.station ?? defaultFormationStation(scenario.formation, ships.size - 1, entry.formationRole));
     for (const role of entry.commandRoles) {
       if (commandRoles.has(role)) throw new Error(`Duplicate fleet command role: ${role}`);
       commandRoles.set(role, ship.id);

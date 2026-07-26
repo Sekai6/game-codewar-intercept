@@ -145,7 +145,7 @@ export class FleetSceneIntegration {
       if (!ship) continue;
       for (const role of entry.commandRoles) this.force.commandRoles.set(role, ship.id);
       if (ship.id === this.flagshipId) continue;
-      const [stationX, stationY, stationZ] = entry.station;
+      const [stationX, stationY, stationZ] = this.force.stations.get(ship.id)!;
       const sin = Math.sin(flagship.heading), cos = Math.cos(flagship.heading);
       ship.position.set(
         flagship.position.x + stationX * cos + stationZ * sin,
