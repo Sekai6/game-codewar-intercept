@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import type { TargetableEntity } from "../combat-entity.js";
-import type { ShipDefinition, SubsystemId } from "../ship-types.js";
+import type { ShipDefinition, ShipWeapon, SubsystemId } from "../ship-types.js";
 import type { ShipCombatantInstance } from "../ships/types.js";
 import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-runtime.js";
 import { reassessFleetCommand } from "./command-runtime.js";
+import { FleetAirDefenseCoordinator } from "./air-defense-coordinator.js";
 import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
 import { FleetLink11Runtime } from "./link11-runtime.js";
@@ -17,6 +18,7 @@ export interface LegacyFlagshipSnapshot {
   commandedSpeedKnots: number;
   hullIntegrity: number;
   subsystemHealth: ReadonlyMap<SubsystemId, number>;
+  magazines: ReadonlyMap<ShipWeapon, number>;
 }
 
 export interface FleetSceneIntegrationOptions {
@@ -36,6 +38,7 @@ export class FleetSceneIntegration {
   private readonly companions: ShipCombatantInstance[];
   private readonly sensors = new ShipSensorRuntime();
   private readonly link11 = new FleetLink11Runtime();
+  private readonly airDefense = new FleetAirDefenseCoordinator();
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
@@ -75,6 +78,7 @@ export class FleetSceneIntegration {
     flagship.hullIntegrity = state.hullIntegrity;
     flagship.alive = state.hullIntegrity > 0;
     for (const [id, health] of state.subsystemHealth) flagship.subsystemHealth.set(id, health);
+    for (const [weapon, rounds] of state.magazines) flagship.magazines.rounds.set(weapon, rounds);
   }
 
   update(now: number, dt: number) {
@@ -93,6 +97,10 @@ export class FleetSceneIntegration {
 
   updateNetwork(now: number, enabled: boolean) {
     this.link11.update(this.force, now, enabled);
+  }
+
+  updateAirDefense(now: number) {
+    this.airDefense.update(this.force, now);
   }
 
   networkDiagnostics() { return this.link11.diagnostics(); }
@@ -138,6 +146,7 @@ export class FleetSceneIntegration {
     this.force.formationState.lastCommandReassessmentAt = Number.NEGATIVE_INFINITY;
     this.sensors.reset();
     this.link11.reset(this.force);
+    this.airDefense.reset(this.force);
   }
 
   dispose() {

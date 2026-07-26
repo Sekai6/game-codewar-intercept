@@ -48,6 +48,21 @@ export interface ForceEngagementRecord {
   status: "assigned" | "weapons-away" | "assessing" | "leaker";
 }
 
+export interface ForceEngagementAssignment {
+  id: string;
+  forceTrackId: string;
+  shooterId: string;
+  localTrackId: string;
+  weapon: ShipWeapon;
+  requestedShots: number;
+  threatScore: number;
+  estimatedTimeToImpact: number;
+  assignedAt: number;
+  expiresAt: number;
+  status: "assigned" | "accepted" | "rejected" | "expired";
+  rejectionReason?: string;
+}
+
 export interface FleetStationState {
   desiredPosition: readonly [number, number, number];
   errorDistance: number;
@@ -74,5 +89,6 @@ export interface NavalForceRuntime {
   commandRoles: Map<FleetCommandRole, string>;
   formationState: FleetFormationState;
   picture: Map<string, ShipTrackEstimate>;
+  assignments: Map<string, ForceEngagementAssignment>;
   engagements: Map<string, ForceEngagementRecord>;
 }

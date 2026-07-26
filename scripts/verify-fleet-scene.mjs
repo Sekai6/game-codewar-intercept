@@ -10,7 +10,9 @@ const errors = [];
 page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
 page.on("pageerror", (error) => errors.push(error.message));
 try {
-  await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/", {
+  const rawUrl = process.env.APP_URL ?? "http://127.0.0.1:5173/";
+  const url = `${rawUrl}${rawUrl.includes("?") ? "&" : "?"}shortAirValidation=1`;
+  await page.goto(url, {
     waitUntil: "domcontentloaded", timeout: 15_000,
   });
   const defaultCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount ?? 0));
@@ -21,6 +23,8 @@ try {
   const disabledCount = await page.locator("#scene").evaluate((canvas) => Number(canvas.dataset.fleetShipCount));
   await page.locator("#sbFleetMode").check();
   await page.locator("#sbStart").click();
+  await page.getByRole("button", { name: "TIME: 1X" }).click();
+  await page.getByRole("button", { name: "TIME: 2X" }).click();
   await page.waitForFunction(() => {
     const canvas = document.querySelector("#scene");
     return Number(canvas?.dataset.fleetShipCount ?? 0) === 2
@@ -33,6 +37,26 @@ try {
         .some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       && canvas?.dataset.fleetLink11WeaponAuthority === "false";
   }, null, { timeout: 20_000 });
+  try {
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector("#scene");
+      return (canvas?.dataset.fleetLocalWeaponTracks ?? "").split("|")
+        .some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
+        && (canvas?.dataset.fleetAawAssignments ?? "").includes("AAW-");
+    }, null, { timeout: 45_000 });
+  } catch (error) {
+    const diagnostic = await page.locator("#scene").evaluate((canvas) => ({
+      elapsed: canvas.dataset.simulationElapsed,
+      localTracks: canvas.dataset.fleetLocalTracks,
+      localWeaponTracks: canvas.dataset.fleetLocalWeaponTracks,
+      localWeaponDetails: canvas.dataset.fleetLocalWeaponDetails,
+      picture: canvas.dataset.fleetPictureSummary,
+      assignments: canvas.dataset.fleetAawAssignments,
+      airStates: canvas.dataset.aircraftStates,
+    }));
+    console.error("Fleet AAW assignment timeout", JSON.stringify(diagnostic, null, 2));
+    throw error;
+  }
   const result = await page.locator("#scene").evaluate((canvas) => ({
     fleetId: canvas.dataset.fleetId,
     ships: canvas.dataset.fleetShips,
@@ -41,6 +65,8 @@ try {
     members: canvas.dataset.fleetMemberStates,
     stations: canvas.dataset.fleetStationStates,
     localTracks: canvas.dataset.fleetLocalTracks,
+    localWeaponTracks: canvas.dataset.fleetLocalWeaponTracks,
+    pictureSummary: canvas.dataset.fleetPictureSummary,
     networkTracks: canvas.dataset.fleetNetworkTracks,
     pictureTracks: Number(canvas.dataset.fleetPictureTracks ?? 0),
     otc: canvas.dataset.fleetOtc,
@@ -49,6 +75,7 @@ try {
     link11RollCalls: Number(canvas.dataset.fleetLink11RollCalls ?? 0),
     link11Delivered: Number(canvas.dataset.fleetLink11Delivered ?? 0),
     link11WeaponAuthority: canvas.dataset.fleetLink11WeaponAuthority,
+    aawAssignments: canvas.dataset.fleetAawAssignments,
   }));
   await page.locator("#sbLink16").evaluate((input) => {
     input.checked = false;
@@ -70,6 +97,7 @@ try {
       || result.link11Ncs !== "blue-cgn-9" || result.link11RollCalls <= 0
       || result.link11Delivered <= 0 || result.pictureTracks <= 0
       || result.link11WeaponAuthority !== "false"
+      || !result.aawAssignments.includes("AAW-")
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || !result.members.includes("blue-cgn-9:alive")

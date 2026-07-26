@@ -60,6 +60,7 @@ export function createNavalForceRuntime(
       lastCommandReassessmentAt: Number.NEGATIVE_INFINITY,
     },
     picture: new Map(),
+    assignments: new Map(),
     engagements: new Map(),
   };
 }

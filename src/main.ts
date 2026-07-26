@@ -2269,6 +2269,11 @@ function rebuildFleetIntegration() {
       commandedSpeedKnots: shipCommandedSpeedKnots,
       hullIntegrity,
       subsystemHealth: new Map(subsystemList.map((system) => [system.id, system.health])),
+      magazines: new Map([
+        ["RIM-67", ammo],
+        ["SM-2MR", sm2Ammo],
+        ["SM-2ER", sm2erAmmo],
+      ]),
     }),
     applyFlagshipDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
@@ -6212,6 +6217,7 @@ function updateCombat(dt: number) {
     }] : []),
   );
   fleetIntegration?.updateNetwork(elapsed, link16Input.checked);
+  fleetIntegration?.updateAirDefense(elapsed);
   const radarState = combatPicture.getSearchState(),
     primaryTracks = [...combatPicture.tracks.values()].filter((track) =>
       track.sensorContributors.includes(primarySensor),
@@ -6250,6 +6256,16 @@ function updateCombat(dt: number) {
     canvas.dataset.fleetOtc = fleetIntegration.force.commandRoles.get("otc") ?? "";
     canvas.dataset.fleetLocalTracks = [...fleetIntegration.force.ships.values()]
       .map((ship) => `${ship.id}:${ship.localTracks.size}`).join("|");
+    canvas.dataset.fleetLocalWeaponTracks = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:${[...ship.localTracks.values()].filter((track) => track.weaponQuality).length}`)
+      .join("|");
+    canvas.dataset.fleetLocalWeaponDetails = [...fleetIntegration.force.ships.values()]
+      .flatMap((ship) => [...ship.localTracks.values()].filter((track) => track.weaponQuality)
+        .map((track) => `${ship.id}:${track.targetId}:${Math.round(ship.position.distanceTo(track.position))}`))
+      .join("|");
+    canvas.dataset.fleetPictureSummary = [...fleetIntegration.force.picture.entries()]
+      .map(([id, track]) => `${id}:${track.classification}:${Math.round(track.quality * 100)}`)
+      .join("|");
     canvas.dataset.fleetNetworkTracks = [...fleetIntegration.force.ships.values()]
       .map((ship) => `${ship.id}:${ship.networkTracks.size}`).join("|");
     canvas.dataset.fleetPictureTracks = String(fleetIntegration.force.picture.size);
@@ -6262,6 +6278,9 @@ function updateCombat(dt: number) {
       [...fleetIntegration.force.ships.values()].some((ship) =>
         [...ship.networkTracks.values()].some((track) => track.weaponQuality)),
     );
+    canvas.dataset.fleetAawAssignments = [...fleetIntegration.force.assignments.values()]
+      .map((assignment) => `${assignment.id}:${assignment.shooterId}:${assignment.weapon}:${assignment.status}`)
+      .join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
   else updateVlsCells(dt);
