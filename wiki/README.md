@@ -1,5 +1,7 @@
 # NTU Intercept Wiki
 
+> [English Wiki](en/README.md) | [完整导弹参数总表](WEAPONS/MISSILE_PARAMETERS.md)
+
 > Data snapshot: v1.0.0 · 2026-07-26  
 > These pages document the current game implementation. Values are game-scaled and may change in later versions.
 

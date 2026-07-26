@@ -1,5 +1,7 @@
 # NTU Intercept
 
+> [English Wiki](wiki/en/README.md) · [Complete missile parameter catalog](wiki/en/WEAPONS/MISSILE_PARAMETERS.md)
+
 > Documentation snapshot: v1.0.0 · 2026-07-26<br>
 > This page describes the v1.0.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
