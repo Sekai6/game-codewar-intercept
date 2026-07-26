@@ -40,12 +40,15 @@ export interface NavalForceScenario {
 
 export interface ForceEngagementRecord {
   targetId: string;
+  assignmentIds: string[];
   assignedShooters: string[];
   weaponsCommitted: number;
   estimatedPk: number;
   expectedInterceptTimes: number[];
   assessmentDueAt: number;
-  status: "assigned" | "weapons-away" | "assessing" | "leaker";
+  lastUpdatedAt: number;
+  resolvedAt?: number;
+  status: "assigned" | "weapons-away" | "assessing" | "leaker" | "resolved";
 }
 
 export interface ForceEngagementAssignment {
@@ -59,7 +62,8 @@ export interface ForceEngagementAssignment {
   estimatedTimeToImpact: number;
   assignedAt: number;
   expiresAt: number;
-  status: "assigned" | "accepted" | "rejected" | "expired";
+  status: "assigned" | "accepted" | "rejected" | "expired" | "weapons-away";
+  updatedAt: number;
   rejectionReason?: string;
 }
 

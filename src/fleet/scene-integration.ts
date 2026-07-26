@@ -8,6 +8,7 @@ import { FleetAirDefenseCoordinator } from "./air-defense-coordinator.js";
 import { createNavalForceRuntime } from "./force-runtime.js";
 import { updateFleetFormation } from "./formation-runtime.js";
 import { FleetLink11Runtime } from "./link11-runtime.js";
+import { updateForceEngagements } from "./engagement-runtime.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 
 export interface LegacyFlagshipSnapshot {
@@ -100,6 +101,7 @@ export class FleetSceneIntegration {
   }
 
   updateAirDefense(now: number) {
+    updateForceEngagements(this.force, now);
     this.airDefense.update(this.force, now);
   }
 

@@ -6281,6 +6281,11 @@ function updateCombat(dt: number) {
     canvas.dataset.fleetAawAssignments = [...fleetIntegration.force.assignments.values()]
       .map((assignment) => `${assignment.id}:${assignment.shooterId}:${assignment.weapon}:${assignment.status}`)
       .join("|");
+    canvas.dataset.fleetEngagements = [...fleetIntegration.force.engagements.values()]
+      .map((record) => `${record.targetId}:${record.status}:${record.weaponsCommitted}`)
+      .join("|");
+    canvas.dataset.fleetLocalEngagements = [...fleetIntegration.force.ships.values()]
+      .map((ship) => `${ship.id}:${ship.engagements.size}`).join("|");
   }
   if (activeShip.launcher.kind === "mk10") updateMk10Launchers(dt);
   else updateVlsCells(dt);

@@ -2,6 +2,11 @@ import type { ShipWeapon } from "../ship-types.js";
 import { WEAPON_PROFILES } from "../interceptor-data.js";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "../ships/types.js";
 import type { ForceEngagementAssignment, NavalForceRuntime } from "./types.js";
+import {
+  forceEngagementSuppressesAssignment,
+  registerForceAssignment,
+  resetForceEngagements,
+} from "./engagement-runtime.js";
 
 const ASSIGNMENT_LIFETIME_SECONDS = 7;
 
@@ -100,16 +105,9 @@ export class FleetAirDefenseCoordinator {
   private nextAssignment = 1;
 
   update(force: NavalForceRuntime, now: number) {
-    for (const assignment of force.assignments.values()) {
-      if (assignment.status === "assigned" && now >= assignment.expiresAt)
-        assignment.status = "expired";
-    }
     const aawcId = force.commandRoles.get("aawc");
     const aawc = aawcId ? force.ships.get(aawcId) : undefined;
     if (!aawc?.alive) return;
-    const activeTracks = new Set([...force.assignments.values()]
-      .filter((assignment) => assignment.status === "assigned" || assignment.status === "accepted")
-      .map((assignment) => assignment.forceTrackId));
     const plannedChannels = new Map<string, number>();
     for (const assignment of force.assignments.values()) {
       if (assignment.status !== "assigned" && assignment.status !== "accepted") continue;
@@ -119,7 +117,7 @@ export class FleetAirDefenseCoordinator {
       );
     }
     const threats = [...force.picture.entries()]
-      .filter(([trackId, track]) => !activeTracks.has(trackId)
+      .filter(([trackId, track]) => !forceEngagementSuppressesAssignment(force.engagements.get(trackId))
         && (track.classification === "missile" || track.classification === "aircraft"))
       .map(([trackId, track]) => ({ trackId, track, ...assessFleetAirThreat(force, track, now) }))
       .sort((a, b) => b.score - a.score);
@@ -146,8 +144,9 @@ export class FleetAirDefenseCoordinator {
         assignedAt: now,
         expiresAt: now + ASSIGNMENT_LIFETIME_SECONDS,
         status: "assigned",
+        updatedAt: now,
       };
-      force.assignments.set(id, assignment);
+      registerForceAssignment(force, assignment);
       plannedChannels.set(
         shooter.ship.id,
         (plannedChannels.get(shooter.ship.id) ?? 0) + requestedShots,
@@ -156,7 +155,7 @@ export class FleetAirDefenseCoordinator {
   }
 
   reset(force: NavalForceRuntime) {
-    force.assignments.clear();
+    resetForceEngagements(force);
     this.nextAssignment = 1;
   }
 }

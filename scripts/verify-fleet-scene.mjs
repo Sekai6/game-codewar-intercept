@@ -52,6 +52,8 @@ try {
       localWeaponDetails: canvas.dataset.fleetLocalWeaponDetails,
       picture: canvas.dataset.fleetPictureSummary,
       assignments: canvas.dataset.fleetAawAssignments,
+      engagements: canvas.dataset.fleetEngagements,
+      localEngagements: canvas.dataset.fleetLocalEngagements,
       airStates: canvas.dataset.aircraftStates,
     }));
     console.error("Fleet AAW assignment timeout", JSON.stringify(diagnostic, null, 2));
@@ -76,6 +78,8 @@ try {
     link11Delivered: Number(canvas.dataset.fleetLink11Delivered ?? 0),
     link11WeaponAuthority: canvas.dataset.fleetLink11WeaponAuthority,
     aawAssignments: canvas.dataset.fleetAawAssignments,
+    engagements: canvas.dataset.fleetEngagements,
+    localEngagements: canvas.dataset.fleetLocalEngagements,
   }));
   await page.locator("#sbLink16").evaluate((input) => {
     input.checked = false;
@@ -98,6 +102,8 @@ try {
       || result.link11Delivered <= 0 || result.pictureTracks <= 0
       || result.link11WeaponAuthority !== "false"
       || !result.aawAssignments.includes("AAW-")
+      || !result.engagements.includes(":assigned:0")
+      || !result.localEngagements.split("|").every((entry) => entry.endsWith(":0"))
       || !result.networkTracks.split("|").some((entry) => Number(entry.split(":")[1] ?? 0) > 0)
       || !result.companionTargets.includes("blue-cg-57")
       || !result.members.includes("blue-cgn-9:alive")
