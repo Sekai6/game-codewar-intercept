@@ -55,6 +55,7 @@ npm run build
 | Test matrix and v1.0 release gates | [Verification guide (Chinese)](docs/zh/VERIFICATION.md) |
 | WebGPU Ultra implementation status | [WebGPU Ultra](docs/WEBGPU_ULTRA.md) |
 | WebGPU renderer migration | [Renderer migration](docs/WEBGPU_RENDERER_MIGRATION.md) |
+| v1.0 feature boundaries and evidence | [CHANGELOG.md](CHANGELOG.md) |
 
 The English source-level architecture document is maintained alongside the code. The new detailed operator and simulation manuals currently use Chinese as their authoritative language; translations should preserve the same file boundaries rather than rebuilding a monolithic README.
 
@@ -78,7 +79,7 @@ scripts/          logic, browser, screenshot, and regression verification
 
 ## Project Status
 
-The repository is undergoing v1.0 documentation and release auditing. `package.json` remains at `0.1.0` until every release gate has current evidence.
+The repository is released as `v1.0.0`. Feature boundaries and verification evidence are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

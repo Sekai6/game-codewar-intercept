@@ -59,6 +59,7 @@ npm run build
 | 运行测试或准备发布 | [验证与发布](docs/zh/VERIFICATION.md) |
 | 阅读现有英文源码级架构说明 | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | WebGPU Ultra 状态和限制 | [WEBGPU_ULTRA.md](docs/WEBGPU_ULTRA.md) |
+| v1.0 功能、边界与证据 | [CHANGELOG.md](CHANGELOG.md) |
 
 ## 源码地图
 
@@ -81,7 +82,7 @@ scripts/           逻辑、浏览器、截图和回归验证
 
 ## 项目状态
 
-当前分支正处于 v1.0 文档与发布审计阶段。`package.json` 仍是 `0.1.0`，在全部发布门槛通过前不会提前打 `v1.0.0` 标签。
+当前发布为 `v1.0.0`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 
