@@ -26,6 +26,10 @@ try {
     return (canvas?.dataset.fleetPhysicalLaunches ?? "").includes("blue-cg-57:blue-cg-57 MK 41")
       && (canvas?.dataset.fleetEngagements ?? "").includes(":weapons-away:");
   }, null, { timeout: 55_000 });
+  // The fleet launch camera uses interpolation; capture only after it has
+  // settled on the firing ship, otherwise the screenshot can still show the
+  // flagship even though the physical launch belongs to the escort.
+  await page.waitForTimeout(2200);
   const result = await page.locator("#scene").evaluate((canvas) => ({
     assignments: canvas.dataset.fleetAawAssignments,
     engagements: canvas.dataset.fleetEngagements,
