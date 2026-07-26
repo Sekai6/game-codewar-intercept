@@ -14,11 +14,13 @@ const observation = (assignment) => ({
   members: [member("blue-cgn-9", ["otc", "aawc"]), member("blue-cg-57")],
   tracks: [{ id: "M-104", classification: "missile", quality: .8, uncertainty: 120, age: 1, contributors: ["blue-cgn-9:organic-radar", "blue-cg-57:link11"], weaponAuthority: false }],
   assignments: assignment ? [assignment] : [], engagements: [], networkActivities: [],
+  physicalLaunches: [{ shipId: "blue-cg-57", launcherLabel: "MK 41 FWD", launchPoint: "CELL 26", weapon: "SM-2ER", time: 2 }],
 });
 const recorder = new FleetAarRecorder();
 const base = { id: "AAW-1", targetId: "M-104", shooterId: "blue-cg-57", localTrackId: "M-104", weapon: "SM-2MR", requestedShots: 2, weaponsAway: 0, status: "accepted", updatedAt: 1 };
 let sample = recorder.sample(observation(base), 1);
 assert.equal(sample.events.filter((event) => event.text.includes("AAWC ASSIGN")).length, 1);
+assert.ok(sample.events.some((event) => event.text.includes("PHYSICAL LAUNCH / blue-cg-57 / MK 41 FWD / CELL 26 / SM-2ER / ORGANIC VLS")));
 sample = recorder.sample(observation({ ...base, updatedAt: 2 }), 2);
 assert.equal(sample.events.filter((event) => event.text.includes("AAWC ASSIGN")).length, 0);
 sample = recorder.sample(observation({ ...base, weaponsAway: 1, updatedAt: 3 }), 3);
