@@ -235,6 +235,7 @@ export type AarFleetSnapshot = {
   tracks: Array<{ id: string; x: number; y: number; z: number; classification: string; quality: number; uncertainty: number; age: number; contributors: string[]; weaponAuthority: false }>;
   assignments: Array<{ id: string; targetId: string; shooterId: string; localTrackId: string; weapon: string; requestedShots: number; weaponsAway: number; status: string; rejectionReason?: string; updatedAt: number }>;
   engagements: Array<{ targetId: string; shooters: string[]; weaponsCommitted: number; estimatedPk: number; status: string; updatedAt: number }>;
+  physicalLaunches?: Array<{ shipId: string; launcherLabel: string; launchPoint: string; weapon: string; time: number }>;
 };
 export type AarAewCommand = {
   id:string; controllerId:string; participantId:string; controllerTrackId:string;

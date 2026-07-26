@@ -107,6 +107,7 @@ export class FleetAarRecorder {
         tracks: observation.tracks.map((track) => ({ ...track, contributors: [...track.contributors] })),
         assignments: observation.assignments.map((assignment) => ({ ...assignment })),
         engagements: observation.engagements.map((engagement) => ({ ...engagement, shooters: [...engagement.shooters] })),
+        physicalLaunches: (observation.physicalLaunches ?? []).map((launch) => ({ ...launch })),
       },
     };
   }
