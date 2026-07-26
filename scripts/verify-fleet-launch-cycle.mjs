@@ -26,6 +26,10 @@ try {
     return (canvas?.dataset.fleetPhysicalLaunches ?? "").includes("blue-cg-57:blue-cg-57 MK 41")
       && (canvas?.dataset.fleetEngagements ?? "").includes(":weapons-away:");
   }, null, { timeout: 55_000 });
+  await page.keyboard.press("l");
+  await page.waitForFunction(() =>
+    document.querySelector("#scene")?.dataset.cameraFleetLaunchShip === "blue-cg-57",
+  null, { timeout: 5_000 });
   // The fleet launch camera uses interpolation; capture only after it has
   // settled on the firing ship, otherwise the screenshot can still show the
   // flagship even though the physical launch belongs to the escort.
@@ -37,6 +41,12 @@ try {
     magazines: canvas.dataset.fleetSamMagazines,
     launcherPending: canvas.dataset.fleetLauncherPending,
     physicalLaunches: canvas.dataset.fleetPhysicalLaunches,
+    launchCameraShip: canvas.dataset.cameraFleetLaunchShip,
+    launchHud: [
+      document.querySelector("#shipBadge")?.textContent,
+      document.querySelector("#shipName")?.textContent,
+      document.querySelector("#shipState")?.textContent,
+    ].join(" / "),
   }));
   const offsets = (result.physicalLaunches ?? "").split("|").map((entry) =>
     Number(entry.match(/OFFSET=([\d.-]+)/)?.[1] ?? Number.POSITIVE_INFINITY));
@@ -47,6 +57,10 @@ try {
   console.log(JSON.stringify(result, null, 2));
   if (errors.length || !result.noBypassEvent || !result.originsOwnedByCg57
       || !result.assignments?.includes("blue-cg-57")
+      || result.launchCameraShip !== "blue-cg-57"
+      || !result.launchHud.includes("CG-57 / USS LAKE CHAMPLAIN")
+      || !result.launchHud.includes("MK 41")
+      || !result.launchHud.includes("ORGANIC LAUNCH")
       || !result.engagements?.includes(":weapons-away:")
       || !result.magazines?.includes("blue-cg-57:RIM=0,MR=46")
       || !result.physicalLaunches?.includes("MK 41")

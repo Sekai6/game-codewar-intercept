@@ -4672,8 +4672,20 @@ function updateCamera() {
   if (cinematic) az += 0.0018;
   let focus: THREE.Vector3;
   if (fleetLaunchCameraShipId && fleetIntegration) {
-    const frame = fleetMemberFrame(fleetIntegration.observation(elapsed), fleetLaunchCameraShipId);
+    const fleetObservation = fleetIntegration.observation(elapsed);
+    const frame = fleetMemberFrame(fleetObservation, fleetLaunchCameraShipId);
     if (frame) {
+      const member = fleetObservation.members.find((entry) => entry.id === fleetLaunchCameraShipId);
+      const launch = fleetIntegration.recentPhysicalLaunches(12)
+        .filter((entry) => entry.shipId === fleetLaunchCameraShipId).at(-1);
+      if (member) {
+        (document.querySelector("#shipBadge") as HTMLElement).textContent = member.hullNumber;
+        (document.querySelector("#shipName") as HTMLElement).textContent = member.name;
+        (document.querySelector("#shipRole") as HTMLElement).textContent = "PHYSICAL LAUNCH CAMERA";
+        document.querySelector("#shipState")!.textContent = launch
+          ? `${launch.launcherLabel} / ${launch.launchPoint} / ${launch.weapon} / ORGANIC LAUNCH`
+          : `HULL ${member.hull.toFixed(0)}% / ${member.speedKnots.toFixed(0)} KT / LAUNCH CAMERA`;
+      }
       focus = frame.center.clone().add(new THREE.Vector3(0, 4, 0));
       const distance = 55;
       camera.position.lerp(focus.clone().add(new THREE.Vector3(32, 24, 38)), 0.14);
