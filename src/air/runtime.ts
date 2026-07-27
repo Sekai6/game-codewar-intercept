@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createAirWeaponModel } from "../models/air-weapons.js";
 import { attachAirWeaponModel } from "./weapon-mounting.js";
+import { applyDeclaredWingSweep } from "./variable-geometry.js";
 import type { CombatEntity, TargetableEntity } from "../combat-entity";
 import { AIR_WEAPONS } from "./catalog";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
@@ -2701,23 +2702,11 @@ export class AirCombatSystem {
       a.heading,
     );
     a.model.rotateZ(-a.bank);
-    const wings = a.model.userData.variableWings as
-      THREE.Object3D[] | undefined;
-    if (wings) {
-      const sweep = THREE.MathUtils.lerp(
-        0.28,
-        0.9,
-        clamp(
-          (newSpeed - flight.cruiseSpeed) /
-            (flight.maxSpeed - flight.cruiseSpeed),
-          0,
-          1,
-        ),
-      );
-      wings.forEach(
-        (w, i) => (w.rotation.y = (i ? 0.0 : 0) + (i % 2 ? 1 : -1) * sweep),
-      );
-    }
+    applyDeclaredWingSweep(
+      a.model,
+      (newSpeed - flight.cruiseSpeed) /
+        Math.max(0.001, flight.maxSpeed - flight.cruiseSpeed),
+    );
   }
   private targetById(id: string, context: AirScenarioContext) {
     return this.entities(context).find((e) => e.id === id);

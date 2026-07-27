@@ -16,6 +16,7 @@ import {
   createPlanform,
   createVerticalSurface,
   finishAircraftModel,
+  type AirWeaponMountPiece,
   type FuselageStation,
   type Vec3Tuple,
 } from "../model-kit.js";
@@ -27,6 +28,10 @@ const length = dimensions.modelLength;
 const halfLength = length * 0.5;
 const halfSpan = dimensions.modelWingspan * 0.5;
 const WING_SWEEP_DEG = 35;
+const MAIN_WING_CENTER_Y = 0.15;
+const KSR_CARRIER_BEAM_BOTTOM_Y = -0.62;
+const KSR_CARRIER_BRACE_OVERLAP = 0.02;
+const KSR_WEAPON_CONTACT_OVERLAP = 0.008;
 
 const aluminumPaint = aircraftPaint(0xa5aaa6, 0.43, 0.19);
 const palePanelPaint = aircraftPaint(0xb5b9b4, 0.5, 0.12);
@@ -46,13 +51,16 @@ const gunMetal = new THREE.MeshStandardMaterial({
 });
 
 export const TU16K_MODEL_STATIONS = [
-  { id: "wing-port-ksr", position: [-3.25, -1.35, -0.62] as Vec3Tuple },
-  { id: "wing-starboard-ksr", position: [3.25, -1.35, -0.62] as Vec3Tuple },
+  // The KSR-5 carrier sits just outboard of each engine, with the missile
+  // centre under the wing mid-chord (the nose projects ahead of the leading
+  // edge while the aft fins remain behind the trailing edge).
+  { id: "wing-port-ksr", position: [-3.55, -1.35, 0.02] as Vec3Tuple },
+  { id: "wing-starboard-ksr", position: [3.55, -1.35, 0.02] as Vec3Tuple },
 ] as const;
 
 function glazedNoseStations(): readonly FuselageStation[] {
   return [
-    { z: -halfLength + 0.04, radiusX: 0.035, radiusY: 0.028, centerY: -0.12 },
+    { z: -halfLength, radiusX: 0.018, radiusY: 0.014, centerY: -0.12 },
     { z: -8.35, radiusX: 0.26, radiusY: 0.22, centerY: -0.1 },
     { z: -7.96, radiusX: 0.46, radiusY: 0.39, centerY: -0.075 },
     { z: -7.52, radiusX: 0.61, radiusY: 0.51, centerY: -0.03 },
@@ -91,7 +99,18 @@ function nacelleStations(): readonly FuselageStation[] {
 }
 
 function tierSegments(tier: DetailTier) {
-  return tier === "ultra" ? 32 : tier === "high" ? 19 : 10;
+  // The Badger's long cylindrical body and nacelles need denser radial
+  // sampling at Ultra to avoid faceting in close side/bottom views.  High and
+  // Low remain separate, materially lighter meshes.
+  return tier === "ultra" ? 144 : tier === "high" ? 80 : 18;
+}
+
+function mainWingThickness(tier: DetailTier) {
+  return tier === "ultra" ? 0.19 : tier === "high" ? 0.135 : 0.085;
+}
+
+function mainWingUndersideY(tier: DetailTier) {
+  return MAIN_WING_CENTER_Y - mainWingThickness(tier) * 0.5;
 }
 
 function addGlazedNose(parent: THREE.Group, tier: DetailTier) {
@@ -101,16 +120,21 @@ function addGlazedNose(parent: THREE.Group, tier: DetailTier) {
   nose.name = `tu16-faceted-glazed-nose:${tier}`;
   parent.add(nose);
   if (tier === "low") return;
-  const longitudinalFrames = tier === "ultra" ? [-0.34, -0.17, 0, 0.17, 0.34] : [-0.27, 0, 0.27];
+  const longitudinalFrames = tier === "ultra" ? [-0.39, -0.26, -0.13, 0, 0.13, 0.26, 0.39] : [-0.3, -0.15, 0, 0.15, 0.3];
   for (const x of longitudinalFrames) {
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.022, 1.05), aircraftPanelMaterial);
-    frame.position.set(x, -0.035 + Math.abs(x) * 0.22, -7.64);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(tier === "ultra" ? 0.012 : 0.016, 0.022, 1.1), aircraftPanelMaterial);
+    frame.position.set(x, -0.035 + Math.abs(x) * 0.22, -7.63);
     frame.rotation.y = x * -0.15;
     parent.add(frame);
   }
   const lowerCrossFrame = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.018, 0.025), aircraftPanelMaterial);
   lowerCrossFrame.position.set(0, -0.28, -7.58);
   parent.add(lowerCrossFrame);
+  if (tier === "ultra") {
+    const upperCrossFrame = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.018, 0.025), aircraftPanelMaterial);
+    upperCrossFrame.position.set(0, 0.2, -7.46);
+    parent.add(upperCrossFrame);
+  }
 }
 
 function addCockpitWindows(parent: THREE.Group, tier: DetailTier) {
@@ -145,11 +169,17 @@ function addCockpitWindows(parent: THREE.Group, tier: DetailTier) {
     ], palePanelPaint, 0.08);
     cockpitRoof.position.y = 0.71;
     parent.add(cockpitRoof);
+    if (tier === "ultra") {
+      const roofSeam = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.018, 0.028), aircraftSeamMaterial);
+      roofSeam.position.set(0, 0.756, -6.42);
+      roofSeam.rotation.y = Math.PI * 0.5;
+      parent.add(roofSeam);
+    }
   }
 }
 
 function addMainWing(parent: THREE.Group, tier: DetailTier, surfaceMarkings: THREE.Object3D[]) {
-  const thickness = tier === "ultra" ? 0.19 : tier === "high" ? 0.135 : 0.085;
+  const thickness = mainWingThickness(tier);
   const rootX = 0.63;
   const rootLeadingZ = -2.55;
   const tipLeadingZ = rootLeadingZ
@@ -219,12 +249,34 @@ function addEngineNacelle(parent: THREE.Group, side: number, tier: DetailTier) {
       const divider = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.79, 0.09), aircraftPanelMaterial);
       divider.position.z = -0.035;
       intakeGroup.add(divider);
+      const spinner = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.025, 24), hotSectionPaint);
+      spinner.rotation.x = Math.PI / 2;
+      spinner.position.z = 0.04;
+      intakeGroup.add(spinner);
+      for (let index = 0; index < 10; index++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.28, 0.014), hotSectionPaint);
+        blade.position.z = 0.025;
+        blade.rotation.z = index / 10 * Math.PI * 2;
+        intakeGroup.add(blade);
+      }
     }
   }
   parent.add(intakeGroup);
-  const nozzle = createNozzle(0.48, 0.62, tier === "ultra" ? 18 : tier === "high" ? 12 : 10, tier === "ultra");
+  const nozzle = createNozzle(0.48, 0.62, tier === "ultra" ? 32 : tier === "high" ? 18 : 10, tier === "ultra");
   nozzle.position.set(side * 2.05, 0.03, 4.35);
   parent.add(nozzle);
+  if (tier !== "low") {
+    const seamZ = tier === "ultra" ? [-2.3, -1.05, 0.55, 2.05, 3.28] : [-1.8, 0.6, 2.65];
+    for (const z of seamZ) {
+      const seam = new THREE.Mesh(
+        new THREE.TorusGeometry(0.705, tier === "ultra" ? 0.008 : 0.012, 5, tier === "ultra" ? 24 : 14),
+        aircraftSeamMaterial,
+      );
+      seam.scale.y = 0.86;
+      seam.position.set(side * 2.05, 0.03, z);
+      parent.add(seam);
+    }
+  }
   if (tier === "ultra") {
     const hotFairing = createPlanform([
       [side * 1.48, 2.88],
@@ -249,21 +301,27 @@ function addTailSurfaces(parent: THREE.Group, tier: DetailTier) {
   parent.add(dorsalFillet);
   const fin = createVerticalSurface([
     [-1.35, 0],
-    [0.3, 3.04],
-    [0.92, 2.96],
+    [0.3, 3.5],
+    [0.92, 3.4],
     [1.48, 0],
   ], thickness, tier === "low" ? undersidePaint : aluminumPaint);
   fin.name = `tu16-large-swept-fin:${tier}`;
   fin.position.set(0, 0.5, 6.25);
   parent.add(fin);
   const finCap = createVerticalSurface([
-    [0.2, 2.84],
-    [0.3, 3.04],
-    [0.92, 2.96],
-    [0.84, 2.76],
+    [0.2, 3.29],
+    [0.3, 3.5],
+    [0.92, 3.4],
+    [0.84, 3.2],
   ], thickness * 1.03, radomePaint);
   finCap.position.copy(fin.position);
   if (tier !== "low") parent.add(finCap);
+  if (tier === "ultra") {
+    const rudderSeam = new THREE.Mesh(new THREE.BoxGeometry(0.018, 1.95, 0.028), aircraftSeamMaterial);
+    rudderSeam.position.set(0, 1.54, 6.37);
+    rudderSeam.rotation.z = -0.06;
+    parent.add(rudderSeam);
+  }
   for (const side of [-1, 1]) {
     const tailplane = createPlanform([
       [side * 0.48, 5.55],
@@ -278,24 +336,34 @@ function addTailSurfaces(parent: THREE.Group, tier: DetailTier) {
 }
 
 function addTailTurret(parent: THREE.Group, tier: DetailTier) {
-  const segments = tier === "ultra" ? 24 : tier === "high" ? 15 : 9;
+  const segments = tier === "ultra" ? 48 : tier === "high" ? 24 : 10;
   const fairing = createLoftedFuselage([
     { z: 7.68, radiusX: 0.25, radiusY: 0.25, centerY: 0.035 },
     { z: 8.04, radiusX: 0.3, radiusY: 0.27, centerY: 0.025 },
     { z: 8.34, radiusX: 0.24, radiusY: 0.21, centerY: 0.005 },
     { z: 8.55, radiusX: 0.13, radiusY: 0.12, centerY: -0.005 },
-    { z: 8.66, radiusX: 0.035, radiusY: 0.03, centerY: -0.01 },
+    { z: halfLength - 0.22, radiusX: 0.055, radiusY: 0.05, centerY: -0.01 },
   ], tier === "low" ? undersidePaint : nacellePaint, segments);
   fairing.name = `tu16-tail-gun-turret:${tier}`;
   parent.add(fairing);
   const barrelCount = tier === "low" ? 1 : 2;
+  const barrelLength = tier === "ultra" ? 0.36 : tier === "high" ? 0.3 : 0.22;
   for (let index = 0; index < barrelCount; index++) {
     const barrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(tier === "low" ? 0.022 : 0.015, tier === "low" ? 0.028 : 0.021, 0.24, tier === "ultra" ? 8 : 6),
+      new THREE.CylinderGeometry(
+        tier === "low" ? 0.022 : 0.015,
+        tier === "low" ? 0.028 : 0.021,
+        barrelLength,
+        tier === "ultra" ? 12 : 6,
+      ),
       gunMetal,
     );
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(barrelCount === 1 ? 0 : (index ? 0.07 : -0.07), tier === "low" ? 0.005 : -0.025, 8.58);
+    barrel.position.set(
+      barrelCount === 1 ? 0 : (index ? 0.07 : -0.07),
+      tier === "low" ? 0.005 : -0.025,
+      halfLength - barrelLength * 0.5,
+    );
     parent.add(barrel);
   }
   if (tier === "ultra") {
@@ -308,7 +376,7 @@ function addTailTurret(parent: THREE.Group, tier: DetailTier) {
 
 function addVentralRadar(parent: THREE.Group, tier: DetailTier) {
   const radar = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, tier === "ultra" ? 24 : tier === "high" ? 15 : 9, tier === "ultra" ? 14 : 8),
+    new THREE.SphereGeometry(0.5, tier === "ultra" ? 36 : tier === "high" ? 22 : 10, tier === "ultra" ? 20 : 10),
     radomePaint,
   );
   radar.scale.set(0.96, 0.38, 1.42);
@@ -363,13 +431,15 @@ function addStaticAirframe(parent: THREE.Group, tier: DetailTier, surfaceMarking
 }
 
 function addKsrMount(root: THREE.Group, weaponRig: THREE.Group, tiers: ReturnType<typeof createAircraftTiers>, id: string, position: Vec3Tuple) {
+  const carrierBraceTopY = KSR_CARRIER_BEAM_BOTTOM_Y + KSR_CARRIER_BRACE_OVERLAP;
+
   function addCarrierBeam(parent: THREE.Group, tier: DetailTier) {
     const thickness = tier === "ultra" ? 0.11 : tier === "high" ? 0.09 : 0.065;
     const beam = createVerticalSurface([
-      [position[2] - 0.48, -0.03],
-      [position[2] + 0.4, -0.03],
-      [position[2] + 0.23, -0.82],
-      [position[2] - 0.2, -0.82],
+      [position[2] - 0.48, mainWingUndersideY(tier)],
+      [position[2] + 0.4, mainWingUndersideY(tier)],
+      [position[2] + 0.23, KSR_CARRIER_BEAM_BOTTOM_Y],
+      [position[2] - 0.2, KSR_CARRIER_BEAM_BOTTOM_Y],
     ], thickness, tier === "low" ? undersidePaint : aluminumPaint);
     beam.position.x = position[0];
     beam.name = `tu16-tapered-ksr-carrier:${id}:${tier}`;
@@ -379,23 +449,58 @@ function addKsrMount(root: THREE.Group, weaponRig: THREE.Group, tiers: ReturnTyp
   addCarrierBeam(tiers.ultra, "ultra");
   addCarrierBeam(tiers.high, "high");
   addCarrierBeam(tiers.low, "low");
-  addAirWeaponMount(root, weaponRig, id, position, {
+
+  function mountPieces(tier: "ultra" | "high"): readonly AirWeaponMountPiece[] {
+    const railHeight = tier === "ultra" ? 0.07 : 0.08;
+    const railContactY = 0.165;
+    const railTopY = railContactY + railHeight;
+    const braceTopRelativeY = carrierBraceTopY - position[1];
+    const braceHeight = braceTopRelativeY - railTopY;
+    const braceCenterY = (railTopY + braceTopRelativeY) * 0.5;
+    return [
+      {
+        offset: [0, railContactY + railHeight * 0.5, 0],
+        size: [tier === "ultra" ? 0.22 : 0.19, railHeight, tier === "ultra" ? 0.76 : 0.68],
+      },
+      {
+        offset: [0, braceCenterY, tier === "ultra" ? -0.22 : -0.18],
+        size: [tier === "ultra" ? 0.075 : 0.07, braceHeight, 0.1],
+      },
+      {
+        offset: [0, braceCenterY, tier === "ultra" ? 0.22 : 0.18],
+        size: [tier === "ultra" ? 0.075 : 0.07, braceHeight, 0.1],
+      },
+    ];
+  }
+
+  const ultraPieces = mountPieces("ultra");
+  const highPieces = mountPieces("high");
+  const mount = addAirWeaponMount(root, weaponRig, id, position, {
     ultraParent: tiers.ultra,
     highParent: tiers.high,
-    ultraPieces: [
-      { offset: [0, 0.2, 0] as Vec3Tuple, size: [0.2, 0.07, 0.56] as Vec3Tuple },
-      { offset: [0, 0.45, -0.2] as Vec3Tuple, size: [0.075, 0.43, 0.1] as Vec3Tuple },
-      { offset: [0, 0.45, 0.2] as Vec3Tuple, size: [0.075, 0.43, 0.1] as Vec3Tuple },
-    ],
-    highPieces: [
-      { offset: [0, 0.2, 0] as Vec3Tuple, size: [0.18, 0.08, 0.52] as Vec3Tuple },
-      { offset: [0, 0.44, -0.18] as Vec3Tuple, size: [0.07, 0.4, 0.1] as Vec3Tuple },
-      { offset: [0, 0.44, 0.18] as Vec3Tuple, size: [0.07, 0.4, 0.1] as Vec3Tuple },
-    ],
+    ultraPieces,
+    highPieces,
   });
-  const lowCradle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.48), aircraftPanelMaterial);
-  lowCradle.position.set(position[0], position[1] + 0.2, position[2]);
-  tiers.low.add(lowCradle);
+  const weaponUpperContactY = ultraPieces[0].offset[1] - ultraPieces[0].size[1] * 0.5;
+  mount.userData.weaponUpperContactY = weaponUpperContactY;
+  mount.userData.weaponContactOverlap = KSR_WEAPON_CONTACT_OVERLAP;
+  mount.userData.weaponContactSource = "ultra-carrier-rail-aabb-lower-face";
+
+  const lowRailHeight = 0.08;
+  const lowRailTopY = weaponUpperContactY + lowRailHeight;
+  const lowBraceTopRelativeY = carrierBraceTopY - position[1];
+  const lowGroup = new THREE.Group();
+  lowGroup.position.set(...position);
+  const lowCradle = new THREE.Mesh(new THREE.BoxGeometry(0.16, lowRailHeight, 0.48), aircraftPanelMaterial);
+  lowCradle.position.y = weaponUpperContactY + lowRailHeight * 0.5;
+  lowGroup.add(lowCradle);
+  const lowBrace = new THREE.Mesh(
+    new THREE.BoxGeometry(0.07, lowBraceTopRelativeY - lowRailTopY, 0.12),
+    aircraftPanelMaterial,
+  );
+  lowBrace.position.set(0, (lowRailTopY + lowBraceTopRelativeY) * 0.5, -0.06);
+  lowGroup.add(lowBrace);
+  tiers.low.add(lowGroup);
 }
 
 export function createTu16Model() {
@@ -425,9 +530,9 @@ export function createTu16Model() {
   );
   root.userData.ksr5MountedScaleAudit = {
     carrierMetersPerUnit: 2,
-    currentRuntimeMountedScale: 0.72,
+    currentRuntimeMountedScale: 1.042,
     expectedRealLengthMeters: 10.52,
-    requiresWeaponProfileFollowUp: true,
+    requiresWeaponProfileFollowUp: false,
   };
   tiers.ultra.visible = true;
   tiers.high.visible = false;

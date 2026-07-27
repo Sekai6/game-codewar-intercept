@@ -12,7 +12,7 @@ const browser = await chromium.launch({
 
 const aircraft = ["F-14A", "A-6E", "MIG-29A", "TU-16K", "E-2C", "TU-126"];
 const viewsByQuality = {
-  ultra: ["front", "right", "top", "rear-quarter"],
+  ultra: ["front", "right", "top", "bottom", "rear-quarter"],
   high: ["right", "rear-quarter"],
   low: ["right", "rear-quarter"],
 };
@@ -60,9 +60,13 @@ try {
   await mkdir(`${outputRoot}/armed`, { recursive: true });
   for (const { type, view } of [
     { type: "F-14A", view: "rear-quarter" },
+    { type: "F-14A", view: "bottom" },
     { type: "A-6E", view: "rear-quarter" },
+    { type: "A-6E", view: "bottom" },
     { type: "MIG-29A", view: "rear-quarter" },
+    { type: "MIG-29A", view: "bottom" },
     { type: "TU-16K", view: "right" },
+    { type: "TU-16K", view: "bottom" },
   ]) {
     const armedUrl = new URL(galleryBase);
     armedUrl.searchParams.set("type", type);
@@ -87,8 +91,8 @@ try {
   console.log(JSON.stringify({ captured: results.length, tierStats, errors }, null, 2));
   const invalidTiering = Object.values(tierStats).some(({ ultra, high, low }) => !(ultra > high && high > low && low > 100));
   const armedResults = results.filter(result => result.stores);
-  const armedCoverage = armedResults.length === 4 && armedResults.every(result => result.mountedWeapons?.length > 0);
-  if (results.length !== 53 || invalidTiering || !armedCoverage || errors.length) process.exitCode = 1;
+  const armedCoverage = armedResults.length === 8 && armedResults.every(result => result.mountedWeapons?.length > 0);
+  if (results.length !== 63 || invalidTiering || !armedCoverage || errors.length) process.exitCode = 1;
 } finally {
   await browser.close();
 }

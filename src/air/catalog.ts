@@ -1,5 +1,6 @@
 import { createA6Model, createF14Model, createMig29Model, createTu16Model } from "./models";
 import { AEW_PLATFORM_DEFINITIONS } from "./aew/catalog.js";
+import { MIG29A_MODEL_STATIONS, TU16K_MODEL_STATIONS } from "./model-assets/soviet/index.js";
 import { A6E_STRIKE_STATIONS } from "./model-assets/us/a6e-stations.js";
 import { F14A_WEAPON_STATIONS } from "./model-assets/us/f14a-stations.js";
 import type { AirPlatformDefinition, AirPlatformId, AirWeaponDefinition, AirWeaponId } from "./types";
@@ -50,9 +51,9 @@ const fighterHardpoints = F14A_WEAPON_STATIONS.map((station) => {
     ignitionDelay: 0.16,
   };
 });
-const badgerHardpoints = [-1,1].map(side=>({
-  id:`wing-${side<0?"port":"starboard"}-ksr`,
-  position:[side*3.85,-1.08,-.85] as const,
+const badgerHardpoints = TU16K_MODEL_STATIONS.map((station) => ({
+  id:station.id,
+  position:station.position,
   compatibleWeapons:["KSR-5"] as const,
   releaseDelay:.65,
   ignitionDelay:.8,
@@ -64,11 +65,29 @@ const intruderHardpoints = A6E_STRIKE_STATIONS.map((station) => ({
   releaseDelay: 0.35,
   ignitionDelay: 0.3,
 }));
-const fulcrumHardpoints = [-1, 1].flatMap((side) => [
-  { id:`wing-${side<0?"port":"starboard"}-outer`, position:[side*2.65,-.34,.18] as const, compatibleWeapons:["R-73"] as const, releaseDelay:.16, ignitionDelay:.1 },
-  { id:`wing-${side<0?"port":"starboard"}-middle`, position:[side*1.85,-.43,.18] as const, compatibleWeapons:["R-27R","R-73"] as const, releaseDelay:.2, ignitionDelay:.14 },
-  { id:`wing-${side<0?"port":"starboard"}-inner`, position:[side*1.15,-.45,.02] as const, compatibleWeapons:["R-27R"] as const, releaseDelay:.22, ignitionDelay:.15 },
-]);
+const fulcrumHardpoints = MIG29A_MODEL_STATIONS.map((station) => {
+  if (station.stationClass === "outer-rail") return {
+    id:station.id,
+    position:station.position,
+    compatibleWeapons:["R-73"] as const,
+    releaseDelay:.16,
+    ignitionDelay:.1,
+  };
+  if (station.stationClass === "middle-pylon") return {
+    id:station.id,
+    position:station.position,
+    compatibleWeapons:["R-27R","R-73"] as const,
+    releaseDelay:.2,
+    ignitionDelay:.14,
+  };
+  return {
+    id:station.id,
+    position:station.position,
+    compatibleWeapons:["R-27R"] as const,
+    releaseDelay:.22,
+    ignitionDelay:.15,
+  };
+});
 export const AIR_PLATFORM_DEFINITIONS: readonly AirPlatformDefinition[] = [
   { id:"F-14A", name:"F-14A Tomcat", nation:"United States", role:"Fleet air defense", mission:"cap", radarCrossSection:8, infraredSignature:1.1, flight:{cruiseSpeed:5.1,maxSpeed:11.5,stallSpeed:2.1,acceleration:1.1,drag:0.018,maxLoadFactor:7.5,maxRollRateDeg:120,maxPitchRateDeg:28,fuelSeconds:900,aerodynamics:f14Aerodynamics,thrust:f14Thrust}, sensor:{name:"AN/AWG-9",range:1750,updateInterval:0.8,fieldOfViewDeg:120,precision:0.88}, datalink:{link16:true,minimumEra:"jtids-transition",terminalName:"JTIDS Class 2",terminalReliability:0.96,timeSyncQuality:0.97}, ecm:{strength:0.56,burnThroughRange:35}, countermeasures:{chaff:30,flares:30,program:{chaffBurst:2,flareBurst:2,interval:0.18,cooldown:5,triggerTti:20}}, loadout:{...emptyLoadout(),"AIM-54A":4,"AIM-7F":2,"AIM-9L":2}, fireControlChannels:{datalink:6,illumination:1}, hardpoints:fighterHardpoints, buildModel:createF14Model, shipDefenseTemplate:"Kh-22" },
   { id:"TU-16K", name:"Tu-16K Badger-G", nation:"Soviet Union", role:"Maritime strike", mission:"anti-ship", radarCrossSection:28, infraredSignature:1.35, flight:{cruiseSpeed:4.2,maxSpeed:5.4,stallSpeed:1.8,acceleration:0.45,drag:0.022,maxLoadFactor:2.5,maxRollRateDeg:38,maxPitchRateDeg:10,fuelSeconds:1300,aerodynamics:tu16Aerodynamics,thrust:bomberThrust}, sensor:{name:"Rubin-1K",range:600,updateInterval:1.5,fieldOfViewDeg:100,precision:0.7}, ecm:{strength:0.68,burnThroughRange:48}, countermeasures:{chaff:42,flares:18,program:{chaffBurst:4,flareBurst:2,interval:0.14,cooldown:4.5,triggerTti:26}}, loadout:{...emptyLoadout(),"KSR-5":1}, fireControlChannels:{datalink:1,illumination:0}, hardpoints:badgerHardpoints, buildModel:createTu16Model, shipDefenseTemplate:"Kh-22" },

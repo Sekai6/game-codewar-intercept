@@ -12,6 +12,12 @@ The model uses the 16.69 m length and 16.15 m span relationship on the common 2 
 
 All five pylons are part of the visual asset, while the current gameplay loadout exposes two anti-ship anchors for AGM-84A stores. Mount contact, scale, and roll metadata seat the Harpoons against their rails. A static armed view validates attachment only; missile flight, ECM, and hit behavior require runtime regressions.
 
+## Shape-audit references
+
+The procedural silhouette was checked against the U.S. Naval Air Systems Command A-6E descriptive-arrangement/three-view drawing (the public-domain scan preserved in Wikimedia Commons) and the Smithsonian National Air and Space Museum A-6E Intruder collection record. Those references establish the 54 ft 7 in class length, 53 ft span, side-by-side canopy, blunt drooped radome, D-shaped shoulder intakes, under-nose TRAM turret, swept folding wing with closed tip brakes, single fin, and the short non-afterburning J52 exhausts ahead of the tail.
+
+Ultra now models those openings and curved transitions with its own high-segment lofts; High and Low use reduced station sets and planform points rather than hiding Ultra decoration. The static contract is 8.345 model units length, 8.005 model units registered Ultra span (High 7.995, Low 7.985; wingtip lamps are outside tier roots), and 2.4625 model units visible height without landing gear. The two strike stations expose rail contact metadata so an AGM-84A seats against the visual pylon rather than floating through the wing.
+
 ## Game definition
 
 | Field | Value |

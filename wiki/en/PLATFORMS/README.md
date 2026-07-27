@@ -34,4 +34,19 @@ v1.1.0 puts all six aircraft on one 2 m/unit visual scale and gives each aircraf
 | E-2C | Four-blade propellers, four-fin tail, rotating rotodome | Independent unarmed AEW entity |
 | Tu-126 | Large Tu-114-derived airframe and Liana rotodome | Four engines, each with paired contra-rotating four-blade rotor sets; no stores |
 
+## Tier geometry and visual gate
+
+These are the structural verifier's visible platform-geometry counts, excluding mounted weapons. High must remain below 60% of Ultra and Low below 50% of High; every tier must also own independent geometry and remain inside its reference-dimension tolerance.
+
+| Platform | Ultra triangles | High triangles | Low triangles |
+|---|---:|---:|---:|
+| F-14A | 12,846 | 5,748 | 1,956 |
+| A-6E | 11,400 | 5,304 | 1,896 |
+| MiG-29A | 13,288 | 5,756 | 1,996 |
+| Tu-16K | 18,440 | 7,684 | 1,844 |
+| E-2C | 20,040 | 7,140 | 1,840 |
+| Tu-126 | 36,568 | 11,108 | 2,888 |
+
+`npm run capture:aircraft-lod-gallery` strictly reuses one page and one Chromium renderer to capture 63 acceptance images in sequence. Manual review covers front, side, top, underside, and rear-quarter silhouettes; F-14 20°/68° sweep; store direction and rail contact; nozzles, arresting hooks, tail guns, markings, lights, propellers, and rotodomes. Browser errors must remain at zero.
+
 Every platform page now includes source-aligned mobility, sensor, weapon, EW, damage, AI, AAR, and model details. The platform catalog is a game implementation reference; historical names do not make its scaled values real-world performance data.

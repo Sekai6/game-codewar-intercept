@@ -12,12 +12,15 @@
 - Added reference-dimension metadata and model-specific silhouettes: F-14 variable-sweep wings and fixed glove/pallet mounts; A-6 TRAM and five visible pylons; MiG-29 LERX, engine channels, IRST, and three pylon classes; Tu-16 glazed nose, integrated wing-root nacelles, tail turret, and KSR carrier beams.
 - Rebuilt E-2C and Tu-126 AEW geometry with animated rotodomes and propellers. The E-2C uses the NTU-era four-blade/four-fin configuration; the Tu-126 uses the larger Liana installation and paired contra-rotating rotor sets on each of four NK-12 engines.
 - Aligned mounted AIM-54A/AIM-7F/AIM-9L, AGM-84A, R-27R/R-73, and KSR-5 visuals with platform-owned attachment anchors while preserving entity, ammunition, and release ownership.
+- Corrected the shared loft-fuselage triangle winding so exterior normals face outward across all rebuilt aircraft.
+- Refined common jet nozzles with circumferential petals, a positive rim, and a recessed hot-section face; corrected the A-6E stowed arresting hook and made the Tu-16K tail cannon readable without changing the reference-length envelope.
 - Allowed AEW controllers to issue degraded, cue-only intercept vectors against measured unidentified airborne contacts. Classified aircraft remain preferred; unknown contacts receive lower command quality and higher uncertainty, and no target truth or weapon authority is exposed.
 
 ### Added
 
 - An isolated aircraft asset gallery and a serial capture workflow for Ultra, High, Low, variable-wing, and armed hardpoint inspection.
 - Structural verification for strict triangle-count reduction, independent geometry ownership, per-tier dimension tolerances, F-14 fixed-mount parentage, surface-marking tier ownership, and AEW propeller/rotodome animation.
+- A 63-image serial visual gate covering five Ultra inspection angles, High/Low silhouette views, F-14 sweep states, and armed underside/rear-quarter views. The gallery uses dedicated underside fill so pylon contact and lower-surface normals remain inspectable.
 
 ### Release Boundaries
 
@@ -33,6 +36,8 @@
 - `npm run verify:aew`
 - `npm run verify:air-weapon-models`
 - `npm run verify:air-hardpoints`
+- `npm run verify:air-visuals`
+- `npm run verify:aircraft-sam-damage`
 - `npm run verify:joint-air`
 - `npm run verify:aew-runtime`
 - `npm run verify:mig29-combat`

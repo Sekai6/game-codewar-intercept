@@ -16,6 +16,7 @@ import {
   createPlanform,
   createVerticalSurface,
   finishAircraftModel,
+  type AirWeaponMountPiece,
   type FuselageStation,
   type Vec3Tuple,
 } from "../model-kit.js";
@@ -30,6 +31,9 @@ const halfSpan = dimensions.modelWingspan * 0.5;
 const MAIN_WING_SWEEP_DEG = 42;
 const LERX_SWEEP_DEG = 73.5;
 const FIN_CANT_DEG = 6;
+const MAIN_WING_CENTER_Y = 0;
+const WEAPON_CONTACT_OVERLAP = 0.008;
+const MOUNTED_WEAPON_ROLL = Math.PI * 0.25;
 
 const airframePaint = aircraftPaint(0x87958e, 0.57, 0.12);
 const undersidePaint = aircraftPaint(0x9da7a1, 0.62, 0.1);
@@ -62,7 +66,7 @@ export const MIG29A_MODEL_STATIONS = [
 
 function radomeStations(): readonly FuselageStation[] {
   return [
-    { z: -halfLength + 0.13, radiusX: 0.02, radiusY: 0.018, centerY: -0.04 },
+    { z: -halfLength, radiusX: 0.012, radiusY: 0.01, centerY: -0.04 },
     { z: -3.95, radiusX: 0.17, radiusY: 0.145, centerY: -0.035 },
     { z: -3.55, radiusX: 0.32, radiusY: 0.255, centerY: -0.005 },
     { z: -3.08, radiusX: 0.46, radiusY: 0.35, centerY: 0.035 },
@@ -79,8 +83,18 @@ function centralFuselageStations(): readonly FuselageStation[] {
     { z: 0.48, radiusX: 0.53, radiusY: 0.31, centerY: -0.015 },
     { z: 1.62, radiusX: 0.45, radiusY: 0.27, centerY: -0.005 },
     { z: 2.65, radiusX: 0.34, radiusY: 0.23, centerY: 0.015 },
-    { z: 3.48, radiusX: 0.22, radiusY: 0.17, centerY: 0.02 },
-    { z: 4.13, radiusX: 0.055, radiusY: 0.05, centerY: 0 },
+    { z: 3.32, radiusX: 0.2, radiusY: 0.145, centerY: 0.035 },
+    { z: 3.62, radiusX: 0.11, radiusY: 0.08, centerY: 0.065 },
+  ];
+}
+
+function tailBoomStations(): readonly FuselageStation[] {
+  return [
+    { z: 2.45, radiusX: 0.235, radiusY: 0.135, centerY: 0.2 },
+    { z: 3.08, radiusX: 0.205, radiusY: 0.125, centerY: 0.205 },
+    { z: 3.62, radiusX: 0.15, radiusY: 0.105, centerY: 0.2 },
+    { z: 4.08, radiusX: 0.085, radiusY: 0.07, centerY: 0.185 },
+    { z: halfLength, radiusX: 0.018, radiusY: 0.014, centerY: 0.17 },
   ];
 }
 
@@ -132,15 +146,30 @@ function canopyStations(): readonly FuselageStation[] {
 }
 
 function tierSegments(tier: DetailTier) {
-  return tier === "ultra" ? 32 : tier === "high" ? 20 : 11;
+  return tier === "ultra" ? 96 : tier === "high" ? 44 : 14;
+}
+
+function mainWingThickness(tier: DetailTier) {
+  return tier === "ultra" ? 0.115 : tier === "high" ? 0.085 : 0.06;
+}
+
+function mainWingUndersideY(tier: DetailTier) {
+  return MAIN_WING_CENTER_Y - mainWingThickness(tier) * 0.5;
 }
 
 function addCanopy(parent: THREE.Group, tier: DetailTier) {
   const material = tier === "low" ? lowGlassMaterial : aircraftGlassMaterial;
-  const canopy = createLoftedFuselage(canopyStations(), material, tier === "ultra" ? 24 : tier === "high" ? 16 : 9);
+  const canopy = createLoftedFuselage(canopyStations(), material, tier === "ultra" ? 48 : tier === "high" ? 24 : 10);
   canopy.name = `mig29-single-seat-canopy:${tier}`;
   parent.add(canopy);
   if (tier === "low") return;
+  const windscreenBow = new THREE.Mesh(
+    new THREE.TorusGeometry(0.255, tier === "ultra" ? 0.012 : 0.017, 5, tier === "ultra" ? 40 : 24),
+    aircraftSeamMaterial,
+  );
+  windscreenBow.scale.y = 0.72;
+  windscreenBow.position.set(0, 0.485, -2.61);
+  parent.add(windscreenBow);
   if (tier === "ultra") {
     const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.07), cockpitInteriorPaint);
     seatBack.position.set(0, 0.35, -1.98);
@@ -210,26 +239,45 @@ function addIntake(parent: THREE.Group, side: number, tier: DetailTier) {
     ramp.rotation.x = 0.08;
     group.add(ramp);
   }
+  if (tier === "ultra") {
+    const fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.018, 20), hotSectionPaint);
+    fanHub.rotation.x = Math.PI / 2;
+    fanHub.position.z = depth * 0.5 - 0.01;
+    group.add(fanHub);
+    for (let index = 0; index < 12; index++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.18, 0.012), hotSectionPaint);
+      blade.position.z = depth * 0.5 - 0.018;
+      blade.rotation.z = index / 12 * Math.PI * 2;
+      group.add(blade);
+    }
+  }
   parent.add(group);
 }
 
 function addAuxiliaryIntakeDoors(parent: THREE.Group, side: number, tier: DetailTier) {
   if (tier === "low") return;
   const doorMaterial = tier === "ultra" ? intakePaint : aircraftPanelMaterial;
-  const count = tier === "ultra" ? 5 : 1;
+  const count = tier === "ultra" ? 5 : 3;
   for (let index = 0; index < count; index++) {
     const door = new THREE.Mesh(
-      new THREE.BoxGeometry(tier === "ultra" ? 0.39 : 0.43, 0.012, tier === "ultra" ? 0.075 : 0.42),
+      new THREE.BoxGeometry(tier === "ultra" ? 0.39 : 0.4, 0.012, tier === "ultra" ? 0.075 : 0.12),
       doorMaterial,
     );
-    door.position.set(side * 0.84, 0.145, tier === "ultra" ? -1.24 + index * 0.095 : -1.04);
+    door.position.set(side * 0.84, 0.215, tier === "ultra" ? -1.3 + index * 0.098 : -1.23 + index * 0.155);
     door.rotation.y = side * -0.025;
+    door.rotation.x = -0.045;
     parent.add(door);
+    if (tier === "ultra") {
+      const hinge = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.015, 0.012), aircraftSeamMaterial);
+      hinge.position.set(side * 0.84, 0.221, -1.335 + index * 0.098);
+      hinge.rotation.y = side * -0.025;
+      parent.add(hinge);
+    }
   }
 }
 
 function addWingAndLerx(parent: THREE.Group, tier: DetailTier, surfaceMarkings: THREE.Object3D[]) {
-  const thickness = tier === "ultra" ? 0.115 : tier === "high" ? 0.085 : 0.06;
+  const thickness = mainWingThickness(tier);
   const wingRootX = 0.74;
   const wingRootLeadingZ = -0.72;
   const wingTipLeadingZ = wingRootLeadingZ
@@ -248,14 +296,26 @@ function addWingAndLerx(parent: THREE.Group, tier: DetailTier, surfaceMarkings: 
   centerDeck.name = `mig29-continuous-center-deck:${tier}`;
   parent.add(centerDeck);
   for (const side of [-1, 1]) {
-    const lerx = createPlanform([
-      [side * 0.23, -2.57],
-      [side * 0.67, -1.11],
-      [side * 0.82, 0.72],
-      [side * 0.76, 1.5],
-      [side * 0.48, 1.04],
-      [side * 0.35, -1.72],
-    ], tier === "low" ? undersidePaint : airframePaint, thickness * 1.28);
+    const lerxPoints = tier === "ultra" ? [
+      [side * 0.24, -2.6],
+      [side * 0.5, -1.72],
+      [side * 0.73, -0.95],
+      [side * 0.82, 0.78],
+      [side * 0.75, 1.55],
+      [side * 0.46, 0.98],
+    ] as const : tier === "high" ? [
+      [side * 0.25, -2.58],
+      [side * 0.53, -1.6],
+      [side * 0.8, -0.72],
+      [side * 0.76, 1.48],
+      [side * 0.47, 1.0],
+    ] as const : [
+      [side * 0.27, -2.5],
+      [side * 0.79, -0.72],
+      [side * 0.74, 1.38],
+      [side * 0.48, 0.96],
+    ] as const;
+    const lerx = createPlanform(lerxPoints, tier === "low" ? undersidePaint : airframePaint, thickness * 1.28);
     lerx.position.y = 0.005;
     lerx.name = `mig29-73.5deg-lerx:${side < 0 ? "port" : "starboard"}:${tier}`;
     parent.add(lerx);
@@ -284,33 +344,48 @@ function addTailSurfaces(parent: THREE.Group, tier: DetailTier) {
   const thickness = tier === "ultra" ? 0.085 : tier === "high" ? 0.065 : 0.045;
   for (const side of [-1, 1]) {
     const fin = createVerticalSurface([
-      [-0.58, 0],
-      [0.7, 1.2],
-      [1.02, 1.16],
-      [0.9, 0],
+      [-0.68, 0],
+      [0.48, 1.69],
+      [0.94, 1.63],
+      [1.08, 0],
     ], thickness, tier === "low" ? undersidePaint : airframePaint);
     fin.name = `mig29-6deg-canted-fin:${side < 0 ? "port" : "starboard"}:${tier}`;
     fin.position.set(side * 0.82, 0.15, 2.62);
     fin.rotation.z = side * -THREE.MathUtils.degToRad(FIN_CANT_DEG);
     parent.add(fin);
     const dielectricCap = createVerticalSurface([
-      [0.63, 1.08],
-      [0.7, 1.2],
-      [1.02, 1.16],
-      [0.96, 1.04],
+      [0.39, 1.56],
+      [0.48, 1.69],
+      [0.94, 1.63],
+      [0.91, 1.49],
     ], thickness * 1.04, dielectricPaint);
     dielectricCap.position.copy(fin.position);
     dielectricCap.rotation.copy(fin.rotation);
     if (tier !== "low") parent.add(dielectricCap);
     const stabilator = createPlanform([
-      [side * 0.53, 2.48],
-      [side * 1.945, 4.0],
-      [side * 1.82, 4.24],
-      [side * 0.55, 3.48],
+      [side * 0.53, 2.46],
+      [side * 1.945, 4.02],
+      [side * 1.82, halfLength],
+      [side * 0.55, 3.5],
     ], tier === "low" ? undersidePaint : airframePaint, thickness * 0.72);
     stabilator.position.y = -0.05;
     stabilator.name = `mig29-stabilator:${side < 0 ? "port" : "starboard"}:${tier}`;
     parent.add(stabilator);
+  }
+}
+
+function addVentralStrakes(parent: THREE.Group, tier: DetailTier) {
+  const depth = tier === "ultra" ? 0.25 : tier === "high" ? 0.22 : 0.18;
+  for (const side of [-1, 1]) {
+    const strake = createVerticalSurface([
+      [2.7, 0],
+      [3.12, -depth],
+      [3.72, -depth * 0.78],
+      [3.9, 0],
+    ], tier === "ultra" ? 0.045 : tier === "high" ? 0.035 : 0.025, tier === "low" ? undersidePaint : airframePaint);
+    strake.position.set(side * 0.62, -0.27, 0);
+    strake.name = `mig29-ventral-strake:${side < 0 ? "port" : "starboard"}:${tier}`;
+    parent.add(strake);
   }
 }
 
@@ -323,7 +398,7 @@ function addIrsSensor(parent: THREE.Group, tier: DetailTier) {
   base.position.set(0.18, 0.39, -2.91);
   parent.add(base);
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.075, tier === "ultra" ? 18 : 10, tier === "ultra" ? 10 : 6, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    new THREE.SphereGeometry(0.082, tier === "ultra" ? 28 : 12, tier === "ultra" ? 16 : 7, 0, Math.PI * 2, 0, Math.PI * 0.58),
     sensorGlassMaterial,
   );
   dome.position.set(0.18, 0.445, -2.91);
@@ -338,6 +413,9 @@ function addStaticAirframe(parent: THREE.Group, tier: DetailTier, surfaceMarking
   const fuselage = createLoftedFuselage(centralFuselageStations(), airframePaint, segments);
   fuselage.name = `mig29-wide-central-fuselage:${tier}`;
   parent.add(fuselage);
+  const tailBoom = createLoftedFuselage(tailBoomStations(), tier === "low" ? undersidePaint : airframePaint, segments);
+  tailBoom.name = `mig29-drag-chute-tail-boom:${tier}`;
+  parent.add(tailBoom);
   addWingAndLerx(parent, tier, surfaceMarkings);
   const dorsalSpine = createLoftedFuselage(dorsalSpineStations(), tier === "low" ? undersidePaint : airframePaint, segments);
   dorsalSpine.name = `mig29-continuous-dorsal-spine:${tier}`;
@@ -359,6 +437,7 @@ function addStaticAirframe(parent: THREE.Group, tier: DetailTier, surfaceMarking
   }
   addCanopy(parent, tier);
   addTailSurfaces(parent, tier);
+  addVentralStrakes(parent, tier);
   addIrsSensor(parent, tier);
   if (tier !== "low") {
     const radomeSeam = new THREE.Mesh(
@@ -383,48 +462,112 @@ function addStaticAirframe(parent: THREE.Group, tier: DetailTier, surfaceMarking
   }
 }
 
-function mountPieces(stationClass: StationClass, side: number) {
-  if (stationClass === "outer-rail") return {
-    ultra: [
-      { offset: [0, 0.055, 0] as Vec3Tuple, size: [0.075, 0.04, 0.76] as Vec3Tuple },
-      { offset: [side * -0.025, 0.12, -0.05] as Vec3Tuple, size: [0.08, 0.13, 0.3] as Vec3Tuple },
-    ],
-    high: [
-      { offset: [0, 0.07, 0] as Vec3Tuple, size: [0.085, 0.075, 0.69] as Vec3Tuple },
-    ],
+interface MountPieceSet {
+  ultra: readonly AirWeaponMountPiece[];
+  high: readonly AirWeaponMountPiece[];
+}
+
+function mountContactY(pieces: readonly AirWeaponMountPiece[]) {
+  return Math.min(...pieces.map((piece) => piece.offset[1] - piece.size[1] * 0.5));
+}
+
+function connectingPiece(
+  x: number,
+  z: number,
+  width: number,
+  depth: number,
+  lowerY: number,
+  upperY: number,
+): AirWeaponMountPiece {
+  return {
+    offset: [x, (lowerY + upperY) * 0.5, z],
+    size: [width, upperY - lowerY, depth],
   };
-  if (stationClass === "middle-pylon") return {
-    ultra: [
-      { offset: [0, 0.075, 0] as Vec3Tuple, size: [0.105, 0.055, 0.88] as Vec3Tuple },
-      { offset: [0, 0.19, -0.1] as Vec3Tuple, size: [0.135, 0.24, 0.4] as Vec3Tuple },
-      { offset: [side * -0.06, 0.28, -0.04] as Vec3Tuple, size: [0.06, 0.09, 0.52] as Vec3Tuple },
-    ],
-    high: [
-      { offset: [0, 0.095, 0] as Vec3Tuple, size: [0.12, 0.105, 0.8] as Vec3Tuple },
-      { offset: [0, 0.21, -0.08] as Vec3Tuple, size: [0.12, 0.18, 0.34] as Vec3Tuple },
-    ],
-  };
+}
+
+function mountPieces(stationClass: StationClass, side: number, stationY: number): MountPieceSet {
+  if (stationClass === "outer-rail") {
+    const ultraContactY = 0.035;
+    const ultraRailHeight = 0.04;
+    const ultraRailTop = ultraContactY + ultraRailHeight;
+    const ultraPylonBottom = 0.055;
+    const ultraPylonTop = mainWingUndersideY("ultra") - stationY;
+    const highContactY = ultraContactY;
+    const highRailHeight = 0.075;
+    const highRailTop = highContactY + highRailHeight;
+    const highPylonTop = mainWingUndersideY("high") - stationY;
+    return {
+      ultra: [
+        { offset: [0, ultraContactY + ultraRailHeight * 0.5, 0], size: [0.075, ultraRailHeight, 0.76] },
+        connectingPiece(side * -0.025, -0.05, 0.08, 0.3, ultraPylonBottom, ultraPylonTop),
+      ],
+      high: [
+        { offset: [0, highContactY + highRailHeight * 0.5, 0], size: [0.085, highRailHeight, 0.69] },
+        connectingPiece(side * -0.02, -0.04, 0.085, 0.27, highRailTop, highPylonTop),
+      ],
+    };
+  }
+  if (stationClass === "middle-pylon") {
+    const contactY = 0.0475;
+    const highRailHeight = 0.105;
+    const highRailTop = contactY + highRailHeight;
+    const highPylonTop = mainWingUndersideY("high") - stationY;
+    return {
+      ultra: [
+        { offset: [0, 0.075, 0], size: [0.105, 0.055, 0.88] },
+        { offset: [0, 0.19, -0.1], size: [0.135, 0.24, 0.4] },
+        { offset: [side * -0.06, 0.28, -0.04], size: [0.06, 0.09, 0.52] },
+      ],
+      high: [
+        { offset: [0, contactY + highRailHeight * 0.5, 0], size: [0.12, highRailHeight, 0.8] },
+        connectingPiece(0, -0.08, 0.12, 0.34, highRailTop, highPylonTop),
+      ],
+    };
+  }
+  const contactY = 0.05;
+  const highRailHeight = 0.12;
+  const highRailTop = contactY + highRailHeight;
+  const highPylonTop = mainWingUndersideY("high") - stationY;
   return {
     ultra: [
-      { offset: [0, 0.08, 0] as Vec3Tuple, size: [0.12, 0.06, 0.92] as Vec3Tuple },
-      { offset: [0, 0.21, -0.12] as Vec3Tuple, size: [0.15, 0.25, 0.44] as Vec3Tuple },
-      { offset: [side * -0.075, 0.31, -0.02] as Vec3Tuple, size: [0.065, 0.105, 0.56] as Vec3Tuple },
+      { offset: [0, 0.08, 0], size: [0.12, 0.06, 0.92] },
+      { offset: [0, 0.21, -0.12], size: [0.15, 0.25, 0.44] },
+      { offset: [side * -0.075, 0.31, -0.02], size: [0.065, 0.105, 0.56] },
     ],
     high: [
-      { offset: [0, 0.1, 0] as Vec3Tuple, size: [0.125, 0.12, 0.82] as Vec3Tuple },
-      { offset: [0, 0.23, -0.1] as Vec3Tuple, size: [0.135, 0.19, 0.36] as Vec3Tuple },
+      { offset: [0, contactY + highRailHeight * 0.5, 0], size: [0.125, highRailHeight, 0.82] },
+      connectingPiece(0, -0.1, 0.135, 0.36, highRailTop, highPylonTop),
     ],
   };
 }
 
-function addLowMountHardware(parent: THREE.Group, position: Vec3Tuple, stationClass: StationClass) {
-  const rail = stationClass === "outer-rail";
-  const hardware = new THREE.Mesh(
-    new THREE.BoxGeometry(rail ? 0.075 : 0.12, rail ? 0.06 : 0.12, rail ? 0.64 : 0.74),
+function addLowMountHardware(
+  parent: THREE.Group,
+  position: Vec3Tuple,
+  stationClass: StationClass,
+  contactY: number,
+) {
+  const outerRail = stationClass === "outer-rail";
+  const railHeight = outerRail ? 0.06 : 0.12;
+  const railWidth = outerRail ? 0.075 : 0.12;
+  const railDepth = outerRail ? 0.64 : 0.74;
+  const railTop = contactY + railHeight;
+  const pylonTop = mainWingUndersideY("low") - position[1];
+  const group = new THREE.Group();
+  group.position.set(...position);
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(railWidth, railHeight, railDepth),
     aircraftPanelMaterial,
   );
-  hardware.position.set(position[0], position[1] + (rail ? 0.07 : 0.13), position[2]);
-  parent.add(hardware);
+  rail.position.y = contactY + railHeight * 0.5;
+  group.add(rail);
+  const pylon = new THREE.Mesh(
+    new THREE.BoxGeometry(outerRail ? 0.075 : 0.115, pylonTop - railTop, outerRail ? 0.25 : 0.32),
+    aircraftPanelMaterial,
+  );
+  pylon.position.set(outerRail ? Math.sign(position[0]) * -0.02 : 0, (railTop + pylonTop) * 0.5, outerRail ? -0.04 : -0.08);
+  group.add(pylon);
+  parent.add(group);
 }
 
 function addPitot(root: THREE.Group) {
@@ -453,14 +596,19 @@ export function createMig29Model() {
   root.add(weaponRig);
   for (const station of MIG29A_MODEL_STATIONS) {
     const side = Math.sign(station.position[0]);
-    const pieces = mountPieces(station.stationClass, side);
-    addAirWeaponMount(root, weaponRig, station.id, station.position, {
+    const pieces = mountPieces(station.stationClass, side, station.position[1]);
+    const mount = addAirWeaponMount(root, weaponRig, station.id, station.position, {
       ultraParent: tiers.ultra,
       highParent: tiers.high,
       ultraPieces: pieces.ultra,
       highPieces: pieces.high,
     });
-    addLowMountHardware(tiers.low, station.position, station.stationClass);
+    const contactY = mountContactY(pieces.ultra);
+    mount.userData.weaponUpperContactY = contactY;
+    mount.userData.weaponContactOverlap = WEAPON_CONTACT_OVERLAP;
+    mount.userData.weaponRoll = MOUNTED_WEAPON_ROLL;
+    mount.userData.weaponContactSource = "ultra-hardware-aabb-lower-face";
+    addLowMountHardware(tiers.low, station.position, station.stationClass, contactY);
   }
 
   root.userData.surfaceMarkings = surfaceMarkings;

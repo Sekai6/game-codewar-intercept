@@ -10,13 +10,33 @@ const errors = [];
 page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
 page.on("pageerror", error => errors.push(error.message));
 try {
-  await page.goto(process.env.APP_URL ?? "http://127.0.0.1:5173/", { waitUntil: "domcontentloaded", timeout: 15_000 });
+  const baseUrl = process.env.APP_URL ?? "http://127.0.0.1:5173/";
+  await page.goto(`${baseUrl}${baseUrl.includes("?") ? "&" : "?"}shortAirValidation=1`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+  // The damage assertion is specifically for the ship-SAM path.  Pin an
+  // actual launcher-owning ship instead of relying on the setup panel's
+  // previously selected/default platform.
+  await page.locator("#sbShip").selectOption("ticonderoga");
   await page.locator("#sbAirPreset").selectOption("intercept");
   await page.locator("#sbAirCombat").check();
   await page.locator("#sbStart").click();
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
-  await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airDamageEventLog ?? "").includes("Tu-16K"), null, { timeout: 45_000 });
+  try {
+    await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airDamageEventLog ?? "").includes("Tu-16K"), null, { timeout: 45_000 });
+  } catch (error) {
+    const diagnostic = await page.locator("#scene").evaluate(c => ({
+      elapsed:c.dataset.simulationElapsed ?? "",
+      damageLog:c.dataset.airDamageEventLog ?? "",
+      missions:c.dataset.airMissionStates ?? "",
+      states:c.dataset.aircraftStates ?? "",
+      launchers:c.dataset.airDefenseLaunchers ?? "",
+      categories:c.dataset.airDefenseTargetCategories ?? "",
+      launchLog:c.dataset.airWeaponLaunchLog ?? "",
+      hitLog:c.dataset.airHitEventLog ?? "",
+    }));
+    console.error("Aircraft SAM damage timeout", JSON.stringify(diagnostic, null, 2));
+    throw error;
+  }
   const result = await page.locator("#scene").evaluate(c => ({
     damageLog: c.dataset.airDamageEventLog ?? "",
     missions: c.dataset.airMissionStates ?? "",

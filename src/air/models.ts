@@ -3,3 +3,7 @@
 // and LOD policy remain out of the simulation/runtime layer.
 export { createA6Model, createF14Model } from "./model-assets/us/index.js";
 export { createMig29Model, createTu16Model } from "./model-assets/soviet/index.js";
+export {
+  applyDeclaredWingSweep,
+  declaredWingSweepRange,
+} from "./variable-geometry.js";
