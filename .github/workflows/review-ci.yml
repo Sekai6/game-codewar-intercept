@@ -234,6 +234,13 @@ jobs:
           steps.changes.outputs.visual != 'true'
         run: echo "No domain-specific runtime suite was required for these paths."
 
+      - name: Stop browser verification server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/vite.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/vite.pid")" 2>/dev/null || true
+          fi
       - name: Upload Vite log after a browser verification failure
         if: failure()
         uses: actions/upload-artifact@v4
