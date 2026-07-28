@@ -1,0 +1,244 @@
+name: Review CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Build and docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Type-check and build production bundle
+        run: npm run build
+
+      - name: Verify documentation links
+        run: npm run verify:docs
+
+      - name: Check whitespace errors
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "$PR_BASE_SHA"...HEAD
+          elif [[ -n "${BEFORE_SHA:-}" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            git diff --check "$BEFORE_SHA" HEAD
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          fi
+
+  domain-verification:
+    name: Domain verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_URL: http://127.0.0.1:5173/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Determine changed paths
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+          elif [[ -n "${BEFORE_SHA:-}" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            base="$BEFORE_SHA"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            base="HEAD^"
+          else
+            base=""
+          fi
+
+          if [[ -n "$base" ]]; then
+            git diff --name-only "$base" HEAD > changed-files.txt
+          else
+            git ls-files > changed-files.txt
+          fi
+
+          cat changed-files.txt
+
+          fleet=false
+          air=false
+          datalink=false
+          aar=false
+          visual=false
+
+          while IFS= read -r path; do
+            case "$path" in
+              src/main.ts|src/sim.ts|src/combat-types.ts)
+                fleet=true
+                air=true
+                datalink=true
+                aar=true
+                ;;
+            esac
+            case "$path" in
+              src/fleet/*|src/ships/*|src/ship-defense/*|src/defense/*|src/ship-*.ts|src/vls.ts|src/interceptor-*.ts)
+                fleet=true
+                ;;
+            esac
+            case "$path" in
+              src/air/*|src/models/air-*|src/aircraft-*)
+                air=true
+                ;;
+            esac
+            case "$path" in
+              src/datalink/*|src/soviet-c2/*)
+                datalink=true
+                ;;
+            esac
+            case "$path" in
+              src/aar/*)
+                aar=true
+                ;;
+            esac
+            case "$path" in
+              src/visual/*|src/style.css|index.html|vite.config.*)
+                visual=true
+                ;;
+            esac
+          done < changed-files.txt
+
+          {
+            echo "fleet=$fleet"
+            echo "air=$air"
+            echo "datalink=$datalink"
+            echo "aar=$aar"
+            echo "visual=$visual"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Start browser verification server
+        if: >-
+          steps.changes.outputs.fleet == 'true' ||
+          steps.changes.outputs.air == 'true' ||
+          steps.changes.outputs.datalink == 'true' ||
+          steps.changes.outputs.visual == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)"
+          if [[ -z "$browser" ]]; then
+            echo "No Chrome/Chromium executable is available on this runner." >&2
+            exit 1
+          fi
+          echo "CHROME_PATH=$browser" >> "$GITHUB_ENV"
+          npm run dev -- --host 127.0.0.1 > "$RUNNER_TEMP/vite.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/vite.pid"
+          for attempt in {1..30}; do
+            if curl --fail --silent "$APP_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/vite.log"
+          exit 1
+
+      - name: Verify fleet and ship-defense boundaries
+        if: steps.changes.outputs.fleet == 'true'
+        run: |
+          npm run verify:fleet-domain
+          npm run verify:fleet-runtime
+          npm run verify:fleet-air-defense
+          npm run verify:fleet-ship-defense
+          npm run verify:fleet-launch-cycle
+
+      - name: Verify air combat and guidance
+        if: steps.changes.outputs.air == 'true'
+        run: |
+          npm run verify:air-guidance
+          npm run verify:advanced-air-flight
+          npm run verify:advanced-air-bvr-runtime
+
+      - name: Verify datalink and Soviet C2
+        if: steps.changes.outputs.datalink == 'true'
+        run: |
+          npm run verify:link11
+          npm run verify:link16
+          npm run verify:datalink-era-runtime
+          npm run verify:soviet-gci-runtime
+          npm run verify:soviet-maritime-runtime
+          npm run verify:soviet-salvo-runtime
+
+      - name: Verify AAR and ACMI evidence
+        if: steps.changes.outputs.aar == 'true'
+        run: |
+          npm run verify:acmi-export
+          npm run verify:fleet-aar
+          npm run verify:datalink-aar
+          npm run verify:soviet-c2-aar
+
+      - name: Verify WebGPU integration
+        if: steps.changes.outputs.visual == 'true'
+        run: |
+          npm run verify:webgpu-ultra
+          npm run verify:webgpu-ultra-active
+
+      - name: Report documentation-only verification
+        if: >-
+          steps.changes.outputs.fleet != 'true' &&
+          steps.changes.outputs.air != 'true' &&
+          steps.changes.outputs.datalink != 'true' &&
+          steps.changes.outputs.aar != 'true' &&
+          steps.changes.outputs.visual != 'true'
+        run: echo "No domain-specific runtime suite was required for these paths."
+
+      - name: Upload Vite log after a browser verification failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-verification-vite-log
+          path: ${{ runner.temp }}/vite.log
+          if-no-files-found: ignore
+          retention-days: 7

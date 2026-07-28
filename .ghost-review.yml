@@ -1,0 +1,92 @@
+language: zh-CN
+
+review:
+  summary: true
+  guide: true
+  diagrams: auto
+  suggested_changes: true
+  max_comments: 8
+  severity_threshold: medium
+  show_help: true
+  update_title: false
+  context_validation:
+    enabled: true
+    mode: enforce
+    max_total_chars: 600000
+    max_total_tokens: 150000
+    full_file_max_chars: 500000
+    window_radius: 160
+    max_issue_context_chars: 32000
+    max_candidates: 10
+
+conflict_review:
+  enabled: true
+  auto_analyze: true
+  allow_fix_branches: false
+
+commit_review:
+  enabled: true
+  branches:
+    - main
+    - chore/ghost-review-install-smoke
+    - "release/**"
+    - "hotfix/**"
+  skip_if_open_pr: true
+  skip_merged_pr_commits: true
+  include_created_branches: false
+  review_force_push: true
+  max_findings: 20
+  severity_threshold: medium
+  issues:
+    enabled: true
+    severity_threshold: high
+    require_confirmation: false
+    auto_close: true
+    reopen_on_regression: true
+    labels:
+      - ghost-review
+      - direct-push
+
+instructions:
+  - 只报告能从当前 diff、完整上下文和可见验证结果中确认的问题，不评论纯格式和个人命名偏好。
+  - 优先检查实体所有权、观察与真值分离、武器授权链、物理发射证据、固定步长确定性和 AAR/ACMI 事件真实性。
+  - GitHub Actions 负责实际执行构建与验证；不要声称模型已经运行浏览器、WebGPU 或仿真测试。
+  - 舰队协调器只能产生任务或分配，不能直接生成武器、扣减本舰弹药或跳过本地执行器。
+  - 数据链与 C2 提供的共享航迹或 cue 不能自动升级为本地武器级授权。
+  - 视觉、HUD 和 AAR/ACMI 只能消费真实运行时状态与事件，不能反向制造发射、命中或毁伤。
+
+rules:
+  - paths:
+      - "src/main.ts"
+      - "src/sim.ts"
+      - "src/combat-types.ts"
+    instructions:
+      - 检查依赖方向是否保持 scenario -> runtime -> observation -> decision -> local executor -> event -> visual/AAR。
+      - 检查是否继续把平台、机型或武器 ID 特判堆入 main.ts，而不是进入 catalog、scenario、runtime 或 bridge/integration。
+
+  - paths:
+      - "src/fleet/**"
+      - "src/ships/**"
+      - "src/ship-defense/**"
+    instructions:
+      - 检查舰队任务、本舰复核、发射器状态机、弹药扣减、火控通道和物理离架是否形成完整闭环。
+      - assigned、accepted 和 weapons-away 不得混为同一状态。
+
+  - paths:
+      - "src/air/**"
+    instructions:
+      - 检查动力学、控制律、OODA、战术规划、武器使用、导引和损伤职责是否分离。
+      - 机动意图不能瞬时改写位置、航向或速度。
+
+  - paths:
+      - "src/datalink/**"
+      - "src/soviet-c2/**"
+    instructions:
+      - 检查 Link 11、Link 16 与苏联 C2 的年代、延迟、质量、来源和授权语义是否保持独立。
+      - C2 命令或共享航迹不能绕过平台本地武器授权。
+
+  - paths:
+      - "src/aar/**"
+      - "src/visual/**"
+    instructions:
+      - AAR、ACMI 与视觉层只能记录或呈现已发生的物理事件，不能补造发射、命中、脱靶或毁伤。
