@@ -1,6 +1,6 @@
 # Tu-126 Moss
 
-> v1.1.0 · 2026-07-26 | [Platforms](README.md) | [中文](../../PLATFORMS/TU126_MOSS.md)
+> v1.15.0 · 2026-07-29 | [Platforms](README.md) | [中文](../../PLATFORMS/TU126_MOSS.md)
 
 Soviet AEW/controller aircraft represented independently from US network doctrine. It produces controller tracks and GCI cues through the Soviet C2 layer rather than Link 16.
 

@@ -10,9 +10,13 @@ import {
   type AssetDetailLodRegistration,
   type AssetDetailQuality,
 } from "../visual/asset-detail-lod.js";
+import {
+  applyDeclaredWingSweep,
+  declaredWingSweepRange,
+} from "./variable-geometry.js";
 
 type GalleryAircraftId = "F-14A" | "A-6E" | "MIG-29A" | "TU-16K" | "E-2C" | "TU-126";
-type GalleryView = "front" | "right" | "top" | "rear-quarter";
+type GalleryView = "front" | "right" | "top" | "bottom" | "rear-quarter";
 
 const factories: Record<GalleryAircraftId, () => THREE.Group> = {
   "F-14A": createF14Model,
@@ -28,7 +32,10 @@ const requestedType = params.get("type") as GalleryAircraftId | null;
 const type = requestedType && factories[requestedType] ? requestedType : "F-14A";
 const quality = (params.get("quality") ?? "ultra") as AssetDetailQuality;
 const view = (params.get("view") ?? "rear-quarter") as GalleryView;
-const sweepDeg = Number(params.get("sweep") ?? 20);
+const requestedSweepParam = params.get("sweep");
+const requestedSweepDeg = requestedSweepParam === null
+  ? null
+  : Number(requestedSweepParam);
 const showStores = params.get("stores") === "1";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -56,12 +63,30 @@ scene.add(fill);
 const rim = new THREE.DirectionalLight(0xddefff, 1.4);
 rim.position.set(-20, 8, 28);
 scene.add(rim);
+// Dedicated inspection fill for the lower hemisphere. Production lighting is
+// intentionally more directional, but a validation gallery must still expose
+// underside normals, pylon contact, and store clearance instead of rendering
+// the complete belly as a black silhouette.
+const undersideFill = new THREE.DirectionalLight(
+  0xc8deea,
+  view === "bottom" ? 3.2 : 0.85,
+);
+undersideFill.position.set(9, -22, -12);
+scene.add(undersideFill);
 
 const model = factories[type]();
-const wings = model.userData.variableWings as THREE.Object3D[] | undefined;
-if (wings?.length === 2) {
-  const sweep = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(sweepDeg, 20, 68));
-  wings.forEach((wing, index) => { wing.rotation.y = (index ? 1 : -1) * sweep; });
+const sweepRange = declaredWingSweepRange(model);
+let sweepDeg = 0;
+if (sweepRange) {
+  const requestedSweep = requestedSweepDeg !== null && Number.isFinite(requestedSweepDeg)
+    ? THREE.MathUtils.degToRad(requestedSweepDeg)
+    : sweepRange[0];
+  const appliedSweep = applyDeclaredWingSweep(
+    model,
+    (requestedSweep - sweepRange[0]) /
+      Math.max(1e-6, sweepRange[1] - sweepRange[0]),
+  );
+  sweepDeg = THREE.MathUtils.radToDeg(appliedSweep ?? sweepRange[0]);
 }
 
 const mountedWeapons: AirWeaponId[] = [];
@@ -142,7 +167,7 @@ const aspect = innerWidth / innerHeight;
 let projectedWidth = size.x;
 let projectedHeight = size.y;
 if (view === "right") projectedWidth = size.z;
-if (view === "top") {
+if (view === "top" || view === "bottom") {
   projectedWidth = size.x;
   projectedHeight = size.z;
 }
@@ -163,11 +188,12 @@ const directions: Record<GalleryView, THREE.Vector3> = {
   front: new THREE.Vector3(0, 0.04, -1),
   right: new THREE.Vector3(1, 0.02, 0),
   top: new THREE.Vector3(0, 1, 0.001),
+  bottom: new THREE.Vector3(0, -1, -0.001),
   "rear-quarter": new THREE.Vector3(0.78, 0.34, 1),
 };
 camera.position.copy(directions[view].normalize().multiplyScalar(50));
 camera.up.set(0, 1, 0);
-if (view === "top") camera.up.set(0, 0, -1);
+if (view === "top" || view === "bottom") camera.up.set(0, 0, -1);
 camera.lookAt(0, 0, 0);
 camera.updateProjectionMatrix();
 scene.add(camera);
@@ -179,7 +205,7 @@ const groundY = box.min.y - maximumDimension * 0.06;
 const grid = new THREE.GridHelper(maximumDimension * 1.8, 20, 0x4f686e, 0x73878b);
 grid.position.y = groundY;
 grid.material.transparent = true;
-grid.material.opacity = view === "top" ? 0.18 : 0.34;
+grid.material.opacity = view === "top" ? 0.18 : view === "bottom" ? 0.1 : 0.34;
 scene.add(grid);
 
 let meshes = 0;

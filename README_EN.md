@@ -2,8 +2,8 @@
 
 **A 3D Cold War naval and joint-air combat sandbox.** The observable chain runs from radar measurements, track quality, datalinks, and fire-control authorization through physical launchers, phased guidance, electronic warfare, damage, and AAR.
 
-> Documentation snapshot: v1.1.0 · 2026-07-26<br>
-> This page describes the v1.1.0 implementation; later versions may change mechanisms, visuals, and unit data.
+> Documentation snapshot: v1.15.0 · 2026-07-29<br>
+> This page describes the v1.15.0 implementation; later versions may change mechanisms, visuals, and unit data.
 
 ## Live Demo
 
@@ -11,7 +11,7 @@
 
 No installation is required. Desktop Edge or Chrome is recommended. Initial asset and shader compilation may take several seconds. Use High quality on limited hardware; WebGPU Ultra, compute clouds, and the FFT ocean are experimental high-load features.
 
-[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [v1.1.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.1.0)
+[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [V1.15 release notes](CHANGELOG.md)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -34,9 +34,9 @@ Its three main strengths are observable sensor uncertainty, non-bypassable per-s
 
 [Simulation manual](docs/zh/SIMULATION.md) | [Architecture](ARCHITECTURE.md) | [Operations](docs/zh/OPERATIONS.md) | [Verification](docs/zh/VERIFICATION.md) | [English Wiki](wiki/en/README.md)
 
-## v1.1.0 Air-Asset Upgrade
+## v1.15.0 Air-Asset Refinement
 
-v1.1.0 rebuilds the procedural F-14A, A-6E, MiG-29A, Tu-16K, E-2C, and Tu-126 assets. Every aircraft now uses the same **visual relative scale of 2 metres per unit**, preserving the size relationship between fighters, bombers, and large AEW aircraft. Each type has separately constructed Ultra, High, and Low geometry. Ultra can step down by viewing distance, while High and Low quality select their corresponding assets instead of reusing one high-detail mesh with decorative parts hidden.
+v1.15.0 applies a second refinement pass to the procedural F-14A, A-6E, MiG-29A, Tu-16K, E-2C, and Tu-126 assets introduced in v1.1.0. Every aircraft continues to use the same **visual relative scale of 2 metres per unit**, preserving the size relationship between fighters, bombers, and large AEW aircraft. Each type has separately constructed Ultra, High, and Low geometry. Ultra can step down by viewing distance, while High and Low quality select their corresponding assets instead of reusing one high-detail mesh with decorative parts hidden.
 
 - The F-14A sweeps its wings from 20° to 68°; glove pylons and fuselage pallets stay in the fixed airframe coordinate system.
 - The A-6E includes the side-by-side cockpit, D-shaped shoulder intakes, TRAM turret, and five visible pylons; two current strike anchors carry AGM-84A stores.
@@ -44,7 +44,7 @@ v1.1.0 rebuilds the procedural F-14A, A-6E, MiG-29A, Tu-16K, E-2C, and Tu-126 as
 - The Tu-16K rebuild includes the glazed nose, swept wing, integrated wing-root nacelles, tail turret, and under-wing KSR-5 carrier beams; ammunition remains owned by a concrete aircraft and hardpoint.
 - The E-2C represents the NTU-era four-blade propellers, four-fin tail, and rotating rotodome. The Tu-126 preserves its much larger airframe, four NK-12 installations with paired contra-rotating propellers, and Liana rotodome proportions.
 
-Asset acceptance checks monotonic triangle reduction, independent tier geometry, dimensional tolerance, F-14 mount parentage, marking ownership, and AEW propeller/rotodome animation. The static gallery and structural tests validate the assets and mount relationships only; they do not by themselves validate flight AI, missile lethality, or a complete joint scenario. Those remain runtime-regression responsibilities. See the [air-platform catalog](wiki/en/PLATFORMS/README.md).
+Asset acceptance checks monotonic triangle reduction, independent tier geometry, dimensional tolerance, F-14 mount parentage, marking ownership, and AEW propeller/rotodome animation. The final gallery is captured serially through one Chromium renderer and manually reviews 63 images: five Ultra angles, High/Low silhouettes, both F-14 sweep states, and armed underside/rear-quarter views. Nozzle shape, arresting-hook placement, tail-gun readability, store contact, and underside normals are explicit visual gates. The static gallery and structural tests validate the assets and mount relationships only; they do not by themselves validate flight AI, missile lethality, or a complete joint scenario. Those remain runtime-regression responsibilities. See the [air-platform catalog](wiki/en/PLATFORMS/README.md).
 
 ## Validation Evidence
 
@@ -136,7 +136,7 @@ scripts/          logic, browser, screenshot, and regression verification
 
 ## Project Status
 
-The repository is released as `v1.1.0`. Feature boundaries and verification evidence are listed in [CHANGELOG.md](CHANGELOG.md).
+The current version line is `v1.15.0`, displayed as `V1.15` in the web HUD. Feature boundaries and verification evidence are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

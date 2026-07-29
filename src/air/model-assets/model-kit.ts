@@ -6,6 +6,7 @@ import { registerAssetDetailLod } from "../../visual/asset-detail-lod.js";
 // aircraft uses the same 2 m/unit display scale so their relative sizes stay
 // physically meaningful (especially Tu-16K and Tu-126 versus fighters).
 export const AIR_MODEL_METERS_PER_UNIT = 2;
+export const AIRCRAFT_MODEL_ASSET_REVISION = "aircraft-ultra-r2";
 export const metersToModel = (meters: number) => meters / AIR_MODEL_METERS_PER_UNIT;
 
 export type Vec3Tuple = readonly [number, number, number];
@@ -155,11 +156,11 @@ export function createLoftedFuselageGeometry(
       const following = (segment + 1) % radialSegments;
       indices.push(
         current + segment,
+        next + following,
         next + segment,
-        next + following,
         current + segment,
-        next + following,
         current + following,
+        next + following,
       );
     }
   }
@@ -294,21 +295,49 @@ export function createNozzle(
   detailed = true,
 ) {
   const group = new THREE.Group();
+  group.name = detailed ? "aircraft-nozzle:detailed" : "aircraft-nozzle:simplified";
   const barrel = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.84, radius, length, Math.max(10, petalCount), 1, true),
     aircraftDarkMaterial,
   );
   barrel.rotation.x = Math.PI / 2;
   group.add(barrel);
+
+  // Close the rear view with a recessed hot-section face and a positive rim.
+  // An open cylinder alone reads as a missing polygon at High/Low distance.
+  const hotFace = new THREE.Mesh(
+    new THREE.CircleGeometry(radius * 0.72, Math.max(10, petalCount)),
+    aircraftDarkMaterial,
+  );
+  hotFace.position.z = length * 0.5 + 0.002;
+  group.add(hotFace);
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      radius * 0.84,
+      radius * (detailed ? 0.045 : 0.07),
+      detailed ? 6 : 4,
+      Math.max(10, petalCount),
+    ),
+    aircraftPanelMaterial,
+  );
+  rim.position.z = length * 0.5 + 0.006;
+  group.add(rim);
+
   if (detailed) {
     for (let index = 0; index < petalCount; index++) {
       const angle = index / petalCount * Math.PI * 2;
       const petal = new THREE.Mesh(
-        new THREE.BoxGeometry(radius * 0.2, radius * 0.055, length * 0.74),
+        new THREE.BoxGeometry(radius * 0.24, radius * 0.05, length * 0.68),
         aircraftPanelMaterial,
       );
-      petal.position.set(Math.cos(angle) * radius * 0.9, Math.sin(angle) * radius * 0.9, 0);
-      petal.rotation.z = angle;
+      petal.position.set(
+        Math.cos(angle) * radius * 0.91,
+        Math.sin(angle) * radius * 0.91,
+        length * 0.04,
+      );
+      // The broad face follows the circumference. Rotating the broad axis
+      // radially makes every petal protrude like a spike in rear-quarter view.
+      petal.rotation.z = angle + Math.PI / 2;
       group.add(petal);
     }
   }
@@ -450,6 +479,7 @@ export function finishAircraftModel(
   group.userData.realLengthMeters = options.realLengthMeters;
   group.userData.realWingspanMeters = options.realWingspanMeters;
   group.userData.modelMetersPerUnit = AIR_MODEL_METERS_PER_UNIT;
+  group.userData.modelAssetVersion = AIRCRAFT_MODEL_ASSET_REVISION;
   group.userData.detailTags = [...options.detailTags];
   const tierMembers = group.userData.modelTierMembers as AircraftTierMembers;
   registerAssetDetailLod(group, {

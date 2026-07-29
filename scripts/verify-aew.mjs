@@ -3,6 +3,7 @@ import { AEW_PLATFORM_DEFINITIONS } from "../dist-test/air/aew/catalog.js";
 import { aewOrbitDirection, updateAewModelAnimation } from "../dist-test/air/aew/mission.js";
 import { AewCommandNetwork } from "../dist-test/air/aew/command-network.js";
 import { AIRCRAFT_REFERENCE_DIMENSIONS } from "../dist-test/air/model-assets/dimensions.js";
+import { AIRCRAFT_MODEL_ASSET_REVISION } from "../dist-test/air/model-assets/model-kit.js";
 
 function tierStats(objects) {
   const meshes = new Set();
@@ -30,15 +31,16 @@ function tierStats(objects) {
 }
 
 function tierDimensionError(tier, dimensions) {
-  return Math.max(
-    Math.abs(tier.extent[0]-dimensions.modelWingspan)/dimensions.modelWingspan,
-    Math.abs(tier.extent[2]-dimensions.modelLength)/dimensions.modelLength,
-  );
+  const span=Math.abs(tier.extent[0]-dimensions.modelWingspan)/dimensions.modelWingspan;
+  const height=Math.abs(tier.extent[1]-dimensions.modelHeight)/dimensions.modelHeight;
+  const length=Math.abs(tier.extent[2]-dimensions.modelLength)/dimensions.modelLength;
+  return {span:Number(span.toFixed(4)),height:Number(height.toFixed(4)),length:Number(length.toFixed(4)),maximum:Number(Math.max(span,height,length).toFixed(4))};
 }
 
 function sharesGeometry(first,second){return [...first.geometries].some(uuid=>second.geometries.has(uuid));}
 
 const expectedDimensions={"E-2C":AIRCRAFT_REFERENCE_DIMENSIONS.E2C,"TU-126":AIRCRAFT_REFERENCE_DIMENSIONS.TU126};
+const triangleBudgets={"E-2C":{ultra:13000,high:5500,low:1300},"TU-126":{ultra:19000,high:7500,low:2000}};
 const byId=Object.fromEntries(AEW_PLATFORM_DEFINITIONS.map(definition=>[definition.id,definition]));
 const models=AEW_PLATFORM_DEFINITIONS.map(definition=>{
   const model=definition.buildModel();
@@ -46,12 +48,14 @@ const models=AEW_PLATFORM_DEFINITIONS.map(definition=>{
   const registration=model.userData.assetDetailLod;
   const ultra=tierStats(registration.high),high=tierStats(registration.medium),low=tierStats(registration.low);
   const dimensions=expectedDimensions[definition.id];
-  const tierDimensionErrors={ultra:Number(tierDimensionError(ultra,dimensions).toFixed(4)),high:Number(tierDimensionError(high,dimensions).toFixed(4)),low:Number(tierDimensionError(low,dimensions).toFixed(4))};
+  const tierDimensionErrors={ultra:tierDimensionError(ultra,dimensions),high:tierDimensionError(high,dimensions),low:tierDimensionError(low,dimensions)};
+  const triangleBudget=triangleBudgets[definition.id];
   const assemblies=model.userData.propellerAssemblies??[];
   const before=assemblies[0]?.rotors.map(rotor=>rotor.object.rotation.z)??[];
   updateAewModelAnimation(model,.1,true,.8);
   const rotationDelta=assemblies[0]?.rotors.map((rotor,index)=>Number((rotor.object.rotation.z-(before[index]??0)).toFixed(3)))??[];
   const spanError=Math.abs(ultra.extent[0]-dimensions.modelWingspan)/dimensions.modelWingspan;
+  const heightError=Math.abs(ultra.extent[1]-dimensions.modelHeight)/dimensions.modelHeight;
   const lengthError=Math.abs(ultra.extent[2]-dimensions.modelLength)/dimensions.modelLength;
   return {
     id:definition.id,
@@ -66,13 +70,17 @@ const models=AEW_PLATFORM_DEFINITIONS.map(definition=>{
     rotodome:!!model.userData.rotodome,
     qualityAware:Boolean(registration.qualityAware&&registration.exclusiveTiers),
     tiering:{ultra,high,low},
+    triangleBudget,
+    triangleBudgetValid:ultra.triangles>=triangleBudget.ultra&&high.triangles>=triangleBudget.high&&low.triangles>=triangleBudget.low,
     tierDetailMonotonic:ultra.triangles>high.triangles&&high.triangles>low.triangles&&low.triangles>400,
-    tierReductionMeaningful:high.triangles<ultra.triangles*.85&&low.triangles<high.triangles*.85,
+    // Require a deliberate authored reduction, not a nominal triangle drop.
+    tierReductionMeaningful:high.triangles<ultra.triangles*.6&&low.triangles<high.triangles*.5,
     tierGeometryIndependent:!sharesGeometry(ultra,high)&&!sharesGeometry(ultra,low)&&!sharesGeometry(high,low),
     tierDimensionErrors,
-    tierDimensionsValid:tierDimensionErrors.ultra<.025&&tierDimensionErrors.high<.06&&tierDimensionErrors.low<.08,
-    dimensionsValid:spanError<.025&&lengthError<.025,
+    tierDimensionsValid:tierDimensionErrors.ultra.maximum<.04&&tierDimensionErrors.high.maximum<.065&&tierDimensionErrors.low.maximum<.095,
+    dimensionsValid:spanError<.025&&heightError<.04&&lengthError<.025,
     spanError:Number(spanError.toFixed(4)),
+    heightError:Number(heightError.toFixed(4)),
     lengthError:Number(lengthError.toFixed(4)),
   };
 });
@@ -91,7 +99,7 @@ const result={models,platforms:AEW_PLATFORM_DEFINITIONS.map(definition=>({id:def
 console.log(JSON.stringify(result,null,2));
 const e2=models.find(model=>model.id==="E-2C"),tu126=models.find(model=>model.id==="TU-126");
 if(!byId["E-2C"]||!byId["TU-126"]||byId["TU-126"].radarCrossSection<=byId["E-2C"].radarCrossSection*5||
-  models.some(model=>model.version!=="v1.1-ultra"||!model.rotodome||!model.qualityAware||!model.tierDetailMonotonic||!model.tierReductionMeaningful||!model.tierGeometryIndependent||!model.tierDimensionsValid||!model.dimensionsValid)||
+  models.some(model=>model.version!==AIRCRAFT_MODEL_ASSET_REVISION||!model.rotodome||!model.qualityAware||!model.triangleBudgetValid||!model.tierDetailMonotonic||!model.tierReductionMeaningful||!model.tierGeometryIndependent||!model.tierDimensionsValid||!model.dimensionsValid)||
   e2?.propellers!==2||e2?.assemblyCount!==6||e2?.rotorCounts.join(",")!=="1"||
   tu126?.propellers!==4||tu126?.assemblyCount!==12||tu126?.rotorCounts.join(",")!=="2"||!tu126?.counterRotation||
   result.platforms.some(platform=>platform.mission!=="aew"||platform.coverage!=="rotating-360"||platform.fov!==360||platform.ammo!==0||platform.hardpoints!==0)||

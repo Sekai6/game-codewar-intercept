@@ -5,7 +5,14 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+// This is a data-contract regression, not a screenshot test. A smaller
+// viewport substantially reduces SwiftShader work on Linux CI runners while
+// leaving the fixed-step simulation and exposed telemetry unchanged.
+// Keep the viewport at the normal runtime's SSAO cutoff. The test validates
+// simulation telemetry, so spending Linux SwiftShader time on a post-process
+// pass adds no coverage and can prevent the fixed-step scene from reaching its
+// own 45-second evidence deadline.
+const page = await browser.newPage({ viewport: { width: 720, height: 405 } });
 const errors = [];
 page.on("console", message => {
   if (message.type() === "error") errors.push(message.text());
@@ -26,16 +33,64 @@ try {
     canvas.dataset.advancedAirStoreStates ?? "");
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
-  await page.waitForFunction(() => {
-    const canvas = document.querySelector("#scene");
-    return (canvas?.dataset.airWeaponLaunchLog ?? "").includes("AIM-54A Phoenix") &&
-      (canvas?.dataset.advancedAirLaunchZones ?? "").length > 0;
-  }, null, { timeout: 35_000 });
-  await page.waitForFunction(() => {
-    const records = (document.querySelector("#scene")?.dataset.airWeaponKinematics ?? "")
-      .split("|").filter(record => record.includes(":AIM-54A:"));
-    return records.some(record => Number(record.split(":")[5]) >= 100);
-  }, null, { timeout: 15_000 });
+
+  const reportEvidenceFailure = async (failureKind, error) => {
+    let diagnostic;
+    try {
+      diagnostic = await page.locator("#scene").evaluate(canvas => ({
+        elapsed: canvas.dataset.simulationElapsed ?? "",
+        aiUpdates: canvas.dataset.advancedAirAiUpdates ?? "",
+        maneuvers: canvas.dataset.advancedAirManeuverLog ?? "",
+        states: canvas.dataset.advancedAirTacticalStates ?? "",
+        launchZones: canvas.dataset.advancedAirLaunchZones ?? "",
+        launches: canvas.dataset.airWeaponLaunchLog ?? "",
+        kinematics: canvas.dataset.airWeaponKinematics ?? "",
+        stores: canvas.dataset.advancedAirStoreStates ?? "",
+      }));
+    } catch (diagnosticError) {
+      diagnostic = {
+        diagnosticError: diagnosticError instanceof Error
+          ? diagnosticError.message
+          : String(diagnosticError),
+      };
+    }
+    console.error(`Advanced-air BVR evidence ${failureKind}`, JSON.stringify({
+      ...diagnostic,
+      runnerError: error instanceof Error ? error.message : String(error),
+      errors,
+    }, null, 2));
+  };
+
+  let evidenceState;
+  try {
+    // Wall-clock time is only a stuck-runner watchdog. On GitHub's software
+    // renderer the capped RAF loop can advance substantially slower than the
+    // selected 4x simulation rate, so it must not be confused with sim time.
+    evidenceState = await (await page.waitForFunction(() => {
+      const canvas = document.querySelector("#scene");
+      const elapsed = Number(canvas?.dataset.simulationElapsed ?? 0);
+      const records = (canvas?.dataset.airWeaponKinematics ?? "")
+        .split("|").filter(record => record.includes(":AIM-54A:"));
+      const ready = (canvas?.dataset.airWeaponLaunchLog ?? "").includes("AIM-54A Phoenix") &&
+        (canvas?.dataset.advancedAirLaunchZones ?? "").length > 0 &&
+        records.some(record => Number(record.split(":")[5]) >= 100);
+      if (ready) return { status: "ready", elapsed };
+      return elapsed >= 45
+        ? { status: "simulation-deadline", elapsed }
+        : null;
+    }, null, { timeout: 150_000 })).jsonValue();
+  } catch (error) {
+    await reportEvidenceFailure("watchdog-timeout", error);
+    throw error;
+  }
+  if (evidenceState?.status !== "ready") {
+    const elapsed = Number.isFinite(evidenceState?.elapsed)
+      ? `${evidenceState.elapsed.toFixed(2)}s`
+      : "an unknown simulation time";
+    const error = new Error(`BVR evidence missing at ${evidenceState?.status ?? "unknown-state"} after ${elapsed}`);
+    await reportEvidenceFailure(evidenceState?.status ?? "unknown-state", error);
+    throw error;
+  }
   const result = await page.locator("#scene").evaluate(canvas => ({
     maneuvers: canvas.dataset.advancedAirManeuverLog ?? "",
     states: canvas.dataset.advancedAirTacticalStates ?? "",

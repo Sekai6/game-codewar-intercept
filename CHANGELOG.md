@@ -1,6 +1,49 @@
 # Changelog
 
-> Documentation snapshot: v1.1.0 · 2026-07-26. Later releases may revise these notes.
+> Documentation snapshot: v1.15.0 · 2026-07-29. Later releases may revise these notes.
+
+## 1.15.0 - Unreleased
+
+### Changed
+
+- Completed a second-pass visual rebuild of the procedural F-14A, A-6E, MiG-29A, Tu-16K, E-2C, and Tu-126 assets while preserving the shared 2 metres-per-unit display scale and independent Ultra, High, and Low geometry.
+- Corrected the shared loft-fuselage triangle winding so exterior normals face outward across all rebuilt aircraft.
+- Refined common jet nozzles with circumferential petals, a positive rim, and a recessed hot-section face; corrected the A-6E stowed arresting hook and made the Tu-16K tail cannon readable without changing the reference-length envelope.
+- Replaced F-14-specific runtime and gallery sweep constants with a model-declared 20°–68° variable-geometry contract.
+- Made MiG-29A and Tu-16K gameplay hardpoints consume the same platform-owned station definitions as their visual models, reducing duplicated attachment coordinates.
+- Recalibrated mounted stores, markings, lights, engine details, propellers, and rotodomes across the six aircraft and all three LOD tiers.
+
+### Added
+
+- A 63-image serial visual gate covering five Ultra inspection angles, High/Low silhouette views, F-14 sweep states, and armed underside/rear-quarter views. The gallery uses dedicated underside fill so pylon contact and lower-surface normals remain inspectable.
+- Stronger structural checks for outward normals, model-declared sweep limits, fixed-station ownership, mount contact, tier dimensions, and AEW animation assemblies.
+
+### Release Boundaries
+
+- V1.15 remains a procedural aircraft asset, LOD, hardpoint-alignment, and validation update; it does not replace the flight AI, missile guidance, lethality, or ship-defense architecture.
+- Historical platform and weapon names remain in use while performance values stay game-scaled.
+- Static gallery evidence demonstrates asset construction and attachment quality, not air-combat probability or complete joint-scenario outcomes.
+
+### Verification Evidence
+
+- `git diff --check`
+- `npm run verify:docs`
+- `npx tsc --noEmit`
+- `npm run build`
+- `npm run verify:air-models`
+- `npm run verify:aew`
+- `npm run verify:air-weapon-models`
+- `npm run verify:asset-detail-lod`
+- `npm run verify:air-hardpoints`
+- `npm run verify:air-visuals`
+- `npm run verify:ultra-aurora`
+- `npm run verify:aew-runtime`
+- `npm run verify:air-camera`
+- `npm run verify:aircraft-sam-damage`
+- `npm run verify:joint-air`
+- `npm run verify:mig29-combat`
+- `npm run verify:soviet-maritime-runtime`
+- `npm run capture:aircraft-lod-gallery`
 
 ## 1.1.0 - 2026-07-26
 

@@ -41,50 +41,124 @@ const exhaustMaterial = new THREE.MeshStandardMaterial({ color: 0x303636, metaln
 
 const FUSELAGE_STATIONS: readonly FuselageStation[] = [
   { z: -HALF_AIRFRAME, radiusX: 0.08, radiusY: 0.07, centerY: -0.08 },
-  { z: -13.1, radiusX: 0.56, radiusY: 0.54, centerY: -0.03 },
-  { z: -12.25, radiusX: 0.92, radiusY: 0.9, centerY: 0.02 },
-  { z: -10.8, radiusX: 1.04, radiusY: 1.02, centerY: 0.03 },
-  { z: -7.4, radiusX: 1.06, radiusY: 1.06, centerY: 0.02 },
-  { z: -2.2, radiusX: 1.07, radiusY: 1.08 },
-  { z: 4.5, radiusX: 1.05, radiusY: 1.06 },
-  { z: 8.2, radiusX: 0.93, radiusY: 0.96, centerY: 0.03 },
-  { z: 10.65, radiusX: 0.69, radiusY: 0.74, centerY: 0.07 },
+  { z: -13.28, radiusX: 0.34, radiusY: 0.29, centerY: -0.06 },
+  { z: -13.0, radiusX: 0.62, radiusY: 0.52, centerY: -0.035 },
+  { z: -12.55, radiusX: 0.82, radiusY: 0.73, centerY: -0.005 },
+  { z: -11.9, radiusX: 0.98, radiusY: 0.91, centerY: 0.025 },
+  { z: -10.8, radiusX: 1.04, radiusY: 1.02, centerY: 0.035 },
+  { z: -8.4, radiusX: 1.06, radiusY: 1.06, centerY: 0.025 },
+  { z: -5.0, radiusX: 1.07, radiusY: 1.075, centerY: 0.01 },
+  { z: -1.5, radiusX: 1.07, radiusY: 1.08, centerY: 0 },
+  { z: 2.3, radiusX: 1.065, radiusY: 1.075, centerY: 0.005 },
+  { z: 5.4, radiusX: 1.02, radiusY: 1.04, centerY: 0.02 },
+  { z: 8.2, radiusX: 0.93, radiusY: 0.96, centerY: 0.04 },
+  { z: 10.0, radiusX: 0.78, radiusY: 0.84, centerY: 0.055 },
+  { z: 11.2, radiusX: 0.61, radiusY: 0.67, centerY: 0.07 },
   { z: 12.35, radiusX: 0.42, radiusY: 0.47, centerY: 0.08 },
+  { z: 13.0, radiusX: 0.2, radiusY: 0.23, centerY: 0.075 },
   { z: HALF_AIRFRAME, radiusX: 0.07, radiusY: 0.08, centerY: 0.06 },
 ] as const;
 
-const LOW_FUSELAGE_STATIONS = FUSELAGE_STATIONS.filter((_, index) => index === 0 || index === 2 || index === 4 || index === 6 || index === 8 || index === 9 || index === 10);
+// Keep the final tail-cone stations in the reduced mesh.  This is deliberately
+// explicit rather than reusing the pre-detail indices, so Low remains a
+// continuous Tu-114-derived airframe with attached tail surfaces.
+const LOW_FUSELAGE_STATIONS = FUSELAGE_STATIONS.filter((_, index) =>
+  index === 0 || index === 2 || index === 4 || index === 6 || index === 8 || index === 10 || index === 12 || index === 14 || index === 16,
+);
 
 function tierSegments(tier: DetailTier) {
-  return tier === "ultra" ? 32 : tier === "high" ? 18 : 10;
+  return tier === "ultra" ? 72 : tier === "high" ? 42 : 14;
 }
 
 function createWing(side: number, tier: DetailTier) {
+  // The Tu-126 inherits the Tu-114's high, strongly swept wing.  Keep a
+  // broad root chord for the four NK-12 nacelles, then taper through a clear
+  // outer panel instead of the old single triangular slab.
   const wing = createPlanform([
-    [0, -4.72],
-    [side * 4.5, -3.32],
-    [side * HALF_SPAN, 1.72],
-    [side * HALF_SPAN, 3.7],
-    [side * 4.5, 2.78],
-    [0, 2.94],
+    [0, -3.05],
+    [side * 3.05, -2.52],
+    [side * 8.35, -1.18],
+    [side * HALF_SPAN, -0.34],
+    [side * HALF_SPAN, 0.34],
+    [side * 8.35, 0.28],
+    [side * 3.05, 1.54],
+    [0, 2.04],
   ], skin, tier === "low" ? 0.14 : tier === "high" ? 0.2 : 0.27);
-  wing.position.y = -0.04;
-  wing.rotation.z = -side * 0.024;
+  wing.position.y = 0.72;
+  wing.rotation.z = -side * 0.015;
   return wing;
+}
+
+function addWingSurfaceDetail(tierRoot: THREE.Group, side: number, tier: DetailTier) {
+  if (tier === "low") return;
+  const thickness = tier === "ultra" ? 0.025 : 0.018;
+  const flap = createPlanform([
+    [side * 0.7, 0.95],
+    [side * 3.05, 1.14],
+    [side * 8.25, 0.0],
+    [side * 8.25, 0.24],
+    [side * 3.05, 1.42],
+    [side * 0.7, 1.28],
+  ], aircraftPanelMaterial, thickness);
+  flap.position.y = 0.86;
+  tierRoot.add(flap);
+  const slat = createPlanform([
+    [side * 0.6, -2.7],
+    [side * 3.1, -2.18],
+    [side * 8.27, -0.94],
+    [side * 8.27, -0.78],
+    [side * 3.1, -1.96],
+    [side * 0.6, -2.49],
+  ], aircraftPanelMaterial, thickness);
+  slat.position.y = 0.86;
+  tierRoot.add(slat);
+  const fold = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.026, 1.65), aircraftPanelMaterial);
+  fold.position.set(side * 8.35, 0.86, -0.45);
+  fold.rotation.y = side * -0.15;
+  tierRoot.add(fold);
+  if (tier === "ultra") {
+    for (const z of [-1.2, -0.82, -0.36, 0.06, 0.32]) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.016, 0.22), aircraftPanelMaterial);
+      rib.position.set(side * 7.62, 0.875, z);
+      rib.rotation.y = side * -0.15;
+      tierRoot.add(rib);
+    }
+  }
 }
 
 function createTailplane(side: number, tier: DetailTier) {
   const tail = createPlanform([
-    [0, -1.45],
-    [side * 4.55, 0.62],
-    [side * 4.55, 1.42],
-    [0, 1.18],
+    [0, -1.0],
+    [side * 2.9, -0.02],
+    [side * 4.55, 0.56],
+    [side * 4.55, 1.35],
+    [side * 2.9, 0.97],
+    [0, 1.23],
   ], skin, tier === "low" ? 0.11 : 0.17);
   tail.position.set(0, 0.92, 10.68);
   return tail;
 }
 
 function addCockpitGlazing(tierRoot: THREE.Group, tier: DetailTier) {
+  // Tu-126 retained the Tu-114's glazed navigator/bombardier nose.  A shallow
+  // continuous shell under the panes prevents the cockpit from reading as
+  // two detached black rectangles in side and front views.
+  const canopyStations: readonly FuselageStation[] = [
+    { z: -13.16, radiusX: 0.07, radiusY: 0.035, centerY: 0.28 },
+    { z: -12.95, radiusX: 0.36, radiusY: 0.16, centerY: 0.36 },
+    { z: -12.62, radiusX: 0.66, radiusY: 0.28, centerY: 0.47 },
+    { z: -12.22, radiusX: 0.78, radiusY: 0.35, centerY: 0.53 },
+    { z: -11.9, radiusX: 0.67, radiusY: 0.31, centerY: 0.49 },
+    { z: -11.62, radiusX: 0.3, radiusY: 0.14, centerY: 0.39 },
+  ];
+  const shell = createLoftedFuselage(
+    tier === "low" ? canopyStations.filter((_, index) => index % 2 === 0 || index === canopyStations.length - 1) : canopyStations,
+    aircraftGlassMaterial,
+    tier === "ultra" ? 48 : tier === "high" ? 26 : 12,
+  );
+  shell.name = `tu126-cockpit-shell:${tier}`;
+  tierRoot.add(shell);
+
   if (tier === "low") {
     const glazing = new THREE.Group();
     glazing.name = "tu126-cockpit:low";
@@ -121,6 +195,16 @@ function addCockpitGlazing(tierRoot: THREE.Group, tier: DetailTier) {
       lowerPane.rotation.y = side * 0.18;
       cockpit.add(lowerPane);
     }
+    const centreBow = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.42, 0.055), aircraftDarkMaterial);
+    centreBow.position.set(0, 0.53, -12.28);
+    centreBow.rotation.x = -0.08;
+    cockpit.add(centreBow);
+    for (const side of [-1, 1]) {
+      const roofBow = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.58), aircraftDarkMaterial);
+      roofBow.position.set(side * 0.32, 0.79, -12.22);
+      roofBow.rotation.y = side * 0.08;
+      cockpit.add(roofBow);
+    }
   }
   tierRoot.add(cockpit);
 }
@@ -128,18 +212,18 @@ function addCockpitGlazing(tierRoot: THREE.Group, tier: DetailTier) {
 function addCabinWindows(tierRoot: THREE.Group, tier: DetailTier) {
   if (tier === "low") return;
   const positions = tier === "ultra"
-    ? [-9.6, -8.4, -7.2, -5.9, -4.6, -3.3, -2.0, -0.6, 0.8, 2.2, 3.6, 5.0]
-    : [-8.8, -6.2, -3.6, -1.0, 1.6, 4.2];
-  const geometry = new THREE.SphereGeometry(0.1, tier === "ultra" ? 10 : 7, 6);
+    ? [-9.8, -8.65, -7.5, -6.35, -5.2, -4.05, -2.9, -1.75, -0.6, 0.55, 1.7, 2.85, 4.0, 5.15]
+    : [-9.2, -7.0, -4.8, -2.6, -0.4, 1.8, 4.0];
+  const geometry = new THREE.BoxGeometry(0.035, tier === "ultra" ? 0.18 : 0.16, tier === "ultra" ? 0.26 : 0.23);
   const windows = new THREE.InstancedMesh(geometry, aircraftGlassMaterial, positions.length * 2);
   windows.name = `tu126-cabin-windows:${tier}`;
   const matrix = new THREE.Matrix4();
   let index = 0;
   for (const side of [-1, 1]) for (const z of positions) {
     matrix.compose(
-      new THREE.Vector3(side * 1.055, 0.24, z),
+      new THREE.Vector3(side * 1.067, 0.22, z),
       new THREE.Quaternion(),
-      new THREE.Vector3(0.16, 0.82, 1.08),
+      new THREE.Vector3(1, 1, 1),
     );
     windows.setMatrixAt(index++, matrix);
   }
@@ -147,6 +231,17 @@ function addCabinWindows(tierRoot: THREE.Group, tier: DetailTier) {
   windows.computeBoundingBox();
   windows.computeBoundingSphere();
   tierRoot.add(windows);
+  if (tier === "ultra") {
+    // Thin frame bars preserve the characteristic Tu-114 cabin rhythm at
+    // close range without turning the Low tier into a wall of geometry.
+    for (const side of [-1, 1]) {
+      for (const z of positions) {
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.23, 0.035), aircraftPanelMaterial);
+        frame.position.set(side * 1.09, 0.22, z);
+        tierRoot.add(frame);
+      }
+    }
+  }
 }
 
 function createSovietTailMarking(side: number, tier: DetailTier) {
@@ -158,7 +253,8 @@ function createSovietTailMarking(side: number, tier: DetailTier) {
   star.position.z = 0.008;
   group.add(border, star);
   group.rotation.y = side * Math.PI / 2;
-  group.position.set(side * 0.13, 4.15, 11.25);
+  const finHalfThickness = tier === "ultra" ? 0.135 : 0.11;
+  group.position.set(side * (finHalfThickness + 0.006), 4.15, 11.25);
   return group;
 }
 
@@ -193,14 +289,20 @@ function createNacelle(
   const z = inner ? -0.92 : 1.12;
   const nacelle = new THREE.Group();
   nacelle.name = `tu126-engine:${station}:${side < 0 ? "port" : "starboard"}:${tier}`;
-  nacelle.position.set(x, -0.36, z);
+  // NK-12 nacelles hang beneath the high wing, not beneath the fuselage
+  // centreline.  Raising the assembly exposes the correct high-wing stance
+  // in the front view while leaving the propeller diameter unchanged.
+  nacelle.position.set(x, 0.2, z);
   const nacelleStations: readonly FuselageStation[] = [
-    { z: -3.02, radiusX: 0.34, radiusY: 0.32 },
-    { z: -2.6, radiusX: 0.63, radiusY: 0.61 },
-    { z: -1.6, radiusX: 0.72, radiusY: 0.69 },
-    { z: 0.65, radiusX: 0.67, radiusY: 0.64 },
-    { z: 1.82, radiusX: 0.48, radiusY: 0.49 },
-    { z: 2.55, radiusX: 0.18, radiusY: 0.2 },
+    { z: -3.08, radiusX: 0.28, radiusY: 0.27, centerY: -0.03 },
+    { z: -2.82, radiusX: 0.52, radiusY: 0.49, centerY: -0.02 },
+    { z: -2.48, radiusX: 0.66, radiusY: 0.61, centerY: -0.01 },
+    { z: -1.72, radiusX: 0.74, radiusY: 0.7, centerY: 0 },
+    { z: -0.45, radiusX: 0.73, radiusY: 0.68, centerY: 0.01 },
+    { z: 0.72, radiusX: 0.68, radiusY: 0.64, centerY: 0.02 },
+    { z: 1.52, radiusX: 0.55, radiusY: 0.54, centerY: 0.02 },
+    { z: 2.18, radiusX: 0.36, radiusY: 0.37, centerY: 0.02 },
+    { z: 2.58, radiusX: 0.16, radiusY: 0.18, centerY: 0.02 },
   ];
   nacelle.add(createLoftedFuselage(
     tier === "low" ? nacelleStations.filter((_, index) => index !== 1 && index !== 4) : nacelleStations,
@@ -209,45 +311,68 @@ function createNacelle(
   ));
   if (inner) {
     const gearFairingStations: readonly FuselageStation[] = [
-      { z: 0.35, radiusX: 0.39, radiusY: 0.34, centerY: -0.18 },
-      { z: 1.8, radiusX: 0.49, radiusY: 0.43, centerY: -0.2 },
-      { z: 3.55, radiusX: 0.42, radiusY: 0.38, centerY: -0.18 },
-      { z: 4.65, radiusX: 0.09, radiusY: 0.1, centerY: -0.08 },
+      { z: 0.25, radiusX: 0.28, radiusY: 0.24, centerY: -0.52 },
+      { z: 1.4, radiusX: 0.43, radiusY: 0.36, centerY: -0.55 },
+      { z: 2.65, radiusX: 0.38, radiusY: 0.32, centerY: -0.5 },
+      { z: 3.45, radiusX: 0.12, radiusY: 0.12, centerY: -0.36 },
     ];
     nacelle.add(createLoftedFuselage(gearFairingStations, lowerSkin, tierSegments(tier)));
   }
   if (tier !== "low") {
     const intakeRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.47, tier === "ultra" ? 0.065 : 0.08, 7, tier === "ultra" ? 28 : 16),
+      new THREE.TorusGeometry(0.5, tier === "ultra" ? 0.052 : tier === "high" ? 0.068 : 0.08, tier === "ultra" ? 10 : 7, tier === "ultra" ? 56 : tier === "high" ? 32 : 16),
       aircraftPanelMaterial,
     );
-    intakeRing.position.z = -3.03;
+    intakeRing.position.z = -3.1;
     nacelle.add(intakeRing);
+    const intakeDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.442, tier === "ultra" ? 40 : tier === "high" ? 24 : 12),
+      aircraftDarkMaterial,
+    );
+    intakeDisc.rotation.y = Math.PI;
+    intakeDisc.position.z = -3.11;
+    nacelle.add(intakeDisc);
     for (const exhaustSide of [-1, 1]) {
-      const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.72, 10, 1, true), exhaustMaterial);
+      const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.74, tier === "ultra" ? 18 : 10, 1, true), exhaustMaterial);
       exhaust.rotation.x = Math.PI / 2;
-      exhaust.position.set(exhaustSide * 0.5, -0.02, 1.18);
+      exhaust.position.set(exhaustSide * 0.5, -0.02, 1.34);
       nacelle.add(exhaust);
+      if (tier === "ultra") {
+        const exhaustRing = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.018, 6, 28), aircraftPanelMaterial);
+        exhaustRing.rotation.x = Math.PI / 2;
+        exhaustRing.position.set(exhaustSide * 0.5, -0.02, 1.72);
+        nacelle.add(exhaustRing);
+      }
     }
+    const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, inner ? 2.25 : 1.65), skin);
+    pylon.position.set(0, 0.62, inner ? -0.3 : -0.08);
+    pylon.rotation.x = side * 0.045;
+    nacelle.add(pylon);
     if (tier === "ultra") {
-      addPanelLine(nacelle, [0, 0.66, -1.35], [0.46, 0.014, 0.025]);
+      addPanelLine(nacelle, [0, 0.76, -1.35], [0.46, 0.014, 0.025]);
       const gearDoor = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.025, inner ? 2.25 : 0.9), aircraftPanelMaterial);
-      gearDoor.position.set(0, -0.68, inner ? 1.55 : 0.45);
+      gearDoor.position.set(0, -0.7, inner ? 1.55 : 0.45);
       nacelle.add(gearDoor);
+      for (const z of [-2.35, -1.5, -0.45, 0.5, 1.25]) {
+        const seam = new THREE.Mesh(new THREE.TorusGeometry(0.69, 0.012, 5, 40), aircraftPanelMaterial);
+        seam.scale.y = 0.96;
+        seam.position.z = z;
+        nacelle.add(seam);
+      }
     }
   }
 
   const blurMaterial = new THREE.MeshBasicMaterial({
     color: 0xa4aeab,
     transparent: true,
-    opacity: tier === "low" ? 0.12 : tier === "high" ? 0.055 : 0.027,
+    opacity: tier === "low" ? 0.12 : tier === "high" ? 0.05 : 0.022,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
   const propeller = createAewPropeller({
     radius: PROPELLER_RADIUS,
-    hubRadius: 0.31,
-    spinnerLength: 0.68,
+    hubRadius: tier === "ultra" ? 0.34 : 0.31,
+    spinnerLength: 0.72,
     bladeMaterial,
     hubMaterial: aircraftDarkMaterial,
     blurMaterial,
@@ -263,7 +388,7 @@ function createNacelle(
     detailed: tier === "ultra",
     blurOnly: tier === "low",
   });
-  propeller.object.position.z = -3.25;
+  propeller.object.position.z = -3.34;
   nacelle.add(propeller.object);
   tierRoot.add(nacelle);
   return propeller;
@@ -277,7 +402,7 @@ function createRotodome(tierRoot: THREE.Group, tier: DetailTier) {
     [1.48, 0],
     [0.79, DIMENSIONS.modelRotodomeSupportHeight],
     [-0.52, DIMENSIONS.modelRotodomeSupportHeight],
-  ], tier === "low" ? 0.46 : 0.62, skin);
+  ], tier === "low" ? 0.46 : tier === "high" ? 0.62 : 0.72, skin);
   pylon.name = `tu126-liana-pylon:${tier}`;
   pylon.position.set(0, pylonBaseY, pylonZ);
   tierRoot.add(pylon);
@@ -290,6 +415,12 @@ function createRotodome(tierRoot: THREE.Group, tier: DetailTier) {
       vent.position.set(x, pylonBaseY + 0.22, pylonZ - 1.22);
       tierRoot.add(vent);
     }
+    for (const side of [-1, 1]) {
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.24, 0.19), lowerSkin);
+      brace.position.set(side * 0.62, pylonBaseY + 0.55, pylonZ - 0.12);
+      brace.rotation.z = side * -0.27;
+      tierRoot.add(brace);
+    }
   }
 
   const rotodome = new THREE.Group();
@@ -300,13 +431,13 @@ function createRotodome(tierRoot: THREE.Group, tier: DetailTier) {
     pylonZ,
   );
   const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(1, tier === "ultra" ? 56 : tier === "high" ? 32 : 18, tier === "ultra" ? 20 : 10),
+    new THREE.SphereGeometry(1, tier === "ultra" ? 84 : tier === "high" ? 46 : 20, tier === "ultra" ? 30 : tier === "high" ? 16 : 10),
     domeSkin,
   );
   shell.scale.set(ROTODOME_RADIUS, DIMENSIONS.modelRotodomeThickness * 0.5, ROTODOME_RADIUS);
   rotodome.add(shell);
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(ROTODOME_RADIUS * 0.974, tier === "ultra" ? 0.075 : 0.095, 8, tier === "ultra" ? 56 : 28),
+    new THREE.TorusGeometry(ROTODOME_RADIUS * 0.974, tier === "ultra" ? 0.065 : tier === "high" ? 0.08 : 0.095, tier === "ultra" ? 12 : 8, tier === "ultra" ? 84 : tier === "high" ? 46 : 28),
     aircraftDarkMaterial,
   );
   rim.rotation.x = Math.PI / 2;
@@ -317,6 +448,22 @@ function createRotodome(tierRoot: THREE.Group, tier: DetailTier) {
   );
   orientationBand.position.y = DIMENSIONS.modelRotodomeThickness * 0.5;
   rotodome.add(orientationBand);
+  if (tier !== "low") {
+    const lowerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(ROTODOME_RADIUS * 0.76, tier === "ultra" ? 0.035 : 0.045, 6, tier === "ultra" ? 64 : 34),
+      aircraftPanelMaterial,
+    );
+    lowerRing.rotation.x = Math.PI / 2;
+    lowerRing.position.y = -DIMENSIONS.modelRotodomeThickness * 0.34;
+    rotodome.add(lowerRing);
+  }
+  if (tier === "ultra") {
+    for (const z of [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]) {
+      const inspectionStrip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.022, 0.28), aircraftPanelMaterial);
+      inspectionStrip.position.set(0, DIMENSIONS.modelRotodomeThickness * 0.51, z);
+      rotodome.add(inspectionStrip);
+    }
+  }
   tierRoot.add(rotodome);
   return rotodome;
 }
@@ -355,17 +502,54 @@ function buildTier(root: THREE.Group, tierRoot: THREE.Group, tier: DetailTier) {
     const wing = createWing(side, tier);
     addWingMarking(wing, side, tier);
     tierRoot.add(wing, createTailplane(side, tier));
-    addNavigationLight(root, tierRoot, side, [side * HALF_SPAN, -0.31, 2.58], tier === "low" ? 0.11 : 0.085);
+    addWingSurfaceDetail(tierRoot, side, tier);
+    addNavigationLight(root, tierRoot, side, [side * HALF_SPAN, 0.78, 0], tier === "low" ? 0.11 : 0.085);
+  }
+  if (tier !== "low") {
+    const wingRootFairing = createPlanform([
+      [-2.35, -2.75],
+      [2.35, -2.75],
+      [2.45, 1.72],
+      [1.5, 2.08],
+      [-1.5, 2.08],
+      [-2.45, 1.72],
+    ], skin, tier === "ultra" ? 0.34 : 0.26);
+    wingRootFairing.position.y = 0.72;
+    tierRoot.add(wingRootFairing);
+    for (const side of [-1, 1]) {
+      const entryDoor = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 0.88, 0.58),
+        lowerSkin,
+      );
+      entryDoor.position.set(side * 1.07, -0.02, side < 0 ? -6.25 : 6.05);
+      tierRoot.add(entryDoor);
+    }
   }
 
   const fin = createVerticalSurface([
-    [-2.34, 0],
-    [2.68, 0],
-    [2.02, 5.27],
-    [0.34, 5.27],
-  ], tier === "low" ? 0.17 : 0.22, skin);
+    [-2.55, 0],
+    [2.58, 0],
+    [1.78, 5.27],
+    [0.12, 5.27],
+    [0.54, 4.32],
+  ], tier === "low" ? 0.17 : tier === "high" ? 0.22 : 0.27, skin);
   fin.position.set(0, 0.72, 10.55);
   tierRoot.add(fin);
+  if (tier !== "low") {
+    const rudder = createVerticalSurface([
+      [0.42, 0.15],
+      [2.32, 0.15],
+      [1.6, 4.9],
+      [0.5, 4.18],
+    ], tier === "ultra" ? 0.04 : 0.032, aircraftPanelMaterial);
+    rudder.position.set(0, 0.73, 10.58);
+    tierRoot.add(rudder);
+    if (tier === "ultra") {
+      for (const y of [1.35, 2.15, 2.95, 3.75, 4.5]) {
+        addPanelLine(fin, [0, y, 0.55], [0.03, 0.016, 1.35 - y * 0.11]);
+      }
+    }
+  }
   const ventralFin = createVerticalSurface([
     [-1.24, 0],
     [1.22, 0],
@@ -377,12 +561,27 @@ function buildTier(root: THREE.Group, tierRoot: THREE.Group, tier: DetailTier) {
   if (tier !== "low") {
     tierRoot.add(createSovietTailMarking(-1, tier), createSovietTailMarking(1, tier));
     const tailEcmFairing = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, tier === "ultra" ? 18 : 12, tier === "ultra" ? 10 : 7),
+      new THREE.SphereGeometry(0.5, tier === "ultra" ? 28 : 16, tier === "ultra" ? 16 : 9),
       aircraftPanelMaterial,
     );
     tailEcmFairing.scale.set(0.42, 0.38, 1.35);
     tailEcmFairing.position.set(0, 0.05, 12.72);
     tierRoot.add(tailEcmFairing);
+    const tailTurret = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.27, 0.5, tier === "ultra" ? 20 : 12),
+      aircraftDarkMaterial,
+    );
+    tailTurret.rotation.x = Math.PI / 2;
+    tailTurret.position.set(0, -0.06, 13.42);
+    tierRoot.add(tailTurret);
+    if (tier === "ultra") {
+      for (const side of [-1, 1]) {
+        const antenna = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.42, 0.08), lowerSkin);
+        antenna.position.set(side * 0.32, 0.72, 9.42);
+        antenna.rotation.z = side * 0.16;
+        tierRoot.add(antenna);
+      }
+    }
   }
   if (tier === "ultra") {
     [-9.2, -5.1, -0.8, 3.9, 8.0].forEach((z) => {
@@ -456,6 +655,5 @@ export function createTu126Model() {
   finished.userData.rotodomeDiameter = DIMENSIONS.modelRotodomeDiameter;
   finished.userData.rotodomeThickness = DIMENSIONS.modelRotodomeThickness;
   finished.userData.rotodomeSupportHeight = DIMENSIONS.modelRotodomeSupportHeight;
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   return finished;
 }

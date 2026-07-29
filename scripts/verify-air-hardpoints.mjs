@@ -5,7 +5,10 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+// This verifies release ownership and telemetry rather than image quality.
+// Stay at the runtime's SSAO cutoff so Linux SwiftShader can advance the
+// fixed-step simulation without weakening any hardpoint assertions.
+const page = await browser.newPage({ viewport: { width: 720, height: 405 } });
 const errors = [];
 page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
 page.on("pageerror", error => errors.push(error.message));
@@ -23,29 +26,82 @@ try {
   await page.waitForFunction(() => Number(document.querySelector("#scene")?.dataset.simulationElapsed ?? 0) > 0);
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
+
+  const reportFailure = async (failureKind, error) => {
+    let diagnostic;
+    try {
+      diagnostic = await page.locator("#scene").evaluate(scene => ({
+        elapsed: scene.dataset.simulationElapsed ?? "",
+        authorizations: scene.dataset.airReleaseAuthorizationLog ?? "",
+        launches: scene.dataset.airWeaponLaunchLog ?? "",
+        hardpoints: scene.dataset.airHardpointStates ?? "",
+        releaseAges: scene.dataset.airWeaponReleaseAges ?? "",
+        aircraft: scene.dataset.aircraftStates ?? "",
+      }));
+    } catch (diagnosticError) {
+      diagnostic = {
+        diagnosticError: diagnosticError instanceof Error
+          ? diagnosticError.message
+          : String(diagnosticError),
+      };
+    }
+    console.error(`Air hardpoint evidence ${failureKind}`, JSON.stringify({
+      ...diagnostic,
+      runnerError: error instanceof Error ? error.message : String(error),
+      errors,
+    }, null, 2));
+  };
+
+  let launchEvidence;
   try {
-    await page.waitForFunction(() => {
+    launchEvidence = await (await page.waitForFunction(() => {
       const scene = document.querySelector("#scene");
-      return (scene?.dataset.airReleaseAuthorizationLog ?? "").split("|").filter(Boolean).length >= 3 && (scene?.dataset.airWeaponLaunchLog ?? "").split("|").filter(Boolean).length >= 3;
-    }, null, { timeout: 30_000 });
+      const elapsed = Number(scene?.dataset.simulationElapsed ?? 0);
+      const authorizationCount = (scene?.dataset.airReleaseAuthorizationLog ?? "")
+        .split("|").filter(Boolean).length;
+      const launchCount = (scene?.dataset.airWeaponLaunchLog ?? "")
+        .split("|").filter(Boolean).length;
+      if (authorizationCount >= 3 && launchCount >= 3) {
+        return { status: "ready", elapsed, authorizationCount, launchCount };
+      }
+      return elapsed >= 25
+        ? { status: "simulation-deadline", elapsed, authorizationCount, launchCount }
+        : null;
+    }, null, { timeout: 120_000 })).jsonValue();
   } catch (error) {
-    const diagnostic = await page.locator("#scene").evaluate(scene => ({
-      elapsed: scene.dataset.simulationElapsed,
-      authorizations: scene.dataset.airReleaseAuthorizationLog,
-      launches: scene.dataset.airWeaponLaunchLog,
-      hardpoints: scene.dataset.airHardpointStates,
-      aircraft: scene.dataset.aircraftStates,
-    }));
-    console.error("Air hardpoint release timeout", JSON.stringify(diagnostic, null, 2));
+    await reportFailure("launch-watchdog-timeout", error);
     throw error;
   }
-  await page.waitForFunction(() => {
-    const entries = (document.querySelector("#scene")?.dataset.airWeaponReleaseAges ?? "").split("|").filter(Boolean);
-    return entries.length > 0 && entries.every(entry => {
-      const [, age, ignitionDelay] = entry.split(":");
-      return Number(age) >= Number(ignitionDelay);
-    });
-  }, null, { timeout: 5_000 });
+  if (launchEvidence?.status !== "ready") {
+    const error = new Error(`Hardpoint launch evidence missing at ${launchEvidence?.status ?? "unknown-state"} after ${launchEvidence?.elapsed ?? "unknown"}s`);
+    await reportFailure(launchEvidence?.status ?? "unknown-state", error);
+    throw error;
+  }
+
+  let separationEvidence;
+  try {
+    separationEvidence = await (await page.waitForFunction(({ simulationDeadline }) => {
+      const scene = document.querySelector("#scene");
+      const elapsed = Number(scene?.dataset.simulationElapsed ?? 0);
+      const entries = (scene?.dataset.airWeaponReleaseAges ?? "").split("|").filter(Boolean);
+      const separated = entries.length > 0 && entries.every(entry => {
+        const [, age, ignitionDelay] = entry.split(":");
+        return Number(age) >= Number(ignitionDelay);
+      });
+      if (separated) return { status: "ready", elapsed, entries };
+      return elapsed >= simulationDeadline
+        ? { status: "simulation-deadline", elapsed, entries }
+        : null;
+    }, { simulationDeadline: launchEvidence.elapsed + 5 }, { timeout: 60_000 })).jsonValue();
+  } catch (error) {
+    await reportFailure("separation-watchdog-timeout", error);
+    throw error;
+  }
+  if (separationEvidence?.status !== "ready") {
+    const error = new Error(`Hardpoint separation evidence missing at ${separationEvidence?.status ?? "unknown-state"} after ${separationEvidence?.elapsed ?? "unknown"}s`);
+    await reportFailure(separationEvidence?.status ?? "unknown-state", error);
+    throw error;
+  }
   const result = await page.locator("#scene").evaluate(scene => ({
     authorizations:(scene.dataset.airReleaseAuthorizationLog ?? "").split("|").filter(Boolean),
     launches:(scene.dataset.airWeaponLaunchLog ?? "").split("|").filter(Boolean),

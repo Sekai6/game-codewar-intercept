@@ -1,6 +1,6 @@
 # MiG-29A Fulcrum-A
 
-> Data snapshot: v1.1.0 · 2026-07-26 | [中文](../../PLATFORMS/MIG29A_FULCRUM.md)
+> Data snapshot: v1.15.0 · 2026-07-29 | [中文](../../PLATFORMS/MIG29A_FULCRUM.md)
 
 Soviet front-line interceptor using its N019 track store or uncertain Tu-126/GCI cues. It carries four R-27R and two R-73 missiles, has one illumination channel, and never participates in Link 16.
 

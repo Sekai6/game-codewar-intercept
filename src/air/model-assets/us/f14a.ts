@@ -29,6 +29,7 @@ import {
   configureSurfaceMarking,
   createBeveledPlanform,
   createTaperedPylon,
+  TAPERED_PYLON_RAIL_BOTTOM_Y,
 } from "./geometry.js";
 
 type DetailTier = "ultra" | "high" | "low";
@@ -90,7 +91,11 @@ function addIntake(parent: THREE.Group, side: number, tier: DetailTier) {
     new THREE.BoxGeometry(width - lip * 2, height - lip * 2, 0.1),
     aircraftDarkMaterial,
   );
-  throat.position.z = -depth * 0.5 - 0.012;
+  throat.name = `f14-intake-throat:${side < 0 ? "port" : "starboard"}:${tier}`;
+  // Aircraft forward is -Z. The dark compressor throat therefore belongs at
+  // the aft end of the duct (+Z), behind the intake lip rather than ahead of
+  // it where the old sign placed a black plate in free air.
+  throat.position.z = depth * 0.5 + 0.012;
   group.add(throat);
   for (const y of [-1, 1]) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(width, lip, depth), intakePaint);
@@ -157,9 +162,32 @@ function addTailSurfaces(parent: THREE.Group, tier: DetailTier) {
       [0.55, 1.25],
       [0.84, 0],
     ], thickness, fuselagePaint);
+    fin.name = `f14-tail-fin:${side < 0 ? "port" : "starboard"}:${tier}`;
     fin.position.set(side * 1.05, 0.25, 3.0);
     fin.rotation.z = side * -0.13;
     parent.add(fin);
+
+    if (tier !== "low" && side < 0) {
+      const tailPosition = new THREE.Mesh(
+        new THREE.SphereGeometry(tier === "ultra" ? 0.05 : 0.038, tier === "ultra" ? 14 : 8, tier === "ultra" ? 8 : 6),
+        new THREE.MeshBasicMaterial({ color: 0xe9f2e8 }),
+      );
+      tailPosition.name = `f14-left-fin-tail-light:${tier}`;
+      tailPosition.position.set(-thickness * 0.56, 1.14, 0.46);
+      fin.add(tailPosition);
+    }
+
+    if (tier === "ultra") {
+      const beacon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.042, 14, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff4a3e }),
+      );
+      beacon.name = `f14-vertical-tail-anti-collision:${side < 0 ? "port" : "starboard"}:ultra`;
+      // Keep the beacon in fin-local space so the tail's 7.5 degree outward
+      // cant carries the lamp with the skin instead of leaving it suspended.
+      beacon.position.set(side * thickness * 0.56, 1.3, 0.04);
+      fin.add(beacon);
+    }
     const stabilator = createPlanform([
       [side * 0.56, 2.72],
       [side * 2.34, 3.15],
@@ -180,8 +208,89 @@ function addTailSurfaces(parent: THREE.Group, tier: DetailTier) {
   }
 }
 
-function addStaticAirframe(parent: THREE.Group, tier: DetailTier) {
-  const segments = tier === "ultra" ? 30 : tier === "high" ? 18 : 10;
+function addNozzleDetail(parent: THREE.Group, side: number, tier: DetailTier) {
+  // The Tomcat's afterbody has a visibly articulated turkey-feather nozzle.
+  // Concentric toroidal rings keep that shape readable in the Ultra/High
+  // gallery without changing the aircraft's dimensional envelope.
+  const radialSegments = tier === "ultra" ? 10 : tier === "high" ? 8 : 6;
+  const tubularSegments = tier === "ultra" ? 72 : tier === "high" ? 36 : 18;
+  const rings = tier === "low" ? [0.31] : [0.29, 0.36];
+  for (const [index, radius] of rings.entries()) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(
+        radius,
+        tier === "ultra" ? 0.022 : tier === "high" ? 0.018 : 0.014,
+        radialSegments,
+        tubularSegments,
+      ),
+      index === 0 ? aircraftPanelMaterial : titaniumPaint,
+    );
+    ring.name = `f14-nozzle-ring:${side < 0 ? "port" : "starboard"}:${tier}:${index}`;
+    ring.position.set(side * 1.05, -0.1, 4.06);
+    parent.add(ring);
+  }
+}
+
+function addFuselageMarking(
+  parent: THREE.Group,
+  side: number,
+  tier: Exclude<DetailTier, "low">,
+  surfaceMarkings: THREE.Object3D[],
+) {
+  const markingCenterZ = 0.72;
+  // At this station the nacelle section is approximately 0.565 units wide
+  // from its x=+-1.05 centreline. Anchor the decal just outside that skin;
+  // x=+-0.72 sat inside both the lifting body and engine nacelle.
+  const outboardSkinX = 1.05 + 0.565;
+  const skinOffset = 0.008;
+  const marking = configureSurfaceMarking(
+    createNationalMarking("us", tier === "ultra" ? 0.18 : 0.155),
+  );
+  marking.name = `f14-fuselage-marking:${side < 0 ? "port" : "starboard"}:${tier}`;
+  const xAxis = new THREE.Vector3(0, 0, side);
+  const yAxis = new THREE.Vector3(side, 0, 0);
+  const zAxis = new THREE.Vector3(0, 1, 0);
+  marking.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+  marking.position.set(side * (outboardSkinX + skinOffset), -0.165, markingCenterZ);
+  marking.userData.surfaceAnchor = "engine-nacelle-outboard";
+  marking.userData.surfaceOffset = skinOffset;
+  parent.add(marking);
+  surfaceMarkings.push(marking);
+}
+
+function addF14Lights(parent: THREE.Group, tier: DetailTier) {
+  if (tier === "low") return;
+  // Fixed glove position lights remain visible when the variable wings sweep
+  // aft; the wingtip lamps are attached to the moving pivots below.
+  for (const side of [-1, 1]) {
+    for (const y of [0.22, -0.02]) {
+      const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(tier === "ultra" ? 0.045 : 0.035, tier === "ultra" ? 14 : 8, tier === "ultra" ? 8 : 6),
+        new THREE.MeshBasicMaterial({ color: side < 0 ? 0xff473d : 0x54f58a }),
+      );
+      lamp.name = `f14-glove-position-light:${side < 0 ? "port" : "starboard"}:${y > 0 ? "upper" : "lower"}:${tier}`;
+      lamp.position.set(side * 1.92, y, -0.2);
+      parent.add(lamp);
+    }
+  }
+
+  if (tier === "ultra") {
+    const lowerBeacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.048, 14, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff4a3e }),
+    );
+    lowerBeacon.name = "f14-lower-forward-anti-collision:ultra";
+    lowerBeacon.position.set(0, -0.5, -3.65);
+    parent.add(lowerBeacon);
+  }
+}
+
+function addStaticAirframe(
+  parent: THREE.Group,
+  tier: DetailTier,
+  surfaceMarkings: THREE.Object3D[],
+) {
+  const segments = tier === "ultra" ? 72 : tier === "high" ? 40 : 16;
   const fuselage = createLoftedFuselage(fuselageStations().slice(3, -1), fuselagePaint, segments);
   fuselage.name = `f14-forward-fuselage:${tier}`;
   parent.add(fuselage);
@@ -213,13 +322,16 @@ function addStaticAirframe(parent: THREE.Group, tier: DetailTier) {
     nacelle.position.x = side * 1.05;
     nacelle.name = `f14-engine-nacelle:${side < 0 ? "port" : "starboard"}:${tier}`;
     parent.add(nacelle);
+    if (tier !== "low") addFuselageMarking(parent, side, tier, surfaceMarkings);
     addIntake(parent, side, tier);
     const nozzle = createNozzle(0.4, 0.64, tier === "ultra" ? 16 : 12, tier === "ultra");
     nozzle.position.set(side * 1.05, -0.1, 4.05);
     parent.add(nozzle);
+    addNozzleDetail(parent, side, tier);
   }
   addCanopy(parent, tier);
   addTailSurfaces(parent, tier);
+  addF14Lights(parent, tier);
 
   const beaverTailPoints = [
     [-0.72, 2.2],
@@ -270,8 +382,12 @@ function addSwingWing(
 ) {
   const points = [
     [side * 0.48, -0.68],
-    [side * 3.495, -0.5],
-    [side * 3.495, 0],
+    // Solve the two measured Tomcat spans (19.55 m clean, 11.65 m swept)
+    // around the same pivot: local tip x≈4.012 and pivot x≈0.946 in the
+    // 2 m/unit display scale.  Keeping the tip's -0.5 leading-edge station
+    // preserves the characteristic aft-kinked planform.
+    [side * 4.012, -0.5],
+    [side * 4.012, 0],
     [side * 0.48, 0.68],
   ] as const;
   for (const [tier, parent, thickness] of [
@@ -284,7 +400,7 @@ function addSwingWing(
       : createPlanform(points, tier === "low" ? undersidePaint : fuselagePaint, thickness);
     wing.name = `f14-variable-wing:${side < 0 ? "port" : "starboard"}:${tier}`;
     parent.add(wing);
-    if (tier !== "low") {
+    if (tier !== "low" && side < 0) {
       const marking = configureSurfaceMarking(
         createNationalMarking("us", tier === "ultra" ? 0.27 : 0.235),
       );
@@ -293,6 +409,17 @@ function addSwingWing(
       marking.position.set(side * 2.18, thickness * 0.5 + bevelRise + 0.012, -0.22);
       parent.add(marking);
       surfaceMarkings.push(marking);
+    }
+    if (tier !== "low" && side > 0) {
+      const lowerMarking = configureSurfaceMarking(
+        createNationalMarking("us", tier === "ultra" ? 0.27 : 0.235),
+      );
+      lowerMarking.name = `f14-wing-lower-marking:${side < 0 ? "port" : "starboard"}:${tier}`;
+      lowerMarking.rotation.x = Math.PI;
+      const bevelDrop = tier === "ultra" ? 0.032 * 0.72 : 0;
+      lowerMarking.position.set(side * 2.18, -thickness * 0.5 - bevelDrop - 0.012, -0.22);
+      parent.add(lowerMarking);
+      surfaceMarkings.push(lowerMarking);
     }
     if (tier === "ultra") {
       addPanelLine(parent, [side * 1.52, thickness * 0.58, 0.42], [1.38, 0.012, 0.025], [0, 0.16 * side, 0]);
@@ -331,19 +458,22 @@ export function createF14Model() {
   const root = new THREE.Group();
   root.name = "F-14A Tomcat visual rig";
   const tiers = createAircraftTiers(root);
-  addStaticAirframe(tiers.ultra, "ultra");
-  addStaticAirframe(tiers.high, "high");
-  addStaticAirframe(tiers.low, "low");
+  const surfaceMarkings: THREE.Object3D[] = [];
+  addStaticAirframe(tiers.ultra, "ultra", surfaceMarkings);
+  addStaticAirframe(tiers.high, "high", surfaceMarkings);
+  addStaticAirframe(tiers.low, "low", surfaceMarkings);
 
   const variableWings: THREE.Group[] = [];
-  const surfaceMarkings: THREE.Object3D[] = [];
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
     pivot.name = `f14-variable-wing-pivot:${side < 0 ? "port" : "starboard"}`;
-    pivot.position.set(side * 1.603, 0.05, -0.12);
-    pivot.rotation.y = side * WING_SWEEP_MIN_RAD;
+    pivot.position.set(side * 0.946, 0.05, -0.12);
+    // The runtime/gallery assign index 0 = -sweep and index 1 = +sweep.
+    // Store starboard first so both wings rotate aft, matching the real F-14.
+    pivot.rotation.y = -side * WING_SWEEP_MIN_RAD;
+    pivot.userData.wingSweepSign = -side;
     root.add(pivot);
-    variableWings.push(pivot);
+    variableWings.unshift(pivot);
     const branch = createAircraftTierBranch(root, pivot, `f14-variable-wing:${side < 0 ? "port" : "starboard"}`);
     branch.ultra.visible = true;
     branch.high.visible = false;
@@ -366,16 +496,18 @@ export function createF14Model() {
     addGlovePylonVisual(tiers.ultra, station, "ultra");
     addGlovePylonVisual(tiers.high, station, "high");
     addGlovePylonVisual(tiers.low, station, "low");
-    addAirWeaponMount(root, gloveRig, station.id, station.position, {
+    const mount = addAirWeaponMount(root, gloveRig, station.id, station.position, {
       ultraParent: tiers.ultra,
       highParent: tiers.high,
       ultraPieces: [],
       highPieces: [],
     });
+    mount.userData.weaponUpperContactY = TAPERED_PYLON_RAIL_BOTTOM_Y;
+    mount.userData.weaponContactOverlap = 0.008;
   }
 
   for (const station of F14A_TUNNEL_STATIONS) {
-    addAirWeaponMount(root, gloveRig, station.id, station.position, {
+    const mount = addAirWeaponMount(root, gloveRig, station.id, station.position, {
       ultraParent: tiers.ultra,
       highParent: tiers.high,
       ultraPieces: [
@@ -386,9 +518,12 @@ export function createF14Model() {
         { offset: [0, 0.2, 0], size: [0.36, 0.12, 0.92] },
       ],
     });
+    mount.userData.weaponUpperContactY = 0.135;
+    mount.userData.weaponContactOverlap = 0.008;
     addLowMountHardware(tiers.low, station.position, true);
   }
   root.userData.fuselagePalletCount = F14A_TUNNEL_STATIONS.length;
+  root.userData.surfaceMarkings = surfaceMarkings;
 
   const warningTriangles = new THREE.Mesh(
     new THREE.ConeGeometry(0.065, 0.2, 3),
@@ -425,7 +560,6 @@ export function createF14Model() {
     lodNear: 88,
     lodMedium: 250,
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   finished.userData.referenceDimensions = dimensions;
   return finished;
 }
