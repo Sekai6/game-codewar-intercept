@@ -135,6 +135,11 @@ jobs:
                 ;;
             esac
             case "$path" in
+              scripts/verify-air*.mjs|scripts/verify-advanced-air*.mjs|scripts/verify-aew*.mjs|scripts/verify-joint-air.mjs|scripts/verify-mig29*.mjs|scripts/verify-pure-air*.mjs)
+                air=true
+                ;;
+            esac
+            case "$path" in
               src/datalink/*|src/soviet-c2/*)
                 datalink=true
                 ;;
@@ -158,6 +163,16 @@ jobs:
             echo "aar=$aar"
             echo "visual=$visual"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Verify air asset contracts and flight logic
+        if: steps.changes.outputs.air == 'true'
+        run: |
+          npm run verify:asset-detail-lod
+          npm run verify:air-models
+          npm run verify:aew
+          npm run verify:air-weapon-models
+          npm run verify:air-guidance
+          npm run verify:advanced-air-flight
 
       - name: Start browser verification server
         if: >-
@@ -194,15 +209,10 @@ jobs:
           npm run verify:fleet-ship-defense
           npm run verify:fleet-launch-cycle
 
-      - name: Verify air assets, combat, and guidance
+      - name: Verify air browser runtime and combat
         if: steps.changes.outputs.air == 'true'
+        timeout-minutes: 20
         run: |
-          npm run verify:asset-detail-lod
-          npm run verify:air-models
-          npm run verify:aew
-          npm run verify:air-weapon-models
-          npm run verify:air-guidance
-          npm run verify:advanced-air-flight
           npm run verify:advanced-air-bvr-runtime
           npm run verify:air-hardpoints
           npm run verify:air-visuals
