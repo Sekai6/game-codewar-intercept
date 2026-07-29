@@ -9,7 +9,10 @@ import {
 } from "../dist-test/air/models.js";
 import { AIRCRAFT_REFERENCE_DIMENSIONS } from "../dist-test/air/model-assets/dimensions.js";
 import { TAPERED_PYLON_RAIL_BOTTOM_Y } from "../dist-test/air/model-assets/us/geometry.js";
-import { createLoftedFuselageGeometry } from "../dist-test/air/model-assets/model-kit.js";
+import {
+  AIRCRAFT_MODEL_ASSET_REVISION,
+  createLoftedFuselageGeometry,
+} from "../dist-test/air/model-assets/model-kit.js";
 
 const definitions = [
   {
@@ -252,7 +255,7 @@ const result = definitions.map(definition => {
 
 console.log(JSON.stringify(result, null, 2));
 if (result.some((model,index) =>
-  model.modelAssetVersion !== "v1.1-ultra" ||
+  model.modelAssetVersion !== AIRCRAFT_MODEL_ASSET_REVISION ||
   !model.sharedLoftOutwardNormals.valid ||
   !model.validTags || !model.noLegacyDorsalBrake || !model.qualityAware || !model.triangleBudgetValid || !model.tierDetailMonotonic || !model.tierReductionMeaningful ||
   !model.tierGeometryIndependent || !model.tierDimensionsValid ||

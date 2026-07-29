@@ -560,7 +560,6 @@ export function createF14Model() {
     lodNear: 88,
     lodMedium: 250,
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   finished.userData.referenceDimensions = dimensions;
   return finished;
 }

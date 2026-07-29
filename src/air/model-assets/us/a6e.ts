@@ -651,7 +651,6 @@ export function createA6Model() {
     lodNear: 84,
     lodMedium: 240,
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   finished.userData.referenceDimensions = dimensions;
   return finished;
 }

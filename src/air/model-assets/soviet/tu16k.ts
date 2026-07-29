@@ -565,7 +565,6 @@ export function createTu16Model() {
     lodNear: 108,
     lodMedium: 310,
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   finished.userData.referenceDimensions = dimensions;
   return finished;
 }

@@ -1,6 +1,6 @@
 # Platforms
 
-> v1.1.0 · 2026-07-26
+> v1.15.0 · 2026-07-29
 
 [Wiki home](../README.md) | [中文](../../PLATFORMS/README.md)
 
@@ -21,9 +21,9 @@
 
 E-2C Hawkeye and Tu-126 Moss are AEW entities with their own flight state, radar scan, track store, command behavior, damage, and datalink/C2 boundaries. Soviet aircraft do not receive Link 16.
 
-v1.1.0 puts all six aircraft on one 2 m/unit visual scale and gives each aircraft independently constructed Ultra, High, and Low geometry. Relative size, silhouette, attachment anchors, and AEW animation are part of the asset acceptance scope; flight AI, weapon outcomes, and joint combat still require separate runtime evidence.
+v1.15.0 applies a second refinement pass on top of the common 2 m/unit visual scale and independently constructed Ultra, High, and Low geometry. Relative size, silhouette, store contact, outward normals, nozzles, and AEW animation are part of the asset acceptance scope; flight AI, weapon outcomes, and joint combat still require separate runtime evidence.
 
-## v1.1.0 model acceptance focus
+## v1.15.0 model acceptance focus
 
 | Platform | Shape and animation focus | Store/function boundary |
 |---|---|---|

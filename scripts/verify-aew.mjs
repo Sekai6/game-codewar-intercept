@@ -3,6 +3,7 @@ import { AEW_PLATFORM_DEFINITIONS } from "../dist-test/air/aew/catalog.js";
 import { aewOrbitDirection, updateAewModelAnimation } from "../dist-test/air/aew/mission.js";
 import { AewCommandNetwork } from "../dist-test/air/aew/command-network.js";
 import { AIRCRAFT_REFERENCE_DIMENSIONS } from "../dist-test/air/model-assets/dimensions.js";
+import { AIRCRAFT_MODEL_ASSET_REVISION } from "../dist-test/air/model-assets/model-kit.js";
 
 function tierStats(objects) {
   const meshes = new Set();
@@ -98,7 +99,7 @@ const result={models,platforms:AEW_PLATFORM_DEFINITIONS.map(definition=>({id:def
 console.log(JSON.stringify(result,null,2));
 const e2=models.find(model=>model.id==="E-2C"),tu126=models.find(model=>model.id==="TU-126");
 if(!byId["E-2C"]||!byId["TU-126"]||byId["TU-126"].radarCrossSection<=byId["E-2C"].radarCrossSection*5||
-  models.some(model=>model.version!=="v1.1-ultra"||!model.rotodome||!model.qualityAware||!model.triangleBudgetValid||!model.tierDetailMonotonic||!model.tierReductionMeaningful||!model.tierGeometryIndependent||!model.tierDimensionsValid||!model.dimensionsValid)||
+  models.some(model=>model.version!==AIRCRAFT_MODEL_ASSET_REVISION||!model.rotodome||!model.qualityAware||!model.triangleBudgetValid||!model.tierDetailMonotonic||!model.tierReductionMeaningful||!model.tierGeometryIndependent||!model.tierDimensionsValid||!model.dimensionsValid)||
   e2?.propellers!==2||e2?.assemblyCount!==6||e2?.rotorCounts.join(",")!=="1"||
   tu126?.propellers!==4||tu126?.assemblyCount!==12||tu126?.rotorCounts.join(",")!=="2"||!tu126?.counterRotation||
   result.platforms.some(platform=>platform.mission!=="aew"||platform.coverage!=="rotating-360"||platform.fov!==360||platform.ammo!==0||platform.hardpoints!==0)||

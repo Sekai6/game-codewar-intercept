@@ -6,6 +6,7 @@ import { registerAssetDetailLod } from "../../visual/asset-detail-lod.js";
 // aircraft uses the same 2 m/unit display scale so their relative sizes stay
 // physically meaningful (especially Tu-16K and Tu-126 versus fighters).
 export const AIR_MODEL_METERS_PER_UNIT = 2;
+export const AIRCRAFT_MODEL_ASSET_REVISION = "aircraft-ultra-r2";
 export const metersToModel = (meters: number) => meters / AIR_MODEL_METERS_PER_UNIT;
 
 export type Vec3Tuple = readonly [number, number, number];
@@ -478,6 +479,7 @@ export function finishAircraftModel(
   group.userData.realLengthMeters = options.realLengthMeters;
   group.userData.realWingspanMeters = options.realWingspanMeters;
   group.userData.modelMetersPerUnit = AIR_MODEL_METERS_PER_UNIT;
+  group.userData.modelAssetVersion = AIRCRAFT_MODEL_ASSET_REVISION;
   group.userData.detailTags = [...options.detailTags];
   const tierMembers = group.userData.modelTierMembers as AircraftTierMembers;
   registerAssetDetailLod(group, {

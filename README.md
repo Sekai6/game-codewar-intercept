@@ -2,8 +2,8 @@
 
 **冷战海空联合交战与导弹拦截 3D 沙盘。** 从雷达探测、航迹质量、数据链和火控授权，到实体发射器、分阶段制导、电子战、毁伤与 AAR，整条交战链都可以观察和复核。
 
-> 文档数据戳：v1.1.0 · 2026-07-26<br>
-> 本页描述 v1.1.0 当前实现；后续版本可能调整机制、画面和单位数据。
+> 文档数据戳：v1.15.0 · 2026-07-29<br>
+> 本页描述 v1.15.0 当前实现；后续版本可能调整机制、画面和单位数据。
 
 ## 在线演示
 
@@ -11,7 +11,7 @@
 
 无需安装。推荐使用桌面版 Edge 或 Chrome；首次加载及着色器编译可能需要数秒。性能有限时使用 High 画质，WebGPU Ultra、计算云和 FFT 海洋属于实验性高负载功能。
 
-[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [v1.1.0 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.1.0)
+[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [V1.15 发布说明](CHANGELOG.md)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -40,9 +40,9 @@ NTU Intercept 是一个基于 TypeScript、Three.js 与 Vite 的冷战海空联�
 
 [English](README_EN.md) | [机制手册](docs/zh/SIMULATION.md) | [架构与扩展](docs/zh/ARCHITECTURE.md) | [操作与 AAR](docs/zh/OPERATIONS.md) | [验证与发布](docs/zh/VERIFICATION.md) | [Wiki](wiki/README.md)
 
-## v1.1.0 空中资产升级
+## v1.15.0 空中资产精修
 
-v1.1.0 重建了 F-14A、A-6E、MiG-29A、Tu-16K、E-2C 和 Tu-126 六型程序化飞机。所有机型采用统一的**视觉相对尺度 2 米/单位**，因此战斗机、轰炸机与大型预警机之间的尺寸关系不再由单机特例决定。每型飞机分别构建 Ultra、High、Low 三套独立几何；Ultra 会按视距降级，High 与 Low 画质也会选择对应资产，而不是共享同一高模后只隐藏装饰件。
+v1.15.0 在 v1.1.0 资产基础上再次精修 F-14A、A-6E、MiG-29A、Tu-16K、E-2C 和 Tu-126 六型程序化飞机。所有机型继续采用统一的**视觉相对尺度 2 米/单位**，因此战斗机、轰炸机与大型预警机之间的尺寸关系不再由单机特例决定。每型飞机分别构建 Ultra、High、Low 三套独立几何；Ultra 会按视距降级，High 与 Low 画质也会选择对应资产，而不是共享同一高模后只隐藏装饰件。
 
 - F-14A 的机翼可在 20°–68°之间后掠；翼套挂架与机腹挂板固定在机体坐标系，不随可变翼旋转。
 - A-6E 包含并列座舱、D 形肩部进气道、TRAM 炮塔和五个可见挂架；当前两处反舰武器锚点承载 AGM-84A。
@@ -145,7 +145,7 @@ scripts/           逻辑、浏览器、截图和回归验证
 
 ## 项目状态
 
-当前发布为 `v1.1.0`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本线为 `v1.15.0`，网页 HUD 显示 `V1.15`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 

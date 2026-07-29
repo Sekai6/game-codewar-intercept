@@ -570,6 +570,5 @@ export function createE2cModel() {
       "carrier-aew",
     ],
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   return finished;
 }

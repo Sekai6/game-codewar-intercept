@@ -655,6 +655,5 @@ export function createTu126Model() {
   finished.userData.rotodomeDiameter = DIMENSIONS.modelRotodomeDiameter;
   finished.userData.rotodomeThickness = DIMENSIONS.modelRotodomeThickness;
   finished.userData.rotodomeSupportHeight = DIMENSIONS.modelRotodomeSupportHeight;
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   return finished;
 }

@@ -648,7 +648,6 @@ export function createMig29Model() {
     lodNear: 82,
     lodMedium: 235,
   });
-  finished.userData.modelAssetVersion = "v1.1-ultra";
   finished.userData.referenceDimensions = dimensions;
   return finished;
 }

@@ -1,6 +1,6 @@
 # MiG-29A Fulcrum-A
 
-> 数据快照：v1.1.0 · 2026-07-26 | [English](../en/PLATFORMS/MIG29A_FULCRUM.md)
+> 数据快照：v1.15.0 · 2026-07-29 | [English](../en/PLATFORMS/MIG29A_FULCRUM.md)
 
 苏联前线截击战斗机，默认挂载 R-27R 和 R-73，通过本机 N019 航迹或 Tu-126/GCI 提示执行拦截。它不接入 Link 16，GCI 指令只提供带误差的截击点、速度和雷达开机距离。
 
