@@ -11,7 +11,7 @@
 
 No installation is required. Desktop Edge or Chrome is recommended. Initial asset and shader compilation may take several seconds. Use High quality on limited hardware; WebGPU Ultra, compute clouds, and the FFT ocean are experimental high-load features.
 
-[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [V1.15 release notes](CHANGELOG.md)
+[中文](README.md) · [English Wiki](wiki/en/README.md) · [Chinese Wiki](wiki/README.md) · [V1.15 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.15.0) · [Changelog](CHANGELOG.md)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 

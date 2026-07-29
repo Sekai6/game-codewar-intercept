@@ -6,7 +6,13 @@ Soviet maritime-strike bomber with Rubin-1K radar and one KSR-5 assigned to a co
 
 It follows approach and release orders, launches through its physical hardpoint, then turns away. Defensive maneuver is deliberately limited by bomber aerodynamics; it may use ECM, chaff, and flares but has no Link 16 or fighter-style afterburner.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![Tu-16K Badger-G v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/tu-16k-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the faceted glazed nose, swept wing, integrated root nacelles, tail guns, and under-wing KSR-5 carriage.*
+
+## v1.15.0 procedural asset
 
 The model uses the 34.8 m length and 33 m span relationship on the common 2 m/unit visual scale, with independently built Ultra, High, and Low geometry. The rebuild includes the faceted glazed nose, strongly swept wing, integrated wing-root engine nacelles, aft radar fairing, twin-gun tail turret, and heavy under-wing KSR carrier beams.
 

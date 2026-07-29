@@ -6,7 +6,13 @@ US carrier AEW aircraft modeled as an independent, targetable air entity. It sca
 
 The E-2C does not grant magical weapon authority. Fighters still require their own acquisition and weapon conditions. Damage, loss of radar, network degradation, or destruction removes or degrades its contribution.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![E-2C Hawkeye v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/e-2c-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the high wing, proportioned rotodome, four-fin tail, segmented cockpit, and two four-blade T56 propellers.*
+
+## v1.15.0 procedural asset
 
 The model uses the 17.6 m length and 24.56 m span relationship on the common 2 m/unit visual scale, with independently built Ultra, High, and Low geometry. The represented NTU/AN/APS-125-era configuration includes the high wing, proportioned 7.315 m rotodome, four-fin tail, segmented cockpit glazing, and two four-blade T56 propellers.
 

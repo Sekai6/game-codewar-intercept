@@ -2,9 +2,15 @@
 
 > Data snapshot: v1.15.0 · 2026-07-29
 
-双机 CAP/截击平台。可携带 AIM-54A、AIM-7F 和 AIM-9L，拥有三维飞行、编队、雷达航迹、加力和导弹告警机动。目录入口：`src/air/catalog.ts`；模型验证：`verification-aircraft-f-14a-ultra.png`。
+双机 CAP/截击平台。可携带 AIM-54A、AIM-7F 和 AIM-9L，拥有三维飞行、编队、雷达航迹、加力和导弹告警机动。目录入口：`src/air/catalog.ts`；模型截图见下方 Ultra 资产验收视图。
 
-## v1.1 程序化模型
+## v1.15.0 Ultra 模型截图
+
+![F-14A Tomcat v1.15.0 Ultra 后上方模型视图](../assets/aircraft/v1.15.0/f-14a-ultra-rear-quarter.png)
+
+*v1.15.0 Ultra 资产验收视图：展示 20°后掠翼、双垂尾、进气道、固定翼套挂架、机腹挂板与完整空战挂载。*
+
+## v1.15.0 程序化模型
 
 模型按 19.13 米机长、19.55 米最大翼展的参考关系，以统一 2 米/单位视觉尺度构建。Ultra、High、Low 是三套独立几何，均保持机体长度与翼展容差；近距离层包含串列座舱、双短舱、双垂尾、全动平尾、腹鳍和表面标识。
 

@@ -6,7 +6,13 @@ All-weather anti-ship strike aircraft with AN/APQ-148 radar and two AGM-84A Harp
 
 Its mission logic favors low-altitude approach, physical hardpoint release, and egress. It does not behave as an air-superiority fighter and has no fighter-style afterburner regime.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![A-6E Intruder v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/a-6e-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the blunt radome, side-by-side cockpit, shoulder intakes, TRAM, five visible pylons, and AGM-84A mission stores.*
+
+## v1.15.0 procedural asset
 
 The model uses the 16.69 m length and 16.15 m span relationship on the common 2 m/unit visual scale, with independently constructed Ultra, High, and Low geometry. Identifying features include the blunt radome, side-by-side cockpit, D-shaped shoulder intakes, TRAM turret, swept folding-wing shape, closed wingtip speed brakes, and five visible pylons.
 
