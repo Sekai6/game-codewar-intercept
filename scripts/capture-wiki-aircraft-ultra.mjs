@@ -7,6 +7,10 @@ const platformChromePaths = {
   darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   linux: "/usr/bin/google-chrome",
 };
+const chromePath = process.env.CHROME_PATH ?? platformChromePaths[process.platform];
+if (!chromePath) {
+  throw new Error(`Unsupported platform ${process.platform}; set CHROME_PATH to a Chromium executable.`);
+}
 const aircraft = [
   { type: "F-14A", slug: "f-14a", stores: true, sweep: "20" },
   { type: "A-6E", slug: "a-6e", stores: true },
@@ -20,7 +24,7 @@ await mkdir(outputRoot, { recursive: true });
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: process.env.CHROME_PATH ?? platformChromePaths[process.platform],
+  executablePath: chromePath,
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
 const runtimeErrors = [];
