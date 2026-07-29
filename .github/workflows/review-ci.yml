@@ -194,12 +194,20 @@ jobs:
           npm run verify:fleet-ship-defense
           npm run verify:fleet-launch-cycle
 
-      - name: Verify air combat and guidance
+      - name: Verify air assets, combat, and guidance
         if: steps.changes.outputs.air == 'true'
         run: |
+          npm run verify:asset-detail-lod
+          npm run verify:air-models
+          npm run verify:aew
+          npm run verify:air-weapon-models
           npm run verify:air-guidance
           npm run verify:advanced-air-flight
           npm run verify:advanced-air-bvr-runtime
+          npm run verify:air-hardpoints
+          npm run verify:air-visuals
+          npm run verify:aircraft-sam-damage
+          npm run verify:joint-air
 
       - name: Verify datalink and Soviet C2
         if: steps.changes.outputs.datalink == 'true'
