@@ -6,7 +6,13 @@ Soviet AEW/controller aircraft represented independently from US network doctrin
 
 Commands contain estimated intercept points, quality, uncertainty, commanded speed, radar-activation range, delivery delay, and expiry. Receiving fighters still need organic radar and weapon-quality acquisition before firing.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![Tu-126 Moss v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/tu-126-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the Tu-114-derived airframe, Liana rotodome, refueling probe, and four NK-12 contra-rotating propeller installations.*
+
+## v1.15.0 procedural asset
 
 The model uses the reference relationship of 57.3 m overall length including the refueling probe, 51.1 m span, and an 11 m Liana rotodome on the common 2 m/unit visual scale. Ultra, High, and Low are independently constructed. The silhouette includes the Tu-114-derived swept wing, refueling probe, ventral fin, rotodome support, and late-series tail ECM fairing.
 

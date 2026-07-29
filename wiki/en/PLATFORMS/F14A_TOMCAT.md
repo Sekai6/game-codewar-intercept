@@ -6,7 +6,13 @@ Fleet-air-defense CAP fighter with AN/AWG-9 radar and 4 AIM-54A, 2 AIM-7F, and 2
 
 The AI performs track-based OODA, BVR launch-zone evaluation, illumination/channel management, formation behavior, energy-limited maneuver, threat response, countermeasure release, and fuel-aware cruise/military/afterburner selection. Variable-sweep wings and tail effects follow aircraft state.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![F-14A Tomcat v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/f-14a-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the 20-degree wing position, twin tails, intake geometry, fixed glove stations, fuselage pallets, and complete air-combat loadout.*
+
+## v1.15.0 procedural asset
 
 The model uses the 19.13 m length and 19.55 m maximum-span relationship on the common 2 m/unit visual scale. Ultra, High, and Low are independently constructed geometry and retain the reference silhouette within tier-specific tolerances. The close tier includes the tandem canopy, twin nacelles and tails, stabilators, ventral fins, and tier-owned markings.
 

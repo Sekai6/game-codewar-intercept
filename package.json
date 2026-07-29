@@ -68,6 +68,7 @@
     "verify:air-visuals": "node scripts/verify-air-visuals.mjs",
     "capture:aircraft-assets-ultra": "node scripts/capture-aircraft-assets-ultra.mjs",
     "capture:aircraft-lod-gallery": "node scripts/capture-aircraft-lod-gallery.mjs",
+    "capture:wiki-aircraft-ultra": "node scripts/capture-wiki-aircraft-ultra.mjs",
     "capture:air-weapon-assets-ultra": "node scripts/capture-air-weapon-assets-ultra.mjs",
     "capture:ship-interceptor-assets-ultra": "node scripts/capture-ship-interceptor-assets-ultra.mjs",
     "capture:threat-assets-ultra": "node scripts/capture-threat-assets-ultra.mjs",

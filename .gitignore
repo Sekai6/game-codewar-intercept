@@ -6,6 +6,7 @@ KEYS/
 *.png
 !readme-cg57-ultra-aurora.png
 !verification-fleet-launch-cycle.png
+!wiki/assets/**/*.png
 
 # Local development artifacts
 *.log

@@ -4,7 +4,13 @@
 
 Soviet front-line interceptor using its N019 track store or uncertain Tu-126/GCI cues. It carries four R-27R and two R-73 missiles, has one illumination channel, and never participates in Link 16.
 
-## v1.1 procedural asset
+## v1.15.0 Ultra asset view
+
+![MiG-29A Fulcrum-A v1.15.0 Ultra rear-quarter asset view](../../assets/aircraft/v1.15.0/mig-29a-ultra-rear-quarter.png)
+
+*V1.15 Ultra acceptance view showing the LERX, separate engine channels, IRST, canted twin tails, and the R-27R/R-73 loadout.*
+
+## v1.15.0 procedural asset
 
 The model uses the 17.32 m length and 11.36 m span relationship on the common 2 m/unit visual scale, with separately built Ultra, High, and Low geometry. Its silhouette includes the 73.5° LERX, 42° main wing, continuous dorsal spine, separate engine channels, auxiliary intake doors, canted twin tails, and IRST.
 
