@@ -2,6 +2,11 @@ import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright-core";
 
 const outputRoot = "wiki/assets/aircraft/v1.15.0";
+const platformChromePaths = {
+  win32: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  linux: "/usr/bin/google-chrome",
+};
 const aircraft = [
   { type: "F-14A", slug: "f-14a", stores: true, sweep: "20" },
   { type: "A-6E", slug: "a-6e", stores: true },
@@ -15,10 +20,11 @@ await mkdir(outputRoot, { recursive: true });
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.CHROME_PATH ?? platformChromePaths[process.platform],
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
-const errors = [];
+const runtimeErrors = [];
+const warnings = [];
 const results = [];
 
 try {
@@ -27,9 +33,15 @@ try {
     deviceScaleFactor: 1,
   });
   page.on("console", message => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() === "error") {
+      runtimeErrors.push({ source: "console", message: message.text() });
+    } else if (message.type() === "warning") {
+      warnings.push(message.text());
+    }
   });
-  page.on("pageerror", error => errors.push(error.message));
+  page.on("pageerror", error => {
+    runtimeErrors.push({ source: "pageerror", message: error.message });
+  });
 
   const appUrl = new URL(process.env.APP_URL ?? "http://127.0.0.1:5173/");
   const galleryBase = new URL("aircraft-gallery.html", appUrl);
@@ -59,14 +71,14 @@ try {
     results.push({ ...stats, path });
   }
 
-  console.log(JSON.stringify({ captured: results.length, results, errors }, null, 2));
+  console.log(JSON.stringify({ captured: results.length, results, runtimeErrors, warnings }, null, 2));
   const invalid = results.some((result, index) =>
     result.type !== aircraft[index].type ||
     result.quality !== "ultra" ||
     result.view !== "rear-quarter" ||
     result.triangles < 10_000 ||
     (aircraft[index].stores && result.mountedWeapons.length === 0));
-  if (results.length !== aircraft.length || invalid || errors.length) process.exitCode = 1;
+  if (results.length !== aircraft.length || invalid || runtimeErrors.length) process.exitCode = 1;
 } finally {
   await browser.close();
 }
