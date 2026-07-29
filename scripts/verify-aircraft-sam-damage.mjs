@@ -5,7 +5,9 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+// Damage evidence is telemetry-only; avoid paying for SSAO in Linux
+// SwiftShader while the ship-defense loop advances.
+const page = await browser.newPage({ viewport: { width: 720, height: 405 } });
 const errors = [];
 page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
 page.on("pageerror", error => errors.push(error.message));
@@ -28,7 +30,7 @@ try {
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
   try {
-    await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airDamageEventLog ?? "").includes("Tu-16K"), null, { timeout: 45_000 });
+    await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airDamageEventLog ?? "").includes("Tu-16K"), null, { timeout: 150_000 });
   } catch (error) {
     const diagnostic = await page.locator("#scene").evaluate(c => ({
       elapsed:c.dataset.simulationElapsed ?? "",

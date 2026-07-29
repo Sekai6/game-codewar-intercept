@@ -6,7 +6,12 @@ const browser = await chromium.launch({
   args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // Preserve full-size local review captures while keeping CI's software
+  // renderer below the normal SSAO threshold.
+  const viewport = process.env.CI === "true"
+    ? { width: 720, height: 405 }
+    : { width: 1440, height: 900 };
+  const page = await browser.newPage({ viewport });
   const errors = [];
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   page.on("pageerror", (error) => errors.push(error.message));
