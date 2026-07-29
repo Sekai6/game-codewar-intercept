@@ -88,29 +88,52 @@ function isDescendantOfAny(object, roots) {
 }
 
 function sharedLoftNormalsFaceOutward() {
-  const geometry = createLoftedFuselageGeometry([
-    { z:-1, radiusX:1, radiusY:.7 },
-    { z:0, radiusX:1, radiusY:.7 },
-    { z:1, radiusX:1, radiusY:.7 },
-  ], 24);
+  const stations = [
+    { z:-1, radiusX:.65, radiusY:.45, centerY:-.08 },
+    { z:0, radiusX:.9, radiusY:.65, centerY:0 },
+    { z:1, radiusX:1.15, radiusY:.85, centerY:.08 },
+  ];
+  const radialSegments = 32;
+  const geometry = createLoftedFuselageGeometry(stations, radialSegments);
   const positions = geometry.getAttribute("position");
   const normals = geometry.getAttribute("normal");
-  let minimumRadialDot = Infinity;
+  let minimumOutwardDot = Infinity;
+  let maximumExpectedAxial = 0;
+  let maximumNormalAxial = 0;
   for (let index = 0; index < positions.count; index++) {
+    const stationIndex = Math.floor(index / radialSegments);
+    const station = stations[stationIndex];
+    const previous = stations[Math.max(0, stationIndex - 1)];
+    const next = stations[Math.min(stations.length - 1, stationIndex + 1)];
+    const deltaZ = Math.max(1e-6, next.z - previous.z);
+    const radiusXSlope = (next.radiusX - previous.radiusX) / deltaZ;
+    const radiusYSlope = (next.radiusY - previous.radiusY) / deltaZ;
+    const centerYSlope = ((next.centerY ?? 0) - (previous.centerY ?? 0)) / deltaZ;
+    const x = positions.getX(index);
+    const localY = positions.getY(index) - (station.centerY ?? 0);
     const outward = new THREE.Vector3(
-      positions.getX(index),
-      positions.getY(index) / (.7 * .7),
-      0,
+      x / (station.radiusX * station.radiusX),
+      localY / (station.radiusY * station.radiusY),
+      -x * x * radiusXSlope / (station.radiusX ** 3) -
+        localY * centerYSlope / (station.radiusY * station.radiusY) -
+        localY * localY * radiusYSlope / (station.radiusY ** 3),
     ).normalize();
     const normal = new THREE.Vector3(
       normals.getX(index),
       normals.getY(index),
       normals.getZ(index),
     ).normalize();
-    minimumRadialDot = Math.min(minimumRadialDot, outward.dot(normal));
+    minimumOutwardDot = Math.min(minimumOutwardDot, outward.dot(normal));
+    maximumExpectedAxial = Math.max(maximumExpectedAxial, Math.abs(outward.z));
+    maximumNormalAxial = Math.max(maximumNormalAxial, Math.abs(normal.z));
   }
   geometry.dispose();
-  return { valid:minimumRadialDot > .92, minimumRadialDot:Number(minimumRadialDot.toFixed(4)) };
+  return {
+    valid:minimumOutwardDot > .9 && maximumExpectedAxial > .1 && maximumNormalAxial > .08,
+    minimumOutwardDot:Number(minimumOutwardDot.toFixed(4)),
+    maximumExpectedAxial:Number(maximumExpectedAxial.toFixed(4)),
+    maximumNormalAxial:Number(maximumNormalAxial.toFixed(4)),
+  };
 }
 
 const sharedLoftOutwardNormals = sharedLoftNormalsFaceOutward();

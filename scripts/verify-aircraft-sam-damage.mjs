@@ -15,6 +15,12 @@ try {
   // The damage assertion is specifically for the ship-SAM path.  Pin an
   // actual launcher-owning ship instead of relying on the setup panel's
   // previously selected/default platform.
+  const ticonderogaOption = page.locator("#sbShip option[value='ticonderoga']");
+  if (await ticonderogaOption.count() === 0) {
+    const availableShips = await page.locator("#sbShip option").evaluateAll(options =>
+      options.map(option => `${option.value}:${option.textContent?.trim() ?? ""}`));
+    throw new Error(`ticonderoga ship option not found; available=${availableShips.join("|")}`);
+  }
   await page.locator("#sbShip").selectOption("ticonderoga");
   await page.locator("#sbAirPreset").selectOption("intercept");
   await page.locator("#sbAirCombat").check();
