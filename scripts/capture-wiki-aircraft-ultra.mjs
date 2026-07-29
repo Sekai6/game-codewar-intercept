@@ -71,14 +71,38 @@ try {
     results.push({ ...stats, path });
   }
 
-  console.log(JSON.stringify({ captured: results.length, results, runtimeErrors, warnings }, null, 2));
-  const invalid = results.some((result, index) =>
-    result.type !== aircraft[index].type ||
-    result.quality !== "ultra" ||
-    result.view !== "rear-quarter" ||
-    result.triangles < 10_000 ||
-    (aircraft[index].stores && result.mountedWeapons.length === 0));
-  if (results.length !== aircraft.length || invalid || runtimeErrors.length) process.exitCode = 1;
+  const validationFailures = [];
+  if (results.length !== aircraft.length) {
+    validationFailures.push(`expected ${aircraft.length} captures, received ${results.length}`);
+  }
+  for (const [index, expected] of aircraft.entries()) {
+    const result = results[index];
+    if (!result) continue;
+    if (result.type !== expected.type) {
+      validationFailures.push(`${expected.type}: gallery reported ${result.type}`);
+    }
+    if (result.quality !== "ultra") {
+      validationFailures.push(`${expected.type}: expected Ultra quality, received ${result.quality}`);
+    }
+    if (result.view !== "rear-quarter") {
+      validationFailures.push(`${expected.type}: expected rear-quarter view, received ${result.view}`);
+    }
+    if (result.triangles < 10_000) {
+      validationFailures.push(`${expected.type}: only ${result.triangles} visible triangles`);
+    }
+    if (expected.stores && result.mountedWeapons.length === 0) {
+      validationFailures.push(`${expected.type}: expected mounted stores but none were reported`);
+    }
+  }
+
+  console.log(JSON.stringify({
+    captured: results.length,
+    results,
+    validationFailures,
+    runtimeErrors,
+    warnings,
+  }, null, 2));
+  if (validationFailures.length || runtimeErrors.length) process.exitCode = 1;
 } finally {
   await browser.close();
 }
