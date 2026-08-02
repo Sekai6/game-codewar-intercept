@@ -4,9 +4,15 @@ import { chromium } from "playwright-core";
 const outputRoot = process.env.SURFACE_GALLERY_OUTPUT ?? "verification-surface-platform-lod";
 await mkdir(outputRoot, { recursive: true });
 
+const defaultChromePath = process.platform === "win32"
+  ? "C:/Program Files/Google/Chrome/Application/chrome.exe"
+  : process.platform === "darwin"
+    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    : "/usr/bin/google-chrome";
+
 const browser = await chromium.launch({
   headless: true,
-  executablePath: process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.CHROME_PATH ?? defaultChromePath,
   args: ["--renderer-process-limit=1", "--disable-background-networking"],
 });
 

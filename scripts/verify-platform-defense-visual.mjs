@@ -133,6 +133,9 @@ await page.locator("#sbOpforDecoyHealth").fill("0");
   Math.abs(state.lastTraverseError) > state.lastAlignmentTolerance + 0.001 ||
   state.lastAlignmentTolerance <= 0 ||
   state.effectiveChannels !== 2 ||
+  // Every authorized point-defense shot decrements the platform-owned
+  // engagement budget in the same authorization transaction.  Keep this
+  // equality strict so a visual event cannot drift away from resource state.
   state.engagementsRemaining !== 6 - state.shots ||
   state.incomingTracks < 1 ||
   !sectorChecks.bowCoveredStarboard ||
