@@ -113,6 +113,7 @@ import type {
   AirTrack,
   AirWeaponId,
 } from "./types";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -259,7 +260,7 @@ function instantiate(
     velocity: spawn.heading
       .clone()
       .normalize()
-      .multiplyScalar(spawn.definition.flight.cruiseSpeed),
+      .multiplyScalar(spawn.initialSpeed ?? spawn.definition.flight.cruiseSpeed),
     radarCrossSection: spawn.definition.radarCrossSection,
     infraredSignature: spawn.definition.infraredSignature,
     alive: true,
@@ -317,6 +318,12 @@ function instantiate(
     countermeasurePrograms: [],
     formationStatus: spawn.formationIndex === 0 ? "joined" : "rejoining",
     formationError: 0,
+    scenarioRoute: spawn.scenarioRoute?.map((point) => point.clone()) ?? [],
+    scenarioRouteLoop: spawn.scenarioRouteLoop ?? false,
+    scenarioRouteIndex: 0,
+    scenarioLaunchZone: spawn.scenarioLaunchZone
+      ? { center:spawn.scenarioLaunchZone.center.clone(), radius:spawn.scenarioLaunchZone.radius }
+      : null,
   };
 }
 
@@ -341,6 +348,14 @@ export class AirCombatSystem {
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
+  setSpaceWeather(snapshot: SpaceWeatherSnapshot | null) {
+    this.link11.setPropagationSnapshot(snapshot);
+    this.link16.setPropagationSnapshot(snapshot);
+    this.aewCommandNetwork.setPropagationSnapshot(snapshot);
+    this.sovietGci.setPropagationSnapshot(snapshot);
+    this.sovietMaritimeTargeting.setPropagationSnapshot(snapshot);
+    this.sovietFleetCommand.setPropagationSnapshot(snapshot);
+  }
   private readonly aewCommandNetwork = new AewCommandNetwork();
   private readonly seenAewCommands = new Set<string>();
   private readonly sovietGci = new SovietGciNetwork();
@@ -364,6 +379,7 @@ export class AirCombatSystem {
   private readonly tacticalNetworkDecisions: TacticalNetworkDecisionView[] = [];
   private readonly tacticalNetworkDecisionKeys = new Set<string>();
   private tacticalNetworkDecisionSerial = 0;
+  private readonly lostCommsFormations = new Map<string, { behavior: string; enteredAt: number }>();
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
   private externalTargets: readonly TargetableEntity[] = [];
@@ -405,6 +421,9 @@ export class AirCombatSystem {
     spawns: readonly AirSpawn[],
   ) {
     this.disposeObjects();
+    // A scenario reset must not leak the previous environment into a legacy
+    // or newly loaded scenario before its first weather snapshot is applied.
+    this.setSpaceWeather(null);
     this.serial = 0;
     this.standardDamageApplications = 0;
     this.perceptionBindings.clear();
@@ -433,6 +452,7 @@ export class AirCombatSystem {
     this.tacticalNetworkDecisions.length = 0;
     this.tacticalNetworkDecisionKeys.clear();
     this.tacticalNetworkDecisionSerial = 0;
+    this.lostCommsFormations.clear();
     const protectedFormations = new Map<string, string>();
     for (const spawn of spawns) {
       const p = instantiate(spawn, ++this.serial, (id, damage, point) => {
@@ -497,8 +517,15 @@ export class AirCombatSystem {
     this.disposeObjects();
     this.scene.remove(this.group);
   }
-  private emit(time: number, kind: AirCombatEvent["kind"], text: string) {
-    this.events.push({ time, kind, text });
+  private emit(time: number, kind: AirCombatEvent["kind"], text: string, metadata: Omit<AirCombatEvent, "time" | "kind" | "text"> = {}) {
+    this.events.push({ time, kind, text, ...metadata });
+  }
+  setFormationLostComms(formationId: string, behavior: string | null, enteredAt = this.currentTime) {
+    if (behavior) this.lostCommsFormations.set(formationId, { behavior, enteredAt });
+    else this.lostCommsFormations.delete(formationId);
+  }
+  lostCommsDiagnostics() {
+    return [...this.lostCommsFormations].map(([formationId, state]) => ({ formationId, ...state }));
   }
   drainEvents() {
     const out = this.events.slice(this.lastEventIndex);
@@ -1184,7 +1211,11 @@ export class AirCombatSystem {
   }
 
   private strikeCommandAllowsRelease(a: AirPlatformInstance, time: number) {
+    if (a.scenarioLaunchZone && a.position.distanceTo(a.scenarioLaunchZone.center) > a.scenarioLaunchZone.radius)
+      return false;
     if (a.side !== "red" || a.mission !== "anti-ship") return true;
+    const lostComms = this.lostCommsFormations.get(a.formationId);
+    if (lostComms?.behavior === "preplanned-raid") return true;
     if (!this.sovietFleetCommand.diagnostics(time).enabled) return true;
     const order = this.fleetOrderForAircraft(a, time);
     if (!order) return time >= 15;
@@ -1777,6 +1808,15 @@ export class AirCombatSystem {
           time,
           "launch",
           `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM`,
+          {
+            side:aircraft.side,
+            platformId:aircraft.formationId,
+            entityId:aircraft.id,
+            launchId:missile.id,
+            weaponId:weapon.id,
+            launcherId:hardpoint.id,
+            targetTrackId:missile.targetId,
+          },
         );
       }
     }
@@ -2345,8 +2385,12 @@ export class AirCombatSystem {
         target = missionTrack
           ? this.targetById(missionTrack.targetId, context)
           : undefined;
-      a.targetId = track?.targetId ?? null;
-      if (track) {
+      const preplannedTransit = a.mission === "anti-ship" && Boolean(
+        a.scenarioLaunchZone &&
+        a.position.distanceTo(a.scenarioLaunchZone.center) > a.scenarioLaunchZone.radius,
+      );
+      a.targetId = preplannedTransit ? null : track?.targetId ?? null;
+      if (track && !preplannedTransit) {
         a.state = "engaging";
         if (context.advancedAirAiEnabled) {
           const targetSpeedMeters = track.velocity.length() *
@@ -2434,12 +2478,23 @@ export class AirCombatSystem {
         const leader = this.aircraft.find(
           (x) => x.id === a.leaderId && x.alive,
         );
-        const gciCommand = this.sovietGci.commandFor(a.id, time) ??
+        const lostComms = this.lostCommsFormations.get(a.formationId);
+        const autonomousRoute = Boolean(lostComms && ["maintain-orbit", "last-vector-search", "continue-strike", "hold-area", "preplanned-raid", "protect-axis"].includes(lostComms.behavior));
+        const gciCommand = autonomousRoute ? undefined : this.sovietGci.commandFor(a.id, time) ??
           this.aewCommandNetwork.commandFor(a.id, time);
-        const maritimeCue = this.sovietMaritimeTargeting.cueFor(a.id, time);
-        const fleetOrder = this.fleetOrderForAircraft(a, time);
-        const salvoPlan = this.sovietSalvoCoordinator.planFor(a.id, time);
-        if (salvoPlan && a.mission === "anti-ship") {
+        const maritimeCue = autonomousRoute ? undefined : this.sovietMaritimeTargeting.cueFor(a.id, time);
+        const fleetOrder = autonomousRoute ? undefined : this.fleetOrderForAircraft(a, time);
+        const salvoPlan = autonomousRoute ? undefined : this.sovietSalvoCoordinator.planFor(a.id, time);
+        if (preplannedTransit && a.scenarioRoute.length) {
+          let waypoint = a.scenarioRoute[Math.min(a.scenarioRouteIndex, a.scenarioRoute.length - 1)];
+          if (a.position.distanceTo(waypoint) < 45) {
+            if (a.scenarioRouteIndex < a.scenarioRoute.length - 1) a.scenarioRouteIndex++;
+            else if (a.scenarioRouteLoop) a.scenarioRouteIndex = 0;
+            waypoint = a.scenarioRoute[a.scenarioRouteIndex];
+          }
+          a.state = "formation";
+          a.desiredDirection.copy(waypoint).sub(a.position).normalize();
+        } else if (salvoPlan && a.mission === "anti-ship") {
           a.state = "engaging";
           a.desiredDirection
             .copy(salvoPlan.searchPoint)
@@ -2464,7 +2519,7 @@ export class AirCombatSystem {
             .setY(gciCommand.commandedAltitude)
             .sub(a.position)
             .normalize();
-        } else if (leader) {
+        } else if (leader && !autonomousRoute) {
           const slot = formationSlot({
             leader: leader.position,
             leaderHeading: leader.heading,
@@ -2476,6 +2531,14 @@ export class AirCombatSystem {
             .set(slot.x, slot.y, slot.z)
             .sub(a.position)
             .normalize();
+        } else if (a.scenarioRoute.length) {
+          let waypoint = a.scenarioRoute[Math.min(a.scenarioRouteIndex, a.scenarioRoute.length - 1)];
+          if (a.position.distanceTo(waypoint) < 45) {
+            if (a.scenarioRouteIndex < a.scenarioRoute.length - 1) a.scenarioRouteIndex++;
+            else if (a.scenarioRouteLoop) a.scenarioRouteIndex = 0;
+            waypoint = a.scenarioRoute[a.scenarioRouteIndex];
+          }
+          a.desiredDirection.copy(waypoint).sub(a.position).normalize();
         } else {
           const direction = noContactMissionDirection({
             mission: a.mission,

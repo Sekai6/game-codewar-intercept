@@ -4,6 +4,7 @@ export interface AuroraEnvironment {
   readonly object: THREE.Group;
   readonly layerCount: number;
   setEnabled(enabled: boolean): void;
+  setIntensity(intensity: number): void;
   update(time: number, cameraPosition: THREE.Vector3): void;
   dispose(): void;
 }
@@ -66,6 +67,12 @@ export function createAuroraEnvironment(): AuroraEnvironment {
     object,
     layerCount: layers.length,
     setEnabled(enabled) { object.visible = enabled; },
+    setIntensity(intensity) {
+      const value = THREE.MathUtils.clamp(intensity, 0, 1.35);
+      materials.forEach((material, index) => {
+        material.uniforms.intensity.value = value * (0.72 - index * 0.12);
+      });
+    },
     update(time, cameraPosition) {
       if (!object.visible) return;
       object.position.copy(cameraPosition);

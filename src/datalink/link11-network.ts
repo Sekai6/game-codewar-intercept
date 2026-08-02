@@ -6,6 +6,8 @@ import type {
   Link16TrackReport,
   TacticalNetworkActivity,
 } from "./types.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface Link11ParticipantState extends Link16ParticipantState {
   netControlCapable: boolean;
@@ -36,6 +38,7 @@ export class Link11Network {
   private pollIndex = 0;
   private serial = 0;
   private delayTotal = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
   private readonly pollSeconds = 2;
   private readonly maximumRange = 1200;
   private diagnosticsState: Link11Diagnostics = this.emptyDiagnostics();
@@ -59,6 +62,8 @@ export class Link11Network {
       terminalHealth:THREE.MathUtils.clamp(state.terminalHealth,0,1),
       timeSyncQuality:THREE.MathUtils.clamp(state.timeSyncQuality,0,1) });
   }
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) { this.propagationSnapshot = snapshot; }
 
   publishTrack(senderId:string,
     input:Omit<Link16TrackReport,"messageId"|"senderId"|"side"|"transmittedAt">,
@@ -107,12 +112,14 @@ export class Link11Network {
       if(range>this.maximumRange){this.diagnosticsState.droppedLink++;continue;}
       const rangeFactor=range/this.maximumRange;
       const success=THREE.MathUtils.clamp(.91*sender.terminalHealth*recipient.terminalHealth-rangeFactor*.22,.08,.96);
-      if(hash01(`${item.report.messageId}:${recipient.id}`)>success){this.diagnosticsState.droppedLink++;continue;}
-      const networkDelay=Math.max(0,time-item.report.observedAt)+1.1+rangeFactor*.8;
+      const propagation=this.propagationSnapshot?evaluatePropagation(this.propagationSnapshot,{channel:"link11",messageId:item.report.messageId,senderId:sender.id,recipientId:recipient.id,baseQuality:item.report.quality,baseSuccessProbability:success,rangeRatio:rangeFactor}):null;
+      if(propagation?.dropped||(!propagation&&hash01(`${item.report.messageId}:${recipient.id}`)>success)){this.diagnosticsState.droppedLink++;this.record({kind:"drop",time,senderId:sender.id,recipientId:recipient.id,trackId:item.report.trackId});continue;}
+      const networkDelay=Math.max(0,time-item.report.observedAt)+1.1+rangeFactor*.8+(propagation?.delaySeconds??0);
       const report={...item.report,position:item.report.position.clone(),velocity:item.report.velocity.clone(),
-        quality:item.report.quality*.72,uncertainty:item.report.uncertainty+3500+networkDelay*180};
-      this.pending.push({recipientId:recipient.id,report,receivedAt:time+1.1,
-        networkDelay,deliverAt:time+1.1});
+        quality:item.report.quality*.72*(propagation?.qualityMultiplier??1),uncertainty:(item.report.uncertainty+3500+networkDelay*180)*(propagation?.uncertaintyMultiplier??1)};
+      const deliveryDelay=1.1+(propagation?.delaySeconds??0);
+      this.pending.push({recipientId:recipient.id,report,receivedAt:time+deliveryDelay,
+        networkDelay,deliverAt:time+deliveryDelay});
       this.record({kind:"transmit",time,senderId:sender.id,recipientId:recipient.id,
         trackId:item.report.trackId,delay:1.1});
     }

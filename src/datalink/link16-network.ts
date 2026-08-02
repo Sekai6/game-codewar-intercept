@@ -6,6 +6,8 @@ import type {
   Link16TrackReport,
   TacticalNetworkActivity,
 } from "./types.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface Link16NetworkOptions {
   frameSeconds: number;
@@ -55,6 +57,7 @@ export class Link16Network {
   private nextFrameAt = 0;
   private serial = 0;
   private delayTotal = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
   private diagnosticsState: Link16Diagnostics = {
     queued: 0,
     transmitted: 0,
@@ -97,6 +100,10 @@ export class Link16Network {
       terminalHealth: THREE.MathUtils.clamp(state.terminalHealth, 0, 1),
       timeSyncQuality: THREE.MathUtils.clamp(state.timeSyncQuality, 0, 1),
     });
+  }
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) {
+    this.propagationSnapshot = snapshot;
   }
 
   publishTrack(
@@ -194,15 +201,29 @@ export class Link16Network {
           0.05,
           0.995,
         );
-        if (hash01(`${report.messageId}:${recipient.id}`) > successProbability) {
+        const propagation = this.propagationSnapshot
+          ? evaluatePropagation(this.propagationSnapshot, {
+              channel: "link16", messageId: report.messageId,
+              senderId: sender.id, recipientId: recipient.id,
+              baseQuality: report.quality, baseSuccessProbability: successProbability,
+              rangeRatio: rangeFactor,
+            })
+          : null;
+        if (propagation?.dropped || (!propagation && hash01(`${report.messageId}:${recipient.id}`) > successProbability)) {
           this.diagnosticsState.droppedLink++;
+          this.record({kind:"drop",time:frameTime,senderId:sender.id,recipientId:recipient.id,trackId:report.trackId});
           continue;
         }
         const slotDelay = (slot / this.options.slotsPerFrame) * this.options.frameSeconds;
-        const networkDelay = this.options.baseLatency + slotDelay + rangeFactor * 0.12;
+        const networkDelay = this.options.baseLatency + slotDelay + rangeFactor * 0.12 + (propagation?.delaySeconds ?? 0);
+        const deliveredReport = cloneReport(report);
+        if (propagation) {
+          deliveredReport.quality *= propagation.qualityMultiplier;
+          deliveredReport.uncertainty *= propagation.uncertaintyMultiplier;
+        }
         this.pending.push({
           recipientId: recipient.id,
-          report: cloneReport(report),
+          report: deliveredReport,
           receivedAt: frameTime + networkDelay,
           networkDelay,
           deliverAt: frameTime + networkDelay,

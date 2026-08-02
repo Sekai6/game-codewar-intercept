@@ -4,6 +4,7 @@ import type { ShipTrackEstimate } from "../ships/types.js";
 import { shipLink11Eligible } from "../datalink/era.js";
 import { buildForcePicture } from "./force-picture.js";
 import type { NavalForceRuntime } from "./types.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 function opaqueTrackNumber(senderId: string, targetId: string) {
   let hash = 2166136261;
@@ -18,6 +19,10 @@ export class FleetLink11Runtime {
   private readonly network = new Link11Network();
   private readonly published = new Map<string, number>();
   private enabled = false;
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) {
+    this.network.setPropagationSnapshot(snapshot);
+  }
 
   update(force: NavalForceRuntime, now: number, dataLinkEnabled: boolean) {
     const operational = shipLink11Eligible({ era: force.datalinkEra, enabled: dataLinkEnabled });

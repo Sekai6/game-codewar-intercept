@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { SovietCommandEra } from "./era.js";
 import { SOVIET_COMMAND_ERAS } from "./era.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface SovietFleetCommandNode {
   id: string;
@@ -101,6 +103,9 @@ export class SovietFleetCommandNetwork {
   private delivered = 0;
   private dropped = 0;
   private totalDelay = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) { this.propagationSnapshot = snapshot; }
 
   reset(era: SovietCommandEra = "ntu-1980s", enabled = true) {
     this.era = era;
@@ -159,11 +164,16 @@ export class SovietFleetCommandNetwork {
       const seed = `${this.era}:${node.id}:${participant.id}:${area.reportTrackId}:${attempt}`;
       const linkReliability = parameters.reliability * (0.55 + node.health * 0.45);
       this.transmitted++;
-      if (deterministic(`${seed}:link`) > linkReliability) {
+      const baseDelay = Math.max(0.8, parameters.delay * (0.88 + deterministic(`${seed}:delay`) * 0.24));
+      const propagation = this.propagationSnapshot ? evaluatePropagation(this.propagationSnapshot, {
+        channel:"soviet-maritime-c2",messageId:seed,senderId:node.id,recipientId:participant.id,
+        baseDelaySeconds:baseDelay,baseSuccessProbability:linkReliability,baseQuality:area.quality,
+      }) : null;
+      if (propagation?.dropped || (!propagation && deterministic(`${seed}:link`) > linkReliability)) {
         this.dropped++;
         continue;
       }
-      const delay = Math.max(0.8, parameters.delay * (0.88 + deterministic(`${seed}:delay`) * 0.24));
+      const delay = propagation?.delaySeconds ?? baseDelay;
       const inbound = area.estimatedPosition.clone().sub(participant.position).setY(0);
       if (inbound.lengthSq() < 1e-6) inbound.set(0, 0, 1);
       inbound.normalize();

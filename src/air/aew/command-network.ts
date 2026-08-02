@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { AirPlatformId, AirTrack } from "../types.js";
 import type { CombatSide } from "../../combat-entity.js";
+import { evaluatePropagation } from "../../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../../space-weather/types.js";
 
 export interface AewCommandNode {
   id:string; side:CombatSide; position:THREE.Vector3; velocity:THREE.Vector3;
@@ -13,7 +15,10 @@ export interface AewInterceptCommand {
   id:string;controllerId:string;controllerTrackId:string;participantId:string;
   mode:"link4a"|"voice-gci";interceptPoint:THREE.Vector3;commandedAltitude:number;
   commandedSpeed:number;radarActivationRange:number;quality:number;uncertainty:number;
-  deliveredAt:number;expiresAt:number;
+  observedAt:number;deliveredAt:number;expiresAt:number;
+}
+export interface AewCommandDiagnostics {
+  queued:number;transmitted:number;delivered:number;dropped:number;activeCommands:number;meanDelay:number;
 }
 type Pending={command:AewInterceptCommand;deliverAt:number};
 
@@ -33,27 +38,48 @@ function trackPriority(track:AirTrack){
 export class AewCommandNetwork {
   private readonly commands=new Map<string,AewInterceptCommand>();
   private readonly pending:Pending[]=[];
+  private readonly nextAttemptAt=new Map<string,number>();
   private serial=0;
-  reset(){this.commands.clear();this.pending.length=0;this.serial=0;}
+  private transmitted=0;
+  private delivered=0;
+  private dropped=0;
+  private totalDelay=0;
+  private propagationSnapshot:SpaceWeatherSnapshot|null=null;
+  setPropagationSnapshot(snapshot:SpaceWeatherSnapshot|null){this.propagationSnapshot=snapshot;}
+  reset(){this.commands.clear();this.pending.length=0;this.nextAttemptAt.clear();this.serial=0;this.transmitted=this.delivered=this.dropped=this.totalDelay=0;}
   update(time:number,nodes:readonly AewCommandNode[],participants:readonly AewCommandParticipant[]){
     for(const [id,command] of this.commands)if(command.expiresAt<=time||!participants.some(p=>p.id===id&&p.alive))this.commands.delete(id);
-    for(let index=this.pending.length-1;index>=0;index--){const item=this.pending[index];if(item.deliverAt>time)continue;this.pending.splice(index,1);this.commands.set(item.command.participantId,item.command);}
+    for(let index=this.pending.length-1;index>=0;index--){const item=this.pending[index];if(item.deliverAt>time)continue;this.pending.splice(index,1);this.commands.set(item.command.participantId,item.command);this.delivered++;this.totalDelay+=item.command.deliveredAt-item.command.observedAt;}
     for(const node of nodes.filter(n=>n.alive)){
       const occupied=[...this.commands.values()].filter(command=>command.controllerId===node.id).length+
         this.pending.filter(item=>item.command.controllerId===node.id).length;
       const available=Math.max(0,node.controllerCapacity-occupied);
-      const candidates=participants.filter(p=>p.alive&&p.side===node.side&&node.fighterPlatformIds.includes(p.platformId)&&!this.commands.has(p.id)&&!this.pending.some(x=>x.command.participantId===p.id)).slice(0,available);
+      const candidates=participants.filter(p=>p.alive&&p.side===node.side&&node.fighterPlatformIds.includes(p.platformId)&&!this.commands.has(p.id)&&!this.pending.some(x=>x.command.participantId===p.id)&&(this.nextAttemptAt.get(p.id)??0)<=time).slice(0,available);
       const tracks=node.tracks.filter(isAirInterceptCue).sort((a,b)=>trackPriority(b)-trackPriority(a));
       for(let index=0;index<Math.min(candidates.length,tracks.length);index++){
         const participant=candidates[index],track=tracks[index],age=Math.max(0,time-track.lastUpdate);
-        const estimate=track.position.clone().addScaledVector(track.velocity,age+node.commandDelay);
+        const messageId=`${node.id}:${participant.id}:${track.observationId??track.targetId}:${++this.serial}`;
+        const channel=node.mode==="link4a"?"vhf-uhf":"soviet-gci";
+        const propagation=this.propagationSnapshot?evaluatePropagation(this.propagationSnapshot,{
+          channel,messageId,senderId:node.id,recipientId:participant.id,
+          baseQuality:track.quality,baseDelaySeconds:node.commandDelay,
+          baseSuccessProbability:node.reliability,
+        }):null;
+        this.transmitted++;
+        this.nextAttemptAt.set(participant.id,time+Math.max(1.5,node.commandDelay));
+        if(propagation?.dropped){this.dropped++;continue;}
+        const delay=propagation?.delaySeconds??node.commandDelay;
+        const estimate=track.position.clone().addScaledVector(track.velocity,age+delay);
         const unidentified=track.classification==="unknown";
-        const quality=THREE.MathUtils.clamp(track.quality*node.reliability-(node.mode==="voice-gci"?.13:.04)-(unidentified?.08:0),.08,.88);
-        const command:AewInterceptCommand={id:`AEW-CMD-${++this.serial}`,controllerId:node.id,controllerTrackId:trackNumber(node.id,track),participantId:participant.id,mode:node.mode,interceptPoint:estimate,commandedAltitude:Math.max(16,estimate.y),commandedSpeed:node.mode==="link4a"?8.6:7.8,radarActivationRange:node.mode==="link4a"?240:340,quality,uncertainty:track.uncertainty+(node.mode==="voice-gci"?32:10)+(unidentified?18:0),deliveredAt:time+node.commandDelay,expiresAt:time+node.commandDelay+node.commandLife};
+        const baseQuality=THREE.MathUtils.clamp(track.quality*node.reliability-(node.mode==="voice-gci"?.13:.04)-(unidentified?.08:0),.08,.88);
+        const quality=THREE.MathUtils.clamp(baseQuality*(propagation?.qualityMultiplier??1),.01,.88);
+        const uncertainty=(track.uncertainty+(node.mode==="voice-gci"?32:10)+(unidentified?18:0))*(propagation?.uncertaintyMultiplier??1);
+        const command:AewInterceptCommand={id:`AEW-CMD-${this.serial}`,controllerId:node.id,controllerTrackId:trackNumber(node.id,track),participantId:participant.id,mode:node.mode,interceptPoint:estimate,commandedAltitude:Math.max(16,estimate.y),commandedSpeed:node.mode==="link4a"?8.6:7.8,radarActivationRange:node.mode==="link4a"?240:340,quality,uncertainty,observedAt:time,deliveredAt:time+delay,expiresAt:time+delay+node.commandLife};
         this.pending.push({command,deliverAt:command.deliveredAt});
       }
     }
   }
   commandFor(id:string,time:number){const command=this.commands.get(id);return command&&command.expiresAt>time?command:undefined;}
   active(time:number){return [...this.commands.values()].filter(command=>command.expiresAt>time);}
+  diagnostics(time:number):AewCommandDiagnostics{return {queued:this.pending.length,transmitted:this.transmitted,delivered:this.delivered,dropped:this.dropped,activeCommands:this.active(time).length,meanDelay:this.delivered?this.totalDelay/this.delivered:0};}
 }

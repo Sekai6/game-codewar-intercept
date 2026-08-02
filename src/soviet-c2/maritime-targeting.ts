@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { SovietCommandEra } from "./era.js";
 import { SOVIET_COMMAND_ERAS } from "./era.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export type SovietMaritimeSource = "uspekh-u" | "legenda";
 
@@ -111,6 +113,9 @@ export class SovietMaritimeTargetingNetwork {
   private delivered = 0;
   private dropped = 0;
   private totalDelay = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) { this.propagationSnapshot = snapshot; }
 
   reset(era: SovietCommandEra = "ntu-1980s", enabled = true) {
     this.era = era;
@@ -191,7 +196,13 @@ export class SovietMaritimeTargetingNetwork {
         (deterministic(`${seed}:vz`) - 0.5) * velocityError,
       ));
       const jitter = (deterministic(`${seed}:delay`) - 0.5) * parameters.delay * 0.3;
-      const delay = Math.max(1, parameters.delay + jitter);
+      const baseDelay = Math.max(1, parameters.delay + jitter);
+      const propagation = this.propagationSnapshot ? evaluatePropagation(this.propagationSnapshot, {
+        channel:"soviet-maritime-c2",messageId:seed,senderId:source,recipientId:participant.id,
+        baseQuality:quality,baseDelaySeconds:baseDelay,baseSuccessProbability:parameters.reliability,
+      }) : null;
+      if (propagation?.dropped) { this.dropped++; continue; }
+      const delay = propagation?.delaySeconds ?? baseDelay;
       const predictedPosition = measuredPosition.clone().addScaledVector(measuredVelocity, delay + 12);
       const inbound = predictedPosition.clone().sub(participant.position).setY(0);
       if (inbound.lengthSq() < 1e-6) inbound.set(0, 0, 1);
@@ -207,10 +218,10 @@ export class SovietMaritimeTargetingNetwork {
         estimatedPosition: predictedPosition,
         estimatedVelocity: measuredVelocity,
         launchRegionCenter,
-        uncertaintyMajor: major,
-        uncertaintyMinor: minor,
+        uncertaintyMajor: major * (propagation?.uncertaintyMultiplier ?? 1),
+        uncertaintyMinor: minor * (propagation?.uncertaintyMultiplier ?? 1),
         uncertaintyBearing: bearing,
-        quality,
+        quality: quality * (propagation?.qualityMultiplier ?? 1),
         observedAt: time,
         deliveredAt,
         expiresAt: deliveredAt + parameters.life,

@@ -8,6 +8,7 @@ export type { ModelWeaponHardpoint } from "./models/model-primitives";
 export type ShipClass = string;
 export type ShipManeuverMode =
   | "patrol"
+  | "scenario-route"
   | "close"
   | "standoff"
   | "withdraw"

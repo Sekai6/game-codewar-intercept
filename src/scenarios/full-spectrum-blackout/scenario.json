@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "full-spectrum-blackout",
+  "metadata": {
+    "title": "全频带阻塞干扰：极夜断链",
+    "subtitle": "FULL-SPECTRUM BLACKOUT",
+    "description": "1988年的挪威海。极端空间天气逐步瓦解远程通信，双方只能依靠最后命令、本地传感器和失联预案继续作战。",
+    "year": 1988,
+    "region": "Norwegian Sea / Barents Sea",
+    "author": "Cold War Intercept Team",
+    "tags": ["air-war", "aurora", "joint-combat", "link-11", "lost-comms", "ntu", "space-weather"],
+    "builtIn": true
+  },
+  "simulation": {
+    "seed": 1211988,
+    "durationSeconds": 1080,
+    "worldUnitsPerKm": 10,
+    "datalinkEra": "ntu-baseline",
+    "sovietCommandEra": "ntu-1980s",
+    "advancedAirAi": true,
+    "autoFire": true
+  },
+  "environment": {
+    "presetId": "arctic-twilight-high-sea",
+    "spaceWeatherPresetId": "TOTAL_BAND_DENIAL",
+    "auroraControlled": true,
+    "coastBackdropId": "norwegian-barents-distant-coast",
+    "timeOfDay": "polar-twilight"
+  },
+  "forces": [
+    { "kind": "ship", "id": "blue-long-beach", "platformId": "long-beach", "side": "blue", "forceId": "blue-ntu-task-group", "position": [0, 0, 150], "headingDeg": 25, "speedKnots": 20, "formationRole": "command", "commandRoles": ["otc", "aawc"], "routeId": "blue-surface-transit", "lostCommsDoctrineId": "us-ntu-command", "radarState": "active", "ecmEnabled": true },
+    { "kind": "ship", "id": "blue-cg-57", "platformId": "ticonderoga", "side": "blue", "forceId": "blue-ntu-task-group", "position": [-220, 0, -180], "headingDeg": 35, "speedKnots": 20, "formationRole": "picket", "commandRoles": ["asuwc"], "routeId": "blue-picket-transit", "lostCommsDoctrineId": "us-ntu-picket", "radarState": "active", "ecmEnabled": true },
+    { "kind": "ship", "id": "red-slava", "platformId": "slava-moskva", "side": "red", "forceId": "red-surface-action-group", "position": [640, 0, -2550], "headingDeg": 205, "speedKnots": 18, "formationRole": "command", "commandRoles": ["otc", "aawc", "asuwc"], "routeId": "red-surface-transit", "lostCommsDoctrineId": "soviet-surface-autonomous", "radarState": "active", "ecmEnabled": true },
+
+    { "kind": "air-formation", "id": "blue-e2c-orbit", "platformId": "E-2C", "side": "blue", "count": 1, "position": [-650, 88, 360], "headingDeg": 310, "speed": 3.25, "altitude": 88, "mission": "aew", "routeId": "blue-aew-orbit", "lostCommsDoctrineId": "us-aew-orbit", "radarState": "active" },
+    { "kind": "air-formation", "id": "blue-f14-cap", "platformId": "F-14A", "side": "blue", "count": 2, "position": [-420, 72, -780], "headingDeg": 40, "speed": 5.1, "altitude": 72, "mission": "cap", "routeId": "blue-cap-orbit", "protectedFormationId": "blue-e2c-orbit", "lostCommsDoctrineId": "us-cap-last-vector", "radarState": "active" },
+    { "kind": "air-formation", "id": "blue-a6e-strike", "platformId": "A-6E", "side": "blue", "count": 2, "position": [520, 16, 420], "headingDeg": 345, "speed": 3.8, "altitude": 16, "mission": "anti-ship", "routeId": "blue-strike-route", "lostCommsDoctrineId": "us-strike-autonomous", "radarState": "silent" },
+    { "kind": "air-formation", "id": "red-tu126-orbit", "platformId": "TU-126", "side": "red", "count": 1, "position": [1150, 100, -3350], "headingDeg": 110, "speed": 3.9, "altitude": 100, "mission": "aew", "routeId": "red-aew-orbit", "lostCommsDoctrineId": "soviet-aew-hold", "radarState": "active" },
+    { "kind": "air-formation", "id": "red-tu16-strike", "platformId": "TU-16K", "side": "red", "count": 2, "position": [350, 82, -2850], "headingDeg": 195, "speed": 4.2, "altitude": 82, "mission": "anti-ship", "routeId": "red-bomber-attack", "protectedFormationId": "red-mig29-escort", "lostCommsDoctrineId": "soviet-raid-preplanned", "radarState": "active" },
+    { "kind": "air-formation", "id": "red-mig29-escort", "platformId": "MIG-29A", "side": "red", "count": 2, "position": [-100, 74, -2450], "headingDeg": 185, "speed": 5.3, "altitude": 74, "mission": "escort", "routeId": "red-escort-route", "protectedFormationId": "red-tu16-strike", "lostCommsDoctrineId": "soviet-escort-axis", "radarState": "silent" }
+  ],
+  "routes": [
+    { "id": "blue-aew-orbit", "kind": "orbit", "loop": true, "points": [{ "position": [-650, 88, 360], "speed": 3.25, "altitude": 88 }, { "position": [-930, 88, 80], "speed": 3.25, "altitude": 88 }, { "position": [-650, 88, -200], "speed": 3.25, "altitude": 88 }, { "position": [-370, 88, 80], "speed": 3.25, "altitude": 88 }] },
+    { "id": "blue-cap-orbit", "kind": "orbit", "loop": true, "points": [{ "position": [-420, 72, -780], "speed": 5.1, "altitude": 72 }, { "position": [-100, 74, -1080], "speed": 5.1, "altitude": 74 }, { "position": [170, 72, -760], "speed": 5.1, "altitude": 72 }, { "position": [-120, 70, -500], "speed": 5.1, "altitude": 70 }] },
+    { "id": "blue-picket-transit", "kind": "transit", "points": [{ "position": [-220, 0, -180] }, { "position": [80, 0, -720] }, { "position": [330, 0, -1150] }] },
+    { "id": "blue-strike-route", "kind": "attack", "points": [{ "position": [520, 16, 420], "speed": 3.8, "altitude": 16 }, { "position": [940, 12, -500], "speed": 4.2, "altitude": 12 }, { "position": [1080, 10, -1500], "speed": 4.5, "altitude": 10 }] },
+    { "id": "blue-surface-transit", "kind": "transit", "points": [{ "position": [0, 0, 150] }, { "position": [430, 0, -770] }, { "position": [760, 0, -1400] }] },
+    { "id": "red-aew-orbit", "kind": "orbit", "loop": true, "points": [{ "position": [1150, 100, -3350], "speed": 3.9, "altitude": 100 }, { "position": [1450, 100, -3050], "speed": 3.9, "altitude": 100 }, { "position": [1150, 100, -2750], "speed": 3.9, "altitude": 100 }, { "position": [850, 100, -3050], "speed": 3.9, "altitude": 100 }] },
+    { "id": "red-bomber-attack", "kind": "attack", "points": [{ "position": [350, 82, -2850], "speed": 4.2, "altitude": 82 }, { "position": [220, 70, -2320], "speed": 4.4, "altitude": 70 }, { "position": [80, 58, -1840], "speed": 4.6, "altitude": 58 }, { "position": [-20, 52, -1440], "speed": 4.6, "altitude": 52 }] },
+    { "id": "red-escort-route", "kind": "transit", "points": [{ "position": [-100, 74, -2450], "speed": 5.3, "altitude": 74 }, { "position": [-70, 76, -1950], "speed": 5.4, "altitude": 76 }, { "position": [-80, 74, -1550], "speed": 5.4, "altitude": 74 }] },
+    { "id": "red-surface-transit", "kind": "transit", "points": [{ "position": [640, 0, -2550] }, { "position": [340, 0, -1950] }, { "position": [100, 0, -1480] }] },
+    { "id": "blue-rendezvous-route", "kind": "rendezvous", "points": [{ "position": [-720, 60, 220], "speed": 4, "altitude": 60 }] }
+  ],
+  "zones": [
+    { "id": "blue-lost-comms-rendezvous", "kind": "rendezvous", "center": [-720, 60, 220], "radius": 260, "side": "blue", "visibleInBriefing": true },
+    { "id": "red-ksr5-launch-corridor", "kind": "launch-corridor", "center": [60, 55, -1640], "radius": 430, "side": "red", "visibleInBriefing": false },
+    { "id": "arctic-weather-front", "kind": "weather-front", "center": [-260, 22, -1240], "radius": 720, "visibleInBriefing": true },
+    { "id": "geomagnetic-disturbance-band", "kind": "magnetic-disturbance", "center": [100, 80, -1520], "radius": 1850, "visibleInBriefing": true },
+    { "id": "intermittent-comms-window", "kind": "comms-window", "center": [-160, 70, -980], "radius": 1050, "visibleInBriefing": false },
+    { "id": "surface-navigation-exclusion", "kind": "exclusion", "center": [-1320, 0, -1500], "radius": 420, "visibleInBriefing": true },
+    { "id": "red-air-threat-estimate", "kind": "threat-estimate", "center": [260, 70, -2350], "radius": 760, "side": "red", "visibleInBriefing": true }
+  ],
+  "timeline": [
+    { "id": "weather-quiet", "at": 0, "type": "space-weather-phase", "value": "quiet" },
+    { "id": "weather-warning", "at": 150, "type": "space-weather-phase", "value": "warning" },
+    { "id": "weather-flare", "at": 210, "type": "space-weather-phase", "value": "solar-flare" },
+    { "id": "weather-degrading", "at": 260, "type": "space-weather-phase", "value": "degrading" },
+    { "id": "weather-blackout", "at": 300, "type": "space-weather-phase", "value": "total-blackout" },
+    { "id": "weather-intermittent", "at": 720, "type": "space-weather-phase", "value": "intermittent" },
+    { "id": "comms-window-one", "at": 748, "type": "comms-window", "value": "0.50", "duration": 18 },
+    { "id": "comms-window-two", "at": 824, "type": "comms-window", "value": "0.58", "duration": 26 },
+    { "id": "comms-window-three", "at": 914, "type": "comms-window", "value": "0.66", "duration": 15 },
+    { "id": "weather-recovery", "at": 960, "type": "space-weather-phase", "value": "recovery" }
+  ],
+  "objectives": [
+    { "id": "protect-blue-surface-group", "side": "blue", "title": "守住水面编队", "description": "Long Beach与CG-57至少一舰存活至场景结束。", "kind": "protect", "targetIds": ["blue-long-beach", "blue-cg-57"] },
+    { "id": "intercept-badgers", "side": "blue", "title": "阻止远程航空突击", "description": "在Tu-16K形成有效KSR-5攻击前打乱或拦截攻击群。", "kind": "intercept", "targetIds": ["red-tu16-strike"] },
+    { "id": "maintain-cap", "side": "blue", "title": "维持CAP屏障", "description": "尽可能保持F-14编队的战斗能力。", "kind": "survive", "targetIds": ["blue-f14-cap"], "optional": true },
+    { "id": "observe-network-collapse", "side": "blue", "title": "观察断链作战", "description": "观察通信退化、平台自治与态势重新融合。", "kind": "observe", "targetIds": ["blue-long-beach", "blue-cg-57", "blue-e2c-orbit"] },
+    { "id": "red-maritime-strike", "side": "red", "title": "突破舰队防空网", "description": "Tu-16K进入攻击走廊并对蓝方水面舰发起合法攻击。", "kind": "strike", "targetIds": ["blue-long-beach", "blue-cg-57"] }
+  ],
+  "guidance": {
+    "briefing": {
+      "strategicBackground": ["1988年，挪威海与巴伦支海交界。异常太阳活动正在扰乱高纬度无线电传播。", "双方海空兵力仍按既定任务接近，但远程指挥与共享态势可能无法维持。"],
+      "blueMission": ["保护Long Beach与CG-57组成的NTU水面编队。", "维持E-2C与F-14构成的预警、CAP屏障。", "阻止Tu-16K进入有效反舰发射区域。", "失联后依照最后命令与本地传感器继续行动。"],
+      "intelligenceEstimate": ["东北方向可能存在苏联远程航空攻击群及护航机。", "更深远空域可能有AEW支援，东侧海域可能存在苏联水面作战群。", "敌情图仅代表任务前估计，不代表实时真值。"],
+      "features": ["Link 11与苏联C2将逐步退化，而不是被瞬间关闭。", "不同平台会保留不同且可能冲突的最后态势。", "通信恢复时，报告需要重新交付并逐步融合。", "所有舰载武器仍遵循本舰火控、弹药与实体发射器闭环。"],
+      "controls": ["使用舰船、飞机与导弹镜头快捷键观察实体。", "打开战术网络视图可观察轮询、丢包和航迹老化。", "可暂停或调整时间倍率；关键提示不会因加速而跳过。", "引导可在完整、关键事件和关闭三档间切换。"]
+    },
+    "estimatedContactWindow": [180, 420],
+    "cues": [
+      { "id": "cue-opening-network", "level": "full", "trigger": { "type": "time", "at": 20 }, "title": "编队正在展开", "message": "建议打开战术网络视图，观察Link 11在正常阶段如何轮询和转发航迹。", "category": "mission", "focus": { "kind": "network", "label": "打开战术网络视图" }, "expiresAfter": 24, "once": true },
+      { "id": "cue-contact-window", "level": "full", "trigger": { "type": "time", "at": 105 }, "title": "接触窗口临近", "message": "任务规划预计在T+180至420秒间出现首次有效接触；这是预案估计，不是敌方真值。", "category": "sensor", "focus": { "kind": "overview", "label": "查看战术全景" }, "expiresAfter": 30, "once": true },
+      { "id": "cue-warning", "level": "critical", "trigger": { "type": "space-weather-phase", "phase": "warning" }, "title": "空间天气告警", "message": "HF噪声和导航漂移开始上升，网络报告的延迟与不确定度将逐步增加。", "category": "weather", "focus": { "kind": "network", "label": "检查链路状态" }, "expiresAfter": 35, "once": true },
+      { "id": "cue-flare", "level": "critical", "trigger": { "type": "space-weather-phase", "phase": "solar-flare" }, "title": "太阳耀斑抵达", "message": "高纬通信传播正在快速恶化。注意比较各平台本地航迹与共享态势。", "category": "weather", "focus": { "kind": "network", "label": "比较本地与网络态势" }, "expiresAfter": 35, "once": true },
+      { "id": "cue-network-degraded", "level": "critical", "trigger": { "type": "network-state", "side": "blue", "state": "degraded" }, "title": "Link 11态势开始分化", "message": "Long Beach与CG-57不再保证看到同一幅图；远程武器授权仍需要合法的本舰火控条件。", "category": "network", "focus": { "kind": "formation", "targetId": "blue-ntu-task-group", "label": "观察蓝方水面编队" }, "expiresAfter": 40, "once": true },
+      { "id": "cue-blackout", "level": "critical", "trigger": { "type": "space-weather-phase", "phase": "total-blackout" }, "title": "全频带阻塞峰值", "message": "各平台已按失联预案行动。共享态势可能过期，但本地传感器和武器闭环仍继续运行。", "category": "network", "focus": { "kind": "overview", "label": "查看独立平台状态" }, "expiresAfter": 45, "once": true },
+      { "id": "cue-cg57-local-track", "level": "full", "trigger": { "type": "confirmed-track", "side": "blue", "classification": "aircraft" }, "title": "友方确认空中航迹", "message": "某一友方传感器已确认空中目标。切换到CG-57可观察其是否具备独立接战条件。", "category": "sensor", "focus": { "kind": "entity", "targetId": "blue-cg-57", "label": "观察CG-57" }, "expiresAfter": 30, "once": true },
+      { "id": "cue-e2c-lost-comms", "level": "critical", "trigger": { "type": "platform-lost-comms", "platformId": "blue-e2c-orbit" }, "title": "E-2C失去稳定链路", "message": "CAP只会继续执行最后一项有效命令，随后转入有限搜索或返回预定巡逻区。", "category": "network", "focus": { "kind": "formation", "targetId": "blue-f14-cap", "label": "观察F-14 CAP" }, "expiresAfter": 40, "once": true },
+      { "id": "cue-blue-launch", "level": "critical", "trigger": { "type": "weapon-launch", "side": "blue" }, "title": "蓝方武器离架", "message": "该发射来自实体平台的合法传感器、交战队列、火控、弹药及发射器流程。", "category": "combat", "expiresAfter": 24, "once": false },
+      { "id": "cue-recovery", "level": "critical", "trigger": { "type": "space-weather-phase", "phase": "recovery" }, "title": "传播条件开始恢复", "message": "积压报告将重新交付，冲突航迹需要按时间、质量和不确定度逐步融合。", "category": "network", "focus": { "kind": "network", "label": "观察态势重新融合" }, "expiresAfter": 50, "once": true },
+      { "id": "cue-inactivity", "level": "full", "trigger": { "type": "inactivity", "seconds": 45 }, "title": "仿真仍在推进", "message": "平台正在执行航线、搜索和预案。可切换至AEW、CAP、水面哨舰或战术全景观察。", "category": "mission", "focus": { "kind": "overview", "label": "选择观察目标" }, "expiresAfter": 25, "once": false }
+    ]
+  }
+}

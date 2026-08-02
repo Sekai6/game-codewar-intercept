@@ -25,6 +25,8 @@ export interface FleetShipScenarioEntry {
   formationRole: FleetFormationRole;
   commandRoles: readonly FleetCommandRole[];
   initialSpeedKnots?: number;
+  scenarioRoute?: readonly (readonly [number, number, number])[];
+  scenarioRouteLoop?: boolean;
   loadout?: Partial<Record<ShipWeapon | "ciws" | "surfaceStrike", number>>;
 }
 

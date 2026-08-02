@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-test/
+dist-test-scenario/
 KEYS/
 *.env
 *.png

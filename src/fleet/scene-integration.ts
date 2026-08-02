@@ -20,6 +20,7 @@ import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import { FleetDamageVisuals } from "./damage-visuals.js";
 import { FleetLaunchObservability } from "./launch-observability.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface LegacyFlagshipSnapshot {
   position: THREE.Vector3;
@@ -67,6 +68,7 @@ export class FleetSceneIntegration {
   readonly launchObservability = new FleetLaunchObservability();
   private currentTime = 0;
   private ciwsEnabled = true;
+  private readonly scenarioRoutes = new Map<string, { points: readonly THREE.Vector3[]; loop: boolean; index: number }>();
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
@@ -82,6 +84,13 @@ export class FleetSceneIntegration {
     const flagship = this.force.ships.get(this.flagshipId)!;
     flagship.applyDamage = options.applyFlagshipDamage;
     this.companions = [...this.force.ships.values()].filter((ship) => ship.id !== this.flagshipId);
+    for (const entry of options.scenario.ships) if (entry.scenarioRoute?.length) {
+      this.scenarioRoutes.set(entry.instanceId, {
+        points:entry.scenarioRoute.map((point) => new THREE.Vector3(...point)),
+        loop:entry.scenarioRouteLoop ?? false,
+        index:0,
+      });
+    }
     for (const ship of this.companions) {
       ship.applyDamage = (damage, hitPoint) => this.damageControl.applyImpact(ship, damage, hitPoint, this.currentTime);
       ship.model.userData.fleetShipId = ship.id;
@@ -129,11 +138,37 @@ export class FleetSceneIntegration {
     this.syncFlagship();
     reassessFleetCommand(this.force, now);
     this.surfaceWarfare.update(this.force, now);
+    const independentlyRouted = new Set([...this.externalShips, ...this.scenarioRoutes.keys()]);
     updateFleetFormation({
       force: this.force,
       dt,
-      externallyIntegratedShipIds: this.externalShips,
+      externallyIntegratedShipIds: independentlyRouted,
     });
+    for (const [shipId, route] of this.scenarioRoutes) {
+      if (this.externalShips.has(shipId)) continue;
+      const ship = this.force.ships.get(shipId);
+      if (!ship?.alive || !route.points.length) continue;
+      let waypoint = route.points[Math.min(route.index, route.points.length - 1)];
+      if (ship.position.distanceTo(waypoint) < 18) {
+        if (route.index < route.points.length - 1) route.index++;
+        else if (route.loop) route.index = 0;
+        waypoint = route.points[route.index];
+      }
+      const offset = waypoint.clone().sub(ship.position);
+      if (offset.lengthSq() > 1) {
+        const desiredHeading = Math.atan2(-offset.z, offset.x);
+        const turn = THREE.MathUtils.degToRad(ship.definition.platform.turnRateDeg) * dt;
+        const error = Math.atan2(Math.sin(desiredHeading - ship.heading), Math.cos(desiredHeading - ship.heading));
+        ship.heading += THREE.MathUtils.clamp(error, -turn, turn);
+      }
+      ship.commandedSpeedKnots = Math.min(ship.definition.platform.maxSpeedKnots, Math.max(0, ship.commandedSpeedKnots));
+      const speedDelta = ship.commandedSpeedKnots - ship.speedKnots;
+      const rate = speedDelta >= 0 ? ship.definition.platform.accelerationKnotsPerSecond : ship.definition.platform.decelerationKnotsPerSecond;
+      ship.speedKnots += THREE.MathUtils.clamp(speedDelta, -rate * dt, rate * dt);
+      ship.velocity.set(Math.cos(ship.heading), 0, -Math.sin(ship.heading)).multiplyScalar(ship.speedKnots * .005144);
+      ship.position.addScaledVector(ship.velocity, dt);
+      ship.model.rotation.y = ship.heading;
+    }
     for (const ship of this.force.ships.values()) {
       if (!this.externalShips.has(ship.id)) this.damageControl.update(ship, now, dt);
       this.electronicWarfare.update(ship, dt);
@@ -151,6 +186,10 @@ export class FleetSceneIntegration {
 
   updateNetwork(now: number, enabled: boolean) {
     this.link11.update(this.force, now, enabled);
+  }
+
+  setSpaceWeather(snapshot: SpaceWeatherSnapshot | null) {
+    this.link11.setPropagationSnapshot(snapshot);
   }
 
   updateAirDefense(now: number, dt: number) {
@@ -287,6 +326,7 @@ export class FleetSceneIntegration {
     this.damageVisuals.reset(this.companions);
     this.launchObservability.reset();
     for (const launcher of this.launchers) launcher.reset();
+    for (const route of this.scenarioRoutes.values()) route.index = 0;
     this.electronicWarfareVisuals.reset();
   }
 

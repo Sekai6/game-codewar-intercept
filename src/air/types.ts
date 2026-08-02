@@ -248,6 +248,10 @@ export interface AirPlatformInstance extends TargetableEntity {
   countermeasurePrograms: CountermeasureReleaseProgram[];
   formationStatus: FormationStatus;
   formationError: number;
+  scenarioRoute: readonly THREE.Vector3[];
+  scenarioRouteLoop: boolean;
+  scenarioRouteIndex: number;
+  scenarioLaunchZone: { center: THREE.Vector3; radius: number } | null;
 }
 
 export interface AirHardpointInstance {
@@ -344,6 +348,13 @@ export type AirCombatEvent = {
     | "guidance"
     | "maneuver";
   text: string;
+  side?: CombatSide;
+  platformId?: string;
+  entityId?: string;
+  launchId?: string;
+  weaponId?: string;
+  launcherId?: string;
+  targetTrackId?: string;
 };
 
 export interface AirSpawn {
@@ -357,4 +368,8 @@ export interface AirSpawn {
   mission?: AirMissionOrder;
   protectedFormationId?: string;
   pilotSkill?: PilotSkill;
+  scenarioRoute?: readonly THREE.Vector3[];
+  scenarioRouteLoop?: boolean;
+  scenarioLaunchZone?: { center: THREE.Vector3; radius: number };
+  initialSpeed?: number;
 }

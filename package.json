@@ -1,13 +1,18 @@
 {
   "name": "codewar-intercept",
   "private": true,
-  "version": "1.20.0",
+  "version": "1.21.0",
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
+    "verify:scenario-system": "tsc src/scenario-system/validator.ts src/scenario-system/import-export.ts --rootDir src --outDir dist-test-scenario --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-scenario-system.mjs && node scripts/verify-scenario-runtime.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "verify:app-smoke": "node scripts/verify-app-load-smoke.mjs",
+    "verify:scenario-guidance": "tsc src/scenario-system/types.ts src/scenario-system/guidance-runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-scenario-guidance.mjs",
+    "verify:lost-comms": "tsc src/lost-comms/types.ts src/lost-comms/doctrine-catalog.ts src/lost-comms/runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-lost-comms.mjs",
+    "verify:blackout-runtime": "node scripts/verify-blackout-scenario-runtime.mjs",
+    "verify:blackout-phases": "node scripts/verify-blackout-phases.mjs",
     "verify:docs": "node scripts/verify-doc-links.mjs",
     "verify:cg57": "node scripts/verify-cg57.mjs",
     "verify:surface-salvo": "node scripts/verify-surface-salvo.mjs",
@@ -146,7 +151,9 @@
     "verify:anti-ship-guidance": "tsc src/anti-ship-guidance.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-anti-ship-guidance.mjs",
     "verify:acmi-export": "tsc src/aar/acmi-exporter.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-acmi-export.mjs",
     "verify:datalink-aar": "tsc src/aar/datalink-recorder.ts src/aar/acmi-exporter.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-datalink-aar.mjs",
-    "verify:acmi-ui": "node scripts/verify-acmi-ui.mjs"
+    "verify:acmi-ui": "node scripts/verify-acmi-ui.mjs",
+    "verify:space-weather": "tsc src/space-weather/types.ts src/space-weather/catalog.ts src/space-weather/timeline-runtime.ts src/space-weather/propagation-effects.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-space-weather.mjs",
+    "verify:c2-space-weather": "tsc src/space-weather/types.ts src/space-weather/catalog.ts src/space-weather/timeline-runtime.ts src/space-weather/propagation-effects.ts src/soviet-c2/era.ts src/soviet-c2/gci-network.ts src/soviet-c2/maritime-targeting.ts src/soviet-c2/fleet-command.ts src/air/aew/command-network.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-c2-space-weather.mjs"
   },
   "dependencies": {
     "three": "^0.178.0"

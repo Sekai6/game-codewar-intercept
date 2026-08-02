@@ -56,6 +56,8 @@ import { createOceanSurface } from "./visual/ocean";
 import { createHighQualityEnvironment } from "./visual/high-quality-environment";
 import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinematicDepth, setCinematicFroxel, setCinematicUltraScatter } from "./visual/cinematic-atmosphere-pass";
 import { createAuroraRuntime } from "./visual/aurora-runtime";
+import { createArcticCoastBackdrop } from "./visual/arctic-coast-backdrop";
+import { ScenarioGuidanceUi } from "./visual/scenario-guidance-ui";
 import { createTacticalNetworkRuntime } from "./visual/tactical-network-runtime";
 import { registerAssetDetailLod, updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
 import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
@@ -121,6 +123,17 @@ import {
   initialSurfaceLoadout,
   initialSurfaceThreats,
 } from "./scenarios/surface-scenarios";
+import { BUILT_IN_SCENARIOS, getBuiltInScenario } from "./scenario-system/catalog";
+import { compileScenario, type CompiledScenario } from "./scenario-system/compiler";
+import { ScenarioRuntime } from "./scenario-system/runtime";
+import { ScenarioGuidanceRuntime, type ScenarioGuidanceObservation } from "./scenario-system/guidance-runtime";
+import { importScenarioJson, exportScenarioJson } from "./scenario-system/import-export";
+import type { GuidanceFocus, ScenarioDocument } from "./scenario-system/types";
+import { SpaceWeatherTimelineRuntime } from "./space-weather/timeline-runtime";
+import type { SpaceWeatherSnapshot } from "./space-weather/types";
+import { LostCommsRuntime } from "./lost-comms/runtime";
+import type { LostCommsDoctrineId } from "./lost-comms/types";
+import { LOST_COMMS_DOCTRINES } from "./lost-comms/doctrine-catalog";
 import {
   adaptCombatTrack,
   adaptTargetableEntity,
@@ -304,6 +317,8 @@ const ocean = createOceanSurface();
 scene.add(ocean.object);
 const highQualityEnvironment = createHighQualityEnvironment();
 scene.add(highQualityEnvironment.object);
+const arcticCoastBackdrop = createArcticCoastBackdrop();
+scene.add(arcticCoastBackdrop.object);
 let highQualityEnvironmentEnabled = false;
 let webGpuUltraStatus: WebGpuUltraStatus = "idle";
 let webGpuUltraResult: WebGpuUltraResult | null = null;
@@ -2264,6 +2279,23 @@ let shipSpeedKnots = DEFAULT_SURFACE_CONFIG.initialSpeedKnots,
   shipManeuverThreatId: number | string = 0;
 const shipWakePosition = new THREE.Vector3();
 let fleetModeEnabled = false;
+let activeScenarioDocument: ScenarioDocument | null = null;
+let activeCompiledScenario: CompiledScenario | null = null;
+let activeScenarioRuntime: ScenarioRuntime | null = null;
+let activeSpaceWeather: SpaceWeatherTimelineRuntime | null = null;
+let activeSpaceWeatherSnapshot: SpaceWeatherSnapshot | null = null;
+let activeGuidanceRuntime: ScenarioGuidanceRuntime | null = null;
+let scenarioBriefingLocked = false;
+let activeGuidanceUi: ScenarioGuidanceUi | null = null;
+const lostCommsRuntime = new LostCommsRuntime();
+let lastGuidanceWeatherPhase = "";
+let lastGuidanceNetworkState = "";
+let scenarioBlueAirTrackObserved = false;
+let scenarioFlagshipRouteIndex = 0;
+let scenarioRedSurfaceRouteIndex = 0;
+let scenarioEndHandled = false;
+const scenarioLaunchCounts = new Map<string, number>();
+
 function rebuildFleetIntegration() {
   fleetIntegration?.dispose();
   fleetIntegration = null;
@@ -2280,7 +2312,8 @@ function rebuildFleetIntegration() {
     canvas.dataset.fleetSurfaceAssignments = "";
     return;
   }
-  const scenario = blueNtuScreenForFlagship(activeShip.id, fleetFormation);
+  const scenario = activeCompiledScenario?.navalForces.find((force) => force.side === "blue")
+    ?? blueNtuScreenForFlagship(activeShip.id, fleetFormation);
   fleetIntegration = new FleetSceneIntegration({
     scene,
     scenario,
@@ -3271,6 +3304,267 @@ threatSelect.onchange = () => {
             .defaultScenarioRange,
   );
 };
+
+const scenarioField = document.createElement("label");
+scenarioField.className = "sandbox-field";
+scenarioField.innerHTML = `<span>SCENARIO</span><select id="sbScenario"><option value="legacy-sandbox">SANDBOX / LEGACY PRESETS</option>${BUILT_IN_SCENARIOS.map((scenario) => `<option value="${scenario.id}">${scenario.metadata.subtitle ?? scenario.metadata.title} / ${scenario.metadata.year}</option>`).join("")}</select>`;
+sandbox.insertBefore(scenarioField, sandbox.firstElementChild?.nextSibling ?? sandbox.firstChild);
+const scenarioInput = scenarioField.querySelector("select") as HTMLSelectElement;
+const scenarioIo = document.createElement("div");
+scenarioIo.className = "scenario-io-controls";
+scenarioIo.innerHTML = '<button type="button" data-import>IMPORT SCENARIO JSON</button><button type="button" data-export>EXPORT SCENARIO JSON</button><input type="file" accept="application/json,.json" hidden>';
+sandbox.insertBefore(scenarioIo, scenarioField.nextSibling);
+const scenarioFileInput = scenarioIo.querySelector("input") as HTMLInputElement;
+
+function setNumberInput(selector: string, value: number) {
+  (sandbox.querySelector(selector) as HTMLInputElement).value = String(value);
+}
+
+function applyScenarioToSandbox(compiled: CompiledScenario | null) {
+  activeCompiledScenario = compiled;
+  activeScenarioDocument = compiled?.document ?? null;
+  if (!compiled) {
+    activeScenarioRuntime = null;
+    activeSpaceWeather = null;
+    activeSpaceWeatherSnapshot = null;
+    activeGuidanceRuntime = null;
+    activeGuidanceUi?.destroy();
+    activeGuidanceUi = null;
+    lostCommsRuntime.reset();
+    auroraRuntime.setEnvironmentalState({ controlled:false,enabled:false,intensity:0,magneticDisturbance:0 });
+    arcticCoastBackdrop.setEnabled(false);
+    rebuildFleetIntegration();
+    return;
+  }
+  const blueForce = compiled.navalForces.find((force) => force.side === "blue");
+  const flagship = blueForce?.ships.find((ship) => ship.commandRoles.includes("otc"));
+  if (flagship) {
+    shipSelect.value = flagship.definitionId;
+    configureShip(flagship.definitionId);
+    setNumberInput("#sbShipX", flagship.position[0]);
+    setNumberInput("#sbShipZ", flagship.position[2]);
+  }
+  const redPlatform = compiled.surfacePlatformSpawns[0];
+  if (redPlatform) {
+    platformSelect.value = redPlatform.platformId;
+    syncPlatformThreatOptions();
+    setNumberInput("#sbX", redPlatform.position.x);
+    setNumberInput("#sbZ", redPlatform.position.z);
+    // A data-driven scenario may contain a surface combatant without granting it
+    // an immediate legacy sandbox salvo. Weapons must be authorized by scenario AI.
+    setNumberInput("#sbCount", 0);
+  }
+  fleetModeEnabled = Boolean(blueForce);
+  fleetScenarioInput.checked = fleetModeEnabled;
+  airScenarioInput.checked = compiled.airSpawns.length > 0;
+  advancedAirAiInput.checked = compiled.document.simulation.advancedAirAi;
+  datalinkEraInput.value = compiled.document.simulation.datalinkEra;
+  link16Input.checked = true;
+  sovietCommandEraInput.value = compiled.document.simulation.sovietCommandEra;
+  sovietCommandInput.checked = true;
+  wave2Select.value = "NONE";
+  rebuildFleetIntegration();
+}
+
+function compileSelectedScenario(document: ScenarioDocument) {
+  return compileScenario(document, {
+    shipDefinitions:[...SHIP_DEFINITIONS.keys(), ...ENEMY_PLATFORM_DEFINITIONS.map((definition) => definition.id)],
+  });
+}
+
+scenarioInput.addEventListener("change", () => {
+  if (scenarioInput.value === "legacy-sandbox") applyScenarioToSandbox(null);
+  else applyScenarioToSandbox(compileSelectedScenario(getBuiltInScenario(scenarioInput.value)));
+});
+scenarioIo.querySelector<HTMLElement>("[data-import]")!.onclick = () => scenarioFileInput.click();
+scenarioFileInput.onchange = async () => {
+  const file = scenarioFileInput.files?.[0];
+  if (!file) return;
+  try {
+    const document = importScenarioJson(await file.text());
+    applyScenarioToSandbox(compileSelectedScenario(document));
+    scenarioInput.value = "legacy-sandbox";
+    log(`SCENARIO IMPORT / ${document.id} / SCHEMA ${document.schemaVersion} / ${document.forces.length} FORCE ENTRIES`);
+  } catch (error) {
+    log(`SCENARIO IMPORT REJECTED / ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    scenarioFileInput.value = "";
+  }
+};
+scenarioIo.querySelector<HTMLElement>("[data-export]")!.onclick = () => {
+  if (!activeScenarioDocument) {
+    log("SCENARIO EXPORT INHIBIT / SELECT OR IMPORT A DATA-DRIVEN SCENARIO");
+    return;
+  }
+  downloadTextFile(exportScenarioJson(activeScenarioDocument), `${activeScenarioDocument.id}.scenario.json`);
+};
+
+function handleScenarioGuidanceFocus(focus: GuidanceFocus) {
+  if (focus.kind === "network") {
+    if (!tacticalNetworkRuntime.visible)
+      dispatchEvent(new KeyboardEvent("keydown", { key:"n" }));
+    return;
+  }
+  if (focus.kind === "overview" || focus.kind === "zone") {
+    selectedAircraftId = null;
+    fleetOverviewCamera = true;
+    viewMode = 9;
+    return;
+  }
+  if (focus.kind === "formation" && focus.targetId) {
+    const aircraft = airCombat.aircraft.find((candidate) => candidate.formationId === focus.targetId && candidate.alive);
+    if (aircraft) {
+      selectedAircraftId = aircraft.id;
+      fleetOverviewCamera = false;
+      viewMode = aircraft.side === "blue" ? 7 : 8;
+      return;
+    }
+  }
+  if (focus.kind === "entity" && focus.targetId) {
+    const aircraft = airCombat.aircraft.find((candidate) => candidate.id === focus.targetId || candidate.formationId === focus.targetId);
+    if (aircraft) {
+      selectedAircraftId = aircraft.id;
+      fleetOverviewCamera = false;
+      viewMode = aircraft.side === "blue" ? 7 : 8;
+      return;
+    }
+    if (focus.targetId === "blue-cg-57") {
+      fleetLaunchCameraShipId = focus.targetId;
+      fleetOverviewCamera = false;
+      viewMode = 2;
+    }
+  }
+}
+
+function initializeActiveScenarioSystems() {
+  activeGuidanceUi?.destroy();
+  activeGuidanceUi = null;
+  activeScenarioRuntime = activeScenarioDocument ? new ScenarioRuntime(activeScenarioDocument) : null;
+  activeSpaceWeather = activeCompiledScenario?.timeline.spaceWeather
+    ? new SpaceWeatherTimelineRuntime(activeCompiledScenario.timeline.spaceWeather)
+    : null;
+  activeSpaceWeatherSnapshot = activeSpaceWeather?.snapshotAt(0) ?? null;
+  activeGuidanceRuntime = activeScenarioDocument
+    ? new ScenarioGuidanceRuntime(activeScenarioDocument.guidance, ScenarioGuidanceUi.loadMode())
+    : null;
+  lostCommsRuntime.reset();
+  for (const force of activeScenarioDocument?.forces ?? []) {
+    if (force.lostCommsDoctrineId)
+      lostCommsRuntime.register(force.id, force.lostCommsDoctrineId as LostCommsDoctrineId, 0);
+  }
+  lastGuidanceWeatherPhase = "";
+  lastGuidanceNetworkState = "";
+  scenarioBlueAirTrackObserved = false;
+  scenarioFlagshipRouteIndex = 0;
+  scenarioRedSurfaceRouteIndex = 0;
+  scenarioEndHandled = false;
+  scenarioLaunchCounts.clear();
+  if (!activeScenarioDocument || !activeGuidanceRuntime) {
+    auroraRuntime.setEnvironmentalState({ controlled:false,enabled:false,intensity:0,magneticDisturbance:0 });
+    return;
+  }
+  activeGuidanceUi = new ScenarioGuidanceUi(activeScenarioDocument, {
+    onModeChange: (mode) => activeGuidanceRuntime?.setMode(mode),
+    onFocus: handleScenarioGuidanceFocus,
+    onDismissCue: () => activeGuidanceRuntime?.dismissCurrent(),
+    onBriefingClosed: () => { running = true; last = performance.now(); },
+    onModalLockChange: (locked) => {
+      scenarioBriefingLocked = locked;
+      activeGuidanceRuntime?.setPaused(locked || !running);
+    },
+  });
+  arcticCoastBackdrop.setEnabled(activeScenarioDocument.environment.coastBackdropId === "norwegian-barents-distant-coast");
+  running = false;
+}
+
+function observeScenarioGuidance(event: ScenarioGuidanceObservation) {
+  activeGuidanceRuntime?.observe(event, elapsed);
+}
+
+function scenarioTargetAlive(targetId: string) {
+  if (targetId === fleetIntegration?.flagshipId) return hullIntegrity > 0;
+  const fleetShip = fleetIntegration?.force.ships.get(targetId);
+  if (fleetShip) return fleetShip.alive;
+  if (targetId === activeCompiledScenario?.surfacePlatformSpawns[0]?.id)
+    return Boolean(enemyPlatform && enemyPlatform.hullIntegrity > 0);
+  const formation = airCombat.aircraft.filter((aircraft) => aircraft.formationId === targetId);
+  return formation.length > 0 && formation.some((aircraft) => aircraft.alive);
+}
+
+function finalizeScenarioObjectives() {
+  if (!activeScenarioRuntime || !activeScenarioDocument || scenarioEndHandled) return;
+  const snapshot = activeScenarioRuntime.snapshot();
+  if (!snapshot.ended) return;
+  scenarioEndHandled = true;
+  for (const objective of activeScenarioDocument.objectives) {
+    const alive = objective.targetIds.map(scenarioTargetAlive);
+    let state: "complete" | "failed";
+    if (objective.kind === "protect") state = alive.some(Boolean) ? "complete" : "failed";
+    else if (objective.kind === "survive") state = alive.some(Boolean) ? "complete" : "failed";
+    else if (objective.kind === "intercept")
+      state = !alive.some(Boolean) || (scenarioLaunchCounts.get("red") ?? 0) === 0 ? "complete" : "failed";
+    else if (objective.kind === "strike") state = (scenarioLaunchCounts.get(objective.side) ?? 0) > 0 ? "complete" : "failed";
+    else state = "complete";
+    activeScenarioRuntime.setObjective(objective.id, state);
+    observeScenarioGuidance({ type:"objective-state", objectiveId:objective.id, state });
+    log(`SCENARIO OBJECTIVE / ${objective.id} / ${state.toUpperCase()}`);
+  }
+  finishMission(hullIntegrity > 0, "SCENARIO TIME COMPLETE / OBJECTIVES ASSESSED");
+}
+
+function updateActiveScenarioSystems() {
+  if (!activeScenarioRuntime || !activeGuidanceRuntime || !activeScenarioDocument) return;
+  activeScenarioRuntime.update(elapsed);
+  activeSpaceWeatherSnapshot = activeSpaceWeather?.snapshotAt(elapsed) ?? null;
+  const weather = activeSpaceWeatherSnapshot;
+  airCombat.setSpaceWeather(weather);
+  fleetIntegration?.setSpaceWeather(weather);
+  if (weather) {
+    auroraRuntime.setEnvironmentalState({
+      controlled: Boolean(activeScenarioDocument.environment.auroraControlled),
+      enabled: weather.magneticDisturbance > 0.08,
+      intensity: 0.18 + weather.magneticDisturbance * 1.05,
+      magneticDisturbance: weather.magneticDisturbance,
+    });
+    if (weather.phase !== lastGuidanceWeatherPhase) {
+      lastGuidanceWeatherPhase = weather.phase;
+      observeScenarioGuidance({ type:"space-weather-phase", phase:weather.phase });
+      log(`SPACE WEATHER / ${weather.phase.toUpperCase()} / INTENSITY ${Math.round(weather.intensity * 100)}% / HF ${Math.round(weather.hfAvailability * 100)}% / VHF-UHF ${Math.round(weather.vhfUhfReliability * 100)}%`);
+    }
+    const linkQuality = Math.min(weather.hfAvailability, weather.vhfUhfReliability);
+    const networkState = linkQuality < .2 ? "disconnected" : linkQuality < .58 ? "degraded" : weather.phase === "recovery" ? "recovering" : "online";
+    if (networkState !== lastGuidanceNetworkState) {
+      lastGuidanceNetworkState = networkState;
+      if (networkState !== "online") observeScenarioGuidance({ type:"network-state", side:"blue", state:networkState });
+    }
+    for (const force of activeScenarioDocument.forces) {
+      if (!force.lostCommsDoctrineId) continue;
+      const quality = force.side === "red"
+        ? weather.vhfUhfReliability * .72 + weather.hfAvailability * .28
+        : linkQuality;
+      const transition = lostCommsRuntime.update(force.id, { time:elapsed, linkQuality:quality });
+      if (!transition) continue;
+      const doctrine = LOST_COMMS_DOCTRINES[transition.doctrineId];
+      if (force.kind === "air-formation")
+        airCombat.setFormationLostComms(force.id, transition.kind === "restored" ? null : doctrine.behavior, transition.time);
+      log(`LOST COMMS / ${force.id} / ${transition.kind.toUpperCase()} / ${transition.doctrineId}`);
+      if (transition.kind === "entered") observeScenarioGuidance({ type:"platform-lost-comms", platformId:force.id });
+    }
+  }
+  const guidance = activeGuidanceRuntime.update(elapsed);
+  activeGuidanceRuntime.setPaused(!running || scenarioBriefingLocked);
+  for (const event of activeGuidanceRuntime.drainAuditEvents())
+    log(`SCENARIO GUIDANCE / ${event.action.toUpperCase()}${event.cueId ? ` / ${event.cueId}` : ""}${event.mode ? ` / ${event.mode.toUpperCase()}` : ""}`);
+  activeGuidanceUi?.update(guidance, activeScenarioRuntime.snapshot().phase.toUpperCase());
+  canvas.dataset.scenarioId = activeScenarioDocument.id;
+  canvas.dataset.scenarioSchemaVersion = String(activeScenarioDocument.schemaVersion);
+  canvas.dataset.scenarioPhase = activeScenarioRuntime.snapshot().phase;
+  canvas.dataset.spaceWeatherPhase = weather?.phase ?? "none";
+  canvas.dataset.spaceWeatherIntensity = (weather?.intensity ?? 0).toFixed(3);
+  canvas.dataset.spaceWeatherCommsWindow = String(weather?.communicationWindowOpen ?? false);
+  canvas.dataset.lostCommsStates = lostCommsRuntime.all().map((state) => `${state.platformId}:${state.connected ? "connected" : "lost"}:${state.doctrineId}`).join("|");
+  finalizeScenarioObjectives();
+}
 radarCanvas.addEventListener("pointerdown", (e) => {
   if (!placementMode) return;
   e.stopPropagation();
@@ -3320,6 +3614,9 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   true,
 );
 (sandbox.querySelector("#sbStart") as HTMLButtonElement).onclick = async () => {
+  const validationTimeScale = Number(new URLSearchParams(location.search).get("validationTimeScale"));
+  if (Number.isFinite(validationTimeScale) && validationTimeScale >= 1 && validationTimeScale <= 8)
+    timeScale = validationTimeScale;
   if (webGpuUltraInput.checked && webGpuUltraStatus !== "active")
     await configureWebGpuUltra(true);
   highQualityEnvironmentEnabled = highQualityEnvironmentInput.checked;
@@ -3345,6 +3642,10 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   scene.fog = highQualityEnvironmentEnabled
     ? new THREE.FogExp2(0x8298a4, 0.00072)
     : new THREE.Fog(0x06111b, 180, 900);
+  camera.far = activeScenarioDocument ? 6500 : 2000;
+  if (activeScenarioDocument && !highQualityEnvironmentEnabled)
+    scene.fog = new THREE.Fog(0x06111b, 300, 5200);
+  camera.updateProjectionMatrix();
   scene.background = highQualityEnvironmentEnabled ? null : new THREE.Color(0x06111b);
   auroraRuntime.activate(webGpuUltraStatus === "active");
   missiles.forEach((m) => {
@@ -3436,7 +3737,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }
   } else {
     const definition = getEnemyPlatformDefinition(platformSelection);
-    const heading = Math.atan2(
+    const heading = activeCompiledScenario?.surfacePlatformSpawns[0]?.heading ?? Math.atan2(
       -(defender.position.z - cz),
       defender.position.x - cx,
     );
@@ -3456,7 +3757,10 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     const weaponSlot = definition.weaponSlots.find((slot) =>
       slot.compatibleThreats.includes(kind),
     );
-    if (weaponSlot?.salvoDoctrine) {
+    if (activeCompiledScenario) {
+      count = 0;
+      log(`SCENARIO SURFACE PLATFORM / ${definition.name} / WEAPONS HOLD UNTIL DATA-DRIVEN AUTHORIZATION`);
+    } else if (weaponSlot?.salvoDoctrine) {
       platformFirePlan = {
         platform: enemyPlatform,
         threat: kind,
@@ -3500,7 +3804,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     airCombat.reset(
       context.blueShip,
       context.redShip,
-      airScenarioSpawns(
+      activeCompiledScenario?.airSpawns ?? airScenarioSpawns(
         presetId,
         new URLSearchParams(location.search).get("shortAirValidation") === "1",
         new URLSearchParams(location.search).get("sovietSalvoValidation") === "1",
@@ -3509,9 +3813,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     );
     airCombat.countermeasuresEnabled =
       new URLSearchParams(location.search).get("airCountermeasures") !== "off";
-    log(
-      `AIR OPERATIONS / ${AIR_SCENARIO_PRESETS[presetId].description.toUpperCase()}`,
-    );
+    log(`AIR OPERATIONS / ${(activeScenarioDocument?.metadata.title ?? AIR_SCENARIO_PRESETS[presetId].description).toUpperCase()}`);
   }
   updateMaterialDiagnostics();
   selectedTargetId = 1;
@@ -3528,6 +3830,11 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   ammoEl.textContent = `RIM ${ammo} / MR ${sm2Ammo} / ER ${sm2erAmmo}`;
   sandbox.style.display = "none";
   running = true;
+  initializeActiveScenarioSystems();
+  const validationScenarioOffset = Number(new URLSearchParams(location.search).get("validationScenarioOffset"));
+  if (activeScenarioDocument && Number.isFinite(validationScenarioOffset) && validationScenarioOffset >= 0
+      && validationScenarioOffset < activeScenarioDocument.simulation.durationSeconds)
+    elapsed = validationScenarioOffset;
   log(
     `SANDBOX START / ${activeShip.hullNumber} / ${count} x ${kind} INITIAL${platformFirePlan ? ` / AUTH ${platformFirePlan.authorizedWeapons}` : ""} / ${interval}s INTERVAL / ${platformSelection}`,
   );
@@ -3563,13 +3870,16 @@ radarCanvas.addEventListener("pointerdown", (e) => {
 (sandbox.querySelector("#sbStart") as HTMLButtonElement).addEventListener(
   "pointerdown",
   () => {
-    shipSpeedKnots = oceanValidationMode === "stern" ? activeShip.platform.maxSpeedKnots * 0.82 : 0;
-    shipDesiredHeading = 0;
+    const scenarioFlagship = activeCompiledScenario?.navalForces
+      .find((force) => force.side === "blue")?.ships.find((ship) => ship.commandRoles.includes("otc"));
+    shipSpeedKnots = scenarioFlagship?.initialSpeedKnots ?? (oceanValidationMode === "stern" ? activeShip.platform.maxSpeedKnots * 0.82 : 0);
+    shipDesiredHeading = scenarioFlagship?.heading ?? 0;
     shipCommandedSpeedKnots = oceanValidationMode === "stern" ? activeShip.platform.maxSpeedKnots : activeShip.platform.patrolSpeedKnots;
     shipManeuverMode = "patrol";
     nextShipDecision = 0;
     shipManeuverThreatId = 0;
-    defender.rotation.y = 0;
+    if (scenarioFlagship) shipCommandedSpeedKnots = scenarioFlagship.initialSpeedKnots ?? activeShip.platform.patrolSpeedKnots;
+    defender.rotation.y = scenarioFlagship?.heading ?? 0;
     fleetIntegration?.reset();
     ocean.setVesselWake(defender.position, 0, 0);
   },
@@ -3706,7 +4016,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }, 0),
 );
 function classifyAarEvent(text: string): AarCategory {
-  if (/GCI COMMAND|AEW COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2/.test(text))
+  if (/GCI COMMAND|AEW COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2|SPACE WEATHER|LOST COMMS|COMMS WINDOW/.test(text))
     return "network";
   if (/POINT DEFENSE FIRE/.test(text)) return "fire";
   if (
@@ -4573,6 +4883,20 @@ function updateShipManeuver(dt: number) {
       } else {
         shipManeuverMode = "patrol";
         shipCommandedSpeedKnots = activeShip.platform.patrolSpeedKnots;
+        const flagshipId = fleetIntegration?.flagshipId;
+        const route = flagshipId ? activeCompiledScenario?.initialStates.get(flagshipId)?.route : undefined;
+        if (route?.points.length) {
+          let waypoint = route.points[Math.min(scenarioFlagshipRouteIndex, route.points.length - 1)];
+          if (defender.position.distanceTo(waypoint.position) < 18) {
+            if (scenarioFlagshipRouteIndex < route.points.length - 1) scenarioFlagshipRouteIndex++;
+            else if (route.loop) scenarioFlagshipRouteIndex = 0;
+            waypoint = route.points[scenarioFlagshipRouteIndex];
+          }
+          const offset = waypoint.position.clone().sub(defender.position).setY(0);
+          if (offset.lengthSq() > 1) shipDesiredHeading = Math.atan2(-offset.z, offset.x);
+          if (waypoint.speed !== undefined) shipCommandedSpeedKnots = waypoint.speed;
+          shipManeuverMode = "scenario-route";
+        }
       }
     }
     if (
@@ -8033,7 +8357,16 @@ function tick(now: number) {
     simAccumulator += realDt * timeScale;
     while (simAccumulator >= 0.05 && running) {
       elapsed += 0.05;
+      updateActiveScenarioSystems();
       if (enemyPlatform) {
+        const redSpawn = activeCompiledScenario?.surfacePlatformSpawns[0];
+        const redRoute = redSpawn?.routeId ? activeCompiledScenario?.routes.get(redSpawn.routeId) : undefined;
+        let redWaypoint = redRoute?.points[Math.min(scenarioRedSurfaceRouteIndex, Math.max(0, redRoute.points.length - 1))];
+        if (redWaypoint && enemyPlatform.model.position.distanceTo(redWaypoint.position) < 18) {
+          if (scenarioRedSurfaceRouteIndex < redRoute!.points.length - 1) scenarioRedSurfaceRouteIndex++;
+          else if (redRoute!.loop) scenarioRedSurfaceRouteIndex = 0;
+          redWaypoint = redRoute!.points[scenarioRedSurfaceRouteIndex];
+        }
         const defenderVelocity = new THREE.Vector3(1, 0, 0)
           .applyAxisAngle(new THREE.Vector3(0, 1, 0), defender.rotation.y)
           .multiplyScalar(shipSpeedKnots * 0.005144);
@@ -8047,6 +8380,7 @@ function tick(now: number) {
           activeShip.platform.radarRcs,
           opforRadarEnabled,
           radarEnabled,
+          redWaypoint?.position,
         );
         if (platformUpdate.maneuverChanged)
           log(
@@ -8097,10 +8431,30 @@ function tick(now: number) {
           airCombat.recordCueSearchUse("blue-surface-ship", link16Cue, elapsed);
         }
         synchronizeAirDefenseTargets();
-        for (const event of airCombat.drainEvents())
+        for (const event of airCombat.drainEvents()) {
           log(`AIR OODA / ${event.text}`);
+          if (event.kind === "launch" && event.side && event.platformId && event.launchId && event.weaponId && event.launcherId && event.targetTrackId)
+          {
+            scenarioLaunchCounts.set(event.side, (scenarioLaunchCounts.get(event.side) ?? 0) + 1);
+            observeScenarioGuidance({
+              type:"weapon-launch",
+              side:event.side,
+              platformId:event.platformId,
+              launchId:event.launchId,
+              weaponId:event.weaponId,
+              launcherId:event.launcherId,
+              targetTrackId:event.targetTrackId,
+              releaseSource:"air-hardpoint",
+              physicalRelease:true,
+            });
+          }
+        }
       }
       updateCombat(0.05);
+      if (!scenarioBlueAirTrackObserved && [...combatPicture.tracks.values()].some((track) => defenseTargetForSource(track.sourceId)?.entity?.kind === "aircraft")) {
+        scenarioBlueAirTrackObserved = true;
+        observeScenarioGuidance({ type:"confirmed-track", side:"blue", classification:"aircraft" });
+      }
       missiles.forEach((m) => updateIncomingMissile(m, 0.05));
       updatePlatformFirePlan();
       captureAarSnapshot();
@@ -8877,6 +9231,7 @@ function tick(now: number) {
   ocean.update(elapsed, camera.position);
   highQualityEnvironment.update(elapsed, camera.position);
   auroraRuntime.update(elapsed, camera.position);
+  arcticCoastBackdrop.update(elapsed);
   tacticalNetworkRuntime.update(elapsed);
   const ewPulse = defender.userData.ewPulse as THREE.Group | undefined,
     ewThreat = missiles.some((m) => m.mesh.visible && m.phase === "terminal"),
@@ -9089,7 +9444,10 @@ function cycleAircraft(
   return candidates[(currentIndex + 1) % candidates.length].id;
 }
 addEventListener("keydown", (e) => {
-  if (e.code === "Space") running = !running;
+  if (e.code === "Space" && !scenarioBriefingLocked) {
+    running = !running;
+    activeGuidanceRuntime?.setPaused(!running);
+  }
   if (e.key.toLowerCase() === "r") location.reload();
 });
 addEventListener("keydown", (e) => {
