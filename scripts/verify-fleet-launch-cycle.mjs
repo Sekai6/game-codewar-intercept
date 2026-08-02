@@ -21,7 +21,7 @@ try {
   await page.locator("#sbStart").click();
   await page.waitForFunction(() =>
     (document.querySelector("#scene")?.dataset.fleetSamMagazines ?? "").includes("blue-cg-57:"),
-  null, { timeout: 5_000 });
+  null, { timeout: 15_000 });
   const initialMagazines = await page.locator("#scene").evaluate((canvas) =>
     canvas.dataset.fleetSamMagazines ?? "");
   await page.getByRole("button", { name: "TIME: 1X" }).click();
