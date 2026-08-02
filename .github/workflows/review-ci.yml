@@ -114,19 +114,23 @@ jobs:
           datalink=false
           aar=false
           visual=false
+          integration=false
 
           while IFS= read -r path; do
             case "$path" in
               src/main.ts|src/sim.ts|src/combat-types.ts)
-                fleet=true
-                air=true
-                datalink=true
-                aar=true
+                integration=true
                 ;;
             esac
             case "$path" in
               src/fleet/*|src/ships/*|src/ship-defense/*|src/defense/*|src/ship-*.ts|src/vls.ts|src/interceptor-*.ts)
                 fleet=true
+                ;;
+            esac
+            case "$path" in
+              src/models/long-beach.ts|src/models/ticonderoga.ts|src/platforms/models/moskva.ts|src/surface/*|surface-gallery.html|scripts/capture-surface-platform-lod-gallery.mjs|scripts/verify-fleet-*.mjs|scripts/verify-platform-defense-visual.mjs|scripts/verify-surface-salvo.mjs)
+                fleet=true
+                visual=true
                 ;;
             esac
             case "$path" in
@@ -162,6 +166,7 @@ jobs:
             echo "datalink=$datalink"
             echo "aar=$aar"
             echo "visual=$visual"
+            echo "integration=$integration"
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify air asset contracts and flight logic
@@ -179,7 +184,8 @@ jobs:
           steps.changes.outputs.fleet == 'true' ||
           steps.changes.outputs.air == 'true' ||
           steps.changes.outputs.datalink == 'true' ||
-          steps.changes.outputs.visual == 'true'
+          steps.changes.outputs.visual == 'true' ||
+          steps.changes.outputs.integration == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -243,13 +249,20 @@ jobs:
           npm run verify:webgpu-ultra
           npm run verify:webgpu-ultra-active
 
+      - name: Verify composition-root smoke paths
+        if: steps.changes.outputs.integration == 'true'
+        run: |
+          npm run verify:default-platform
+          npm run verify:default-engagement
+
       - name: Report documentation-only verification
         if: >-
           steps.changes.outputs.fleet != 'true' &&
           steps.changes.outputs.air != 'true' &&
           steps.changes.outputs.datalink != 'true' &&
           steps.changes.outputs.aar != 'true' &&
-          steps.changes.outputs.visual != 'true'
+          steps.changes.outputs.visual != 'true' &&
+          steps.changes.outputs.integration != 'true'
         run: echo "No domain-specific runtime suite was required for these paths."
 
       - name: Stop browser verification server
