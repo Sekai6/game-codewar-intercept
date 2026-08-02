@@ -17,17 +17,38 @@ import {
   type ModelWeaponHardpoint,
 } from "./model-primitives";
 
+// Keep the established 59.5-unit gameplay length, but derive the beam from
+// the real 219.8 m x 22.3 m proportions.  The original mesh was almost 30%
+// too broad (L/B 7.73 instead of 9.86), which made the cruiser read as a
+// short destroyer in oblique views.
+const LONG_BEACH_REAL_LENGTH_M = 219.8;
+const LONG_BEACH_REAL_BEAM_M = 22.3;
+const LONG_BEACH_MODEL_LENGTH = 59.5;
+const LONG_BEACH_MODEL_BEAM =
+  LONG_BEACH_MODEL_LENGTH / (LONG_BEACH_REAL_LENGTH_M / LONG_BEACH_REAL_BEAM_M);
+const LONG_BEACH_HALF_BEAM = LONG_BEACH_MODEL_BEAM / 2;
+// The legacy model used the same vertical unit scale as its much shorter
+// hull.  Once the real L/B ratio was restored, that left the deckhouse and
+// mast roughly 50% too tall in beam views.  Preserve all local hardpoint and
+// animation geometry, but use the ship's measured side-profile proportions
+// for the assembled model.
+const LONG_BEACH_VERTICAL_SCALE = 0.66;
+
+// Late-1980s NTU hull: broad transom/flight deck, nearly parallel mid-body,
+// pronounced forecastle sheer and a fine flared bow.  +X is forward.
 const LONG_BEACH_HULL: readonly HullStation[] = [
-  { x: -30, deckHalf: 2.8, shoulderHalf: 2.7, waterlineHalf: 2.45, keelHalf: 0.72, deckY: 5.72, shoulderY: 3.55, waterlineY: 0.34, keelY: -0.72 },
-  { x: -28, deckHalf: 3.35, shoulderHalf: 3.25, waterlineHalf: 2.92, keelHalf: 0.9, deckY: 5.82, shoulderY: 3.5, waterlineY: 0.32, keelY: -0.82 },
-  { x: -24, deckHalf: 3.68, shoulderHalf: 3.55, waterlineHalf: 3.14, keelHalf: 1, deckY: 5.92, shoulderY: 3.45, waterlineY: 0.3, keelY: -0.92 },
-  { x: -16, deckHalf: 3.82, shoulderHalf: 3.67, waterlineHalf: 3.24, keelHalf: 1.05, deckY: 6, shoulderY: 3.42, waterlineY: 0.28, keelY: -0.98 },
-  { x: 0, deckHalf: 3.85, shoulderHalf: 3.7, waterlineHalf: 3.25, keelHalf: 1.06, deckY: 6.02, shoulderY: 3.42, waterlineY: 0.28, keelY: -1 },
-  { x: 12, deckHalf: 3.78, shoulderHalf: 3.63, waterlineHalf: 3.1, keelHalf: 1, deckY: 6.08, shoulderY: 3.48, waterlineY: 0.3, keelY: -0.94 },
-  { x: 19, deckHalf: 3.42, shoulderHalf: 3.24, waterlineHalf: 2.7, keelHalf: 0.84, deckY: 6.2, shoulderY: 3.62, waterlineY: 0.34, keelY: -0.78 },
-  { x: 24, deckHalf: 2.62, shoulderHalf: 2.38, waterlineHalf: 1.86, keelHalf: 0.55, deckY: 6.42, shoulderY: 3.9, waterlineY: 0.4, keelY: -0.52 },
-  { x: 27.5, deckHalf: 1.32, shoulderHalf: 1.08, waterlineHalf: 0.7, keelHalf: 0.2, deckY: 6.72, shoulderY: 4.3, waterlineY: 0.48, keelY: -0.12 },
-  { x: 29.5, deckHalf: 0.06, shoulderHalf: 0.045, waterlineHalf: 0.025, keelHalf: 0.01, deckY: 7.08, shoulderY: 4.8, waterlineY: 0.58, keelY: 0.32 },
+  { x: -30, deckHalf: 2.58, shoulderHalf: 2.48, waterlineHalf: 2.18, keelHalf: 0.7, deckY: 5.7, shoulderY: 3.48, waterlineY: 0.34, keelY: -0.72 },
+  { x: -28.6, deckHalf: 2.82, shoulderHalf: 2.7, waterlineHalf: 2.38, keelHalf: 0.8, deckY: 5.76, shoulderY: 3.44, waterlineY: 0.32, keelY: -0.8 },
+  { x: -25, deckHalf: 2.98, shoulderHalf: 2.85, waterlineHalf: 2.52, keelHalf: 0.9, deckY: 5.84, shoulderY: 3.4, waterlineY: 0.3, keelY: -0.9 },
+  { x: -18, deckHalf: LONG_BEACH_HALF_BEAM, shoulderHalf: 2.88, waterlineHalf: 2.56, keelHalf: 0.96, deckY: 5.94, shoulderY: 3.38, waterlineY: 0.28, keelY: -0.98 },
+  { x: -7, deckHalf: LONG_BEACH_HALF_BEAM, shoulderHalf: 2.9, waterlineHalf: 2.58, keelHalf: 0.98, deckY: 6, shoulderY: 3.38, waterlineY: 0.28, keelY: -1 },
+  { x: 5, deckHalf: LONG_BEACH_HALF_BEAM, shoulderHalf: 2.9, waterlineHalf: 2.57, keelHalf: 0.98, deckY: 6.04, shoulderY: 3.4, waterlineY: 0.28, keelY: -0.98 },
+  { x: 14, deckHalf: 2.96, shoulderHalf: 2.82, waterlineHalf: 2.46, keelHalf: 0.92, deckY: 6.12, shoulderY: 3.48, waterlineY: 0.3, keelY: -0.92 },
+  { x: 20, deckHalf: 2.72, shoulderHalf: 2.54, waterlineHalf: 2.18, keelHalf: 0.78, deckY: 6.26, shoulderY: 3.66, waterlineY: 0.34, keelY: -0.75 },
+  { x: 24.2, deckHalf: 2.18, shoulderHalf: 1.96, waterlineHalf: 1.6, keelHalf: 0.53, deckY: 6.48, shoulderY: 3.98, waterlineY: 0.41, keelY: -0.47 },
+  { x: 27.1, deckHalf: 1.2, shoulderHalf: 0.98, waterlineHalf: 0.63, keelHalf: 0.19, deckY: 6.76, shoulderY: 4.34, waterlineY: 0.49, keelY: -0.1 },
+  { x: 28.8, deckHalf: 0.48, shoulderHalf: 0.35, waterlineHalf: 0.2, keelHalf: 0.06, deckY: 6.98, shoulderY: 4.66, waterlineY: 0.55, keelY: 0.18 },
+  { x: 29.5, deckHalf: 0.045, shoulderHalf: 0.035, waterlineHalf: 0.02, keelHalf: 0.008, deckY: 7.14, shoulderY: 4.9, waterlineY: 0.6, keelY: 0.35 },
 ];
 function createSectorGeometry(
   radius: number,
@@ -226,10 +247,65 @@ function createMk10Launcher(deckMat: THREE.Material, darkMat: THREE.Material) {
   launcher.add(loaderDoor);
   return launcher;
 }
+
+function createMk143Abl(
+  hullMat: THREE.Material,
+  darkMat: THREE.Material,
+) {
+  const launcher = new THREE.Group();
+  const housing = new THREE.Mesh(
+    createSlopedBoxGeometry(4.15, 1.55, 1.48, 0.22),
+    hullMat,
+  );
+  housing.position.y = 0.78;
+  housing.rotation.z = -0.085;
+  launcher.add(housing);
+
+  const muzzleFace = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 1.35, 1.26),
+    darkMat,
+  );
+  muzzleFace.position.set(2.03, 0.83, 0);
+  muzzleFace.rotation.z = -0.085;
+  launcher.add(muzzleFace);
+
+  for (const z of [-0.42, 0, 0.42]) {
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(3.92, 0.055, 0.045),
+      darkMat,
+    );
+    divider.position.set(-0.03, 0.94, z);
+    divider.rotation.z = -0.085;
+    launcher.add(divider);
+  }
+  for (const x of [-1.28, 0, 1.28]) {
+    const rib = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 1.64, 1.58),
+      darkMat,
+    );
+    rib.position.set(x, 0.75, 0);
+    rib.rotation.z = -0.085;
+    launcher.add(rib);
+  }
+  return launcher;
+}
+
+function createDeckCircle(
+  radius: number,
+  tube: number,
+  material: THREE.Material,
+) {
+  const circle = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, tube, 5, 48),
+    material,
+  );
+  circle.rotation.x = Math.PI / 2;
+  return circle;
+}
 export function buildLongBeach(color = 0x7a8583, scale = 1) {
   // Ship-local axes: +X bow, -Z starboard, +Z port.
   const g = new THREE.Group();
-  g.scale.setScalar(scale);
+  g.scale.set(scale, scale * LONG_BEACH_VERTICAL_SCALE, scale);
   const hullMat = new THREE.MeshStandardMaterial({
     color,
     metalness: 0.16,
@@ -260,23 +336,41 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     new THREE.MeshStandardMaterial({ color: 0x151d20, roughness: 0.75 }),
   );
   g.add(waterline);
-  const keel = new THREE.Mesh(new THREE.BoxGeometry(24, 0.7, 2.8), darkMat);
-  keel.position.set(-1, 0.15, 0);
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(25, 0.62, 2.1), darkMat);
+  keel.position.set(-1.5, 0.1, 0);
   g.add(keel);
-  const aftDeck = new THREE.Mesh(new THREE.BoxGeometry(13, 0.7, 8), deckMat);
-  aftDeck.position.set(-10, 6, 0);
-  g.add(aftDeck);
-  const bridge = new THREE.Mesh(
-    createChamferedBoxGeometry(11, 5.5, 6.5, 0.46),
+
+  // The NTU fantail is a broad, unobstructed helicopter landing area.  The
+  // previous rectangular "aft deck" sat amidships and made the stern read as
+  // a conventional gun cruiser.
+  const flightDeck = new THREE.Mesh(
+    createChamferedBoxGeometry(16.8, 0.42, 5.62, 0.34),
     deckMat,
   );
-  bridge.position.set(5, 8, 0);
+  flightDeck.position.set(-21.25, 6.02, 0);
+  g.add(flightDeck);
+
+  // Long Beach's identifying feature is the long, almost full-beam box
+  // superstructure.  Preserve its mass but split it into a lower skirt,
+  // vertical electronics block and narrower bridge tier so it does not read
+  // as one untextured cube.
+  const bridgeSkirt = new THREE.Mesh(
+    createChamferedBoxGeometry(19.4, 1.2, 5.55, 0.28),
+    deckMat,
+  );
+  bridgeSkirt.position.set(3.7, 6.72, 0);
+  g.add(bridgeSkirt);
+  const bridge = new THREE.Mesh(
+    createChamferedBoxGeometry(17.2, 6.75, 5.18, 0.28),
+    deckMat,
+  );
+  bridge.position.set(4.25, 10.05, 0);
   g.add(bridge);
   const bridgeRoof = new THREE.Mesh(
-    createChamferedBoxGeometry(13, 0.8, 7.2, 0.32),
+    createChamferedBoxGeometry(17.65, 0.42, 5.42, 0.24),
     darkMat,
   );
-  bridgeRoof.position.set(5, 11, 0);
+  bridgeRoof.position.set(4.15, 13.52, 0);
   g.add(bridgeRoof);
   const mast = new THREE.Group();
   const mastFeet = [
@@ -333,29 +427,32 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   const radar = new THREE.Group();
   radar.position.set(1, 24, 0);
   const dish = new THREE.Mesh(
-    new THREE.BoxGeometry(5.8, 4.3, 0.45),
+    new THREE.BoxGeometry(3.7, 2.75, 0.16),
     new THREE.MeshStandardMaterial({
       color: 0x9caaa6,
       metalness: 0.35,
-      roughness: 0.52,
+      roughness: 0.56,
+      transparent: true,
+      opacity: 0.74,
+      side: THREE.DoubleSide,
     }),
   );
   dish.rotation.z = 0.08;
   radar.add(dish);
-  const backing = new THREE.Mesh(new THREE.BoxGeometry(3.8, 3.1, 1.1), darkMat);
-  backing.position.z = -0.65;
+  const backing = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.8, 0.62), darkMat);
+  backing.position.z = -0.42;
   radar.add(backing);
   for (let x = -2; x <= 2; x++)
     for (let y = -1; y <= 1; y++) {
       const cell = new THREE.Mesh(
-        new THREE.BoxGeometry(0.65, 0.65, 0.12),
+        new THREE.BoxGeometry(0.52, 0.54, 0.08),
         new THREE.MeshStandardMaterial({
           color: 0xc1cbc5,
           metalness: 0.3,
           roughness: 0.5,
         }),
       );
-      cell.position.set(x, y * 1.05, 0.3);
+      cell.position.set(x * 0.68, y * 0.84, 0.13);
       radar.add(cell);
     }
   const feed = new THREE.Mesh(
@@ -363,21 +460,21 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     darkMat,
   );
   feed.rotation.x = Math.PI / 2;
-  feed.position.z = 1.6;
+  feed.position.z = 1.05;
   radar.add(feed);
   for (const side of [-1, 1]) {
     addStrut(
       radar,
-      new THREE.Vector3(side * 2.45, -1.75, -0.35),
-      new THREE.Vector3(side * 0.85, -1.1, -1.45),
-      0.11,
+      new THREE.Vector3(side * 1.62, -1.12, -0.18),
+      new THREE.Vector3(side * 0.58, -0.72, -0.92),
+      0.08,
       darkMat,
     );
     addStrut(
       radar,
-      new THREE.Vector3(side * 2.45, 1.75, -0.35),
-      new THREE.Vector3(side * 0.85, 1.1, -1.45),
-      0.11,
+      new THREE.Vector3(side * 1.62, 1.12, -0.18),
+      new THREE.Vector3(side * 0.58, 0.72, -0.92),
+      0.08,
       darkMat,
     );
   }
@@ -385,7 +482,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     new THREE.CylinderGeometry(0.48, 0.62, 1.4, 10),
     darkMat,
   );
-  radarGearbox.position.set(0, -2.55, -0.45);
+  radarGearbox.position.set(0, -1.76, -0.32);
   radar.add(radarGearbox);
   const searchBeam = new THREE.Mesh(
     createSectorGeometry(105, THREE.MathUtils.degToRad(8)),
@@ -404,22 +501,16 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   radar.userData.searchBeam = searchBeam;
   g.add(radar);
   const fireControl = new THREE.Group();
-  fireControl.position.set(8, 12, 0);
-  fireControl.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(1.6, 12, 8),
-      new THREE.MeshStandardMaterial({
-        color: 0x9ba9a6,
-        metalness: 0.5,
-        roughness: 0.45,
-      }),
-    ),
-  );
+  fireControl.position.set(8, 13, 0);
+  fireControl.userData.static = true;
   g.add(fireControl);
-  // Keep the aft Mk 10 clear of the aft-house/bridge visual envelope.
+  // Both Mk 10 batteries were carried in tandem on the forecastle.  Keep the
+  // historical `launcher` handle for the after unit so the launch runtime and
+  // ammunition routing remain unchanged.
   const launcher = createMk10Launcher(deckMat, darkMat);
-  launcher.position.set(-23, 6.18, 0);
+  launcher.position.set(16.9, 6.3, 0);
   launcher.rotation.y = Math.PI;
+  launcher.scale.setScalar(0.5);
   g.add(launcher);
   const windowMat = new THREE.MeshStandardMaterial({
     color: 0x75d8d4,
@@ -427,78 +518,78 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     emissiveIntensity: 1.8,
   });
   const windows = new THREE.Group();
-  for (let z = -2.3; z <= 2.3; z += 1.15) {
+  for (let z = -1.9; z <= 1.9; z += 0.95) {
     const pane = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.5, 0.72),
       windowMat,
     );
-    pane.position.set(10.58, 9.6, z);
+    pane.position.set(12.93, 12.25, z);
     windows.add(pane);
     const frame = new THREE.Mesh(
       new THREE.BoxGeometry(0.22, 0.72, 0.07),
       darkMat,
     );
-    frame.position.set(10.7, 9.6, z + 0.52);
+    frame.position.set(13.04, 12.25, z + 0.42);
     windows.add(frame);
   }
   for (const side of [-1, 1])
-    for (let x = 1.5; x <= 8.5; x += 1.4) {
+    for (let x = 8.2; x <= 11.7; x += 1.15) {
       const pane = new THREE.Mesh(
         new THREE.BoxGeometry(0.72, 0.5, 0.18),
         windowMat,
       );
-      pane.position.set(x, 9.6, side * 3.33);
+      pane.position.set(x, 12.25, side * 2.64);
       windows.add(pane);
       const frame = new THREE.Mesh(
         new THREE.BoxGeometry(0.08, 0.72, 0.22),
         darkMat,
       );
-      frame.position.set(x + 0.62, 9.6, side * 3.38);
+      frame.position.set(x + 0.5, 12.25, side * 2.69);
       windows.add(frame);
     }
-  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 6.3), darkMat);
-  brow.position.set(10.72, 10.08, 0);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 4.95), darkMat);
+  brow.position.set(13.08, 12.73, 0);
   windows.add(brow);
   g.add(windows);
   const upperBridge = new THREE.Mesh(
-    createSlopedBoxGeometry(7, 2.4, 5.2, 0.8),
+    createSlopedBoxGeometry(6.5, 2.35, 4.35, 0.62),
     deckMat,
   );
-  upperBridge.position.set(4, 13, 0);
+  upperBridge.position.set(8.75, 14.78, 0);
   g.add(upperBridge);
   const bridgeDetails = new THREE.Group();
   for (const side of [-1, 1]) {
     const wing = new THREE.Mesh(
-      new THREE.BoxGeometry(4.8, 0.24, 2.25),
+      new THREE.BoxGeometry(4.1, 0.24, 1.55),
       deckMat,
     );
-    wing.position.set(6, 12.05, side * 4.15);
+    wing.position.set(10, 13.72, side * 2.22);
     bridgeDetails.add(wing);
     const bulwark = new THREE.Mesh(
-      new THREE.BoxGeometry(4.8, 0.62, 0.12),
+      new THREE.BoxGeometry(4.1, 0.62, 0.12),
       darkMat,
     );
-    bulwark.position.set(6, 12.4, side * 5.22);
+    bulwark.position.set(10, 14.06, side * 2.96);
     bridgeDetails.add(bulwark);
-    for (let x = 4.1; x <= 7.9; x += 0.95) {
+    for (let x = 8.2; x <= 11.8; x += 0.9) {
       const post = new THREE.Mesh(
         new THREE.CylinderGeometry(0.035, 0.035, 0.62, 5),
         darkMat,
       );
-      post.position.set(x, 12.7, side * 5.18);
+      post.position.set(x, 14.36, side * 2.92);
       bridgeDetails.add(post);
     }
     addStrut(
       bridgeDetails,
-      new THREE.Vector3(4.2, 11.65, side * 3.55),
-      new THREE.Vector3(4.2, 12, side * 5),
+      new THREE.Vector3(8.25, 13.42, side * 2.05),
+      new THREE.Vector3(8.25, 13.68, side * 2.82),
       0.07,
       darkMat,
     );
     addStrut(
       bridgeDetails,
-      new THREE.Vector3(7.8, 11.65, side * 3.55),
-      new THREE.Vector3(7.8, 12, side * 5),
+      new THREE.Vector3(11.75, 13.42, side * 2.05),
+      new THREE.Vector3(11.75, 13.68, side * 2.82),
       0.07,
       darkMat,
     );
@@ -506,43 +597,62 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       new THREE.CylinderGeometry(0.22, 0.3, 0.55, 8),
       darkMat,
     );
-    pelorus.position.set(7, 12.45, side * 4.45);
+    pelorus.position.set(10.8, 14.1, side * 2.42);
     bridgeDetails.add(pelorus);
   }
   for (const side of [-1, 1])
-    for (let x = 1.5; x <= 6.5; x += 1.25) {
+    for (let x = -2.8; x <= 9.6; x += 1.55) {
       const vent = new THREE.Mesh(
         new THREE.BoxGeometry(0.72, 0.55, 0.08),
         darkMat,
       );
-      vent.position.set(x, 7.8, side * 3.29);
+      vent.position.set(x, 8.15, side * 2.63);
       bridgeDetails.add(vent);
     }
   g.add(bridgeDetails);
   const aftHouse = new THREE.Mesh(
-    createSlopedBoxGeometry(8, 3.2, 6, 0.45),
+    createSlopedBoxGeometry(8.6, 3.05, 4.55, 0.38),
     deckMat,
   );
-  aftHouse.position.set(-7, 8.2, 0);
+  aftHouse.position.set(-8.85, 8.05, 0);
   g.add(aftHouse);
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Mesh(
-      createSlopedBoxGeometry(5.4, 1.6, 1.25, 0.7),
+      createSlopedBoxGeometry(4.8, 1.35, 0.92, 0.42),
       deckMat,
     );
-    shoulder.position.set(-10.5, 7.2, side * 3.2);
+    shoulder.position.set(-9.25, 7.12, side * 2.72);
     shoulder.rotation.y = side * 0.04;
     g.add(shoulder);
   }
-  const stack = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.1, 1.35, 5, 10),
-    darkMat,
-  );
-  stack.position.set(-4, 12.3, 0);
-  g.add(stack);
+  // Nuclear propulsion means there is no propulsion funnel.  These compact
+  // rectangular trunks are ventilation/auxiliary diesel exhausts visible on
+  // the NTU roof, and intentionally have no normal-operation smoke emitters.
+  const ventTrunks = new THREE.Group();
+  for (const z of [-0.72, 0.72]) {
+    const trunk = new THREE.Mesh(
+      createSlopedBoxGeometry(1.45, 2.25, 0.72, 0.16),
+      darkMat,
+    );
+    trunk.position.set(-1.8, 14.75, z);
+    ventTrunks.add(trunk);
+  }
+  g.add(ventTrunks);
+
+  // The paired 5-in/38 mounts sit on beam sponsons abaft the main box, not on
+  // the forecastle ahead of it.
+  for (const side of [-1, 1]) {
+    const sponson = new THREE.Mesh(
+      createChamferedBoxGeometry(4.3, 0.34, 1.5, 0.18),
+      deckMat,
+    );
+    sponson.position.set(-7.35, 6.28, side * 2.35);
+    g.add(sponson);
+  }
   const gunMount = new THREE.Group();
-  gunMount.position.set(13, 7, -4.55);
-  gunMount.rotation.y = -0.08;
+  gunMount.position.set(-7.35, 6.72, -2.52);
+  gunMount.rotation.y = -0.18;
+  gunMount.scale.setScalar(0.38);
   const turret = new THREE.Mesh(
     new THREE.CylinderGeometry(1.45, 1.8, 1.25, 10),
     deckMat,
@@ -556,30 +666,17 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   barrel.position.set(3, 1, 0);
   gunMount.add(barrel);
   const portGun = gunMount.clone(true);
-  portGun.position.z = 4.55;
-  portGun.rotation.y = 0.08;
+  portGun.position.z = 2.52;
+  portGun.rotation.y = 0.18;
   g.add(gunMount, portGun);
   const aftDirector = new THREE.Group();
   aftDirector.position.set(-7, 12, 0);
-  aftDirector.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(1.3, 12, 8),
-      new THREE.MeshStandardMaterial({
-        color: 0x9ba9a6,
-        metalness: 0.5,
-        roughness: 0.45,
-      }),
-    ),
-  );
-  const aftDirectorPedestal = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.72, 0.95, 0.95, 10),
-    darkMat,
-  );
-  aftDirectorPedestal.position.set(-7, 10.27, 0);
+  aftDirector.userData.static = true;
+  const aftDirectorPedestal = new THREE.Object3D();
   g.add(aftDirectorPedestal, aftDirector);
   for (const side of [-1, 1]) {
     const rail = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 42, 6),
+      new THREE.CylinderGeometry(0.06, 0.06, 52, 6),
       new THREE.MeshStandardMaterial({
         color: 0xa5afaa,
         metalness: 0.5,
@@ -587,14 +684,14 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       }),
     );
     rail.rotation.z = Math.PI / 2;
-    rail.position.set(-1, 7, side * 3.78);
+    rail.position.set(-1, 7, side * 2.96);
     g.add(rail);
-    for (let x = -19; x <= 18; x += 4) {
+    for (let x = -26; x <= 24; x += 4) {
       const post = new THREE.Mesh(
         new THREE.CylinderGeometry(0.055, 0.055, 1.2, 6),
         darkMat,
       );
-      post.position.set(x, 6.5, side * 3.78);
+      post.position.set(x, 6.5, side * 2.96);
       g.add(post);
     }
   }
@@ -604,8 +701,8 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         new THREE.CylinderGeometry(0.45, 0.45, 2.2, 10),
         new THREE.MeshStandardMaterial({ color: 0xe6ded0, roughness: 0.65 }),
       );
-      raft.rotation.x = Math.PI / 2;
-      raft.position.set(x, 8.1, side * 3.8);
+      raft.rotation.z = Math.PI / 2;
+      raft.position.set(x - 2, 9.05, side * 2.55);
       g.add(raft);
     }
   for (const x of [-5, 5]) {
@@ -627,7 +724,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   });
   for (const side of [-1, 1]) {
     const number = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), numberMat);
-    number.position.set(17.5, 3.7, side * 3.38);
+    number.position.set(23.7, 3.75, side * 2.02);
     number.rotation.y = side > 0 ? 0 : Math.PI;
     g.add(number);
     const lampColor = side < 0 ? 0x36ff78 : 0xff3a32,
@@ -636,11 +733,11 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         new THREE.SphereGeometry(0.16, 8, 6),
         new THREE.MeshBasicMaterial({ color: lampColor }),
       );
-    nav.position.set(6, 14, side * 3.7);
+    nav.position.set(7.2, 14.2, side * 2.78);
     bulb.position.copy(nav.position);
     addStrut(
       g,
-      new THREE.Vector3(6, 13.92, side * 2.55),
+      new THREE.Vector3(7.2, 13.92, side * 2.25),
       bulb.position,
       0.065,
       darkMat,
@@ -653,7 +750,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         new THREE.SphereGeometry(0.09, 7, 5),
         new THREE.MeshBasicMaterial({ color: 0xffd99a }),
       );
-      port.position.set(x, 7.05, side * 3.72);
+      port.position.set(x, 7.05, side * 2.91);
       lightBulbs.push(port);
       g.add(port);
     }
@@ -676,7 +773,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   }
   for (const side of [-1, 1]) {
     const anchor = createHawsePipe(0.45, 0.12, darkMat);
-    anchor.position.set(21, 3.2, side * 2.86);
+    anchor.position.set(24.1, 3.45, side * 2.02);
     anchor.rotation.x = Math.PI / 2;
     g.add(anchor);
   }
@@ -693,18 +790,16 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       new THREE.CylinderGeometry(0.16, 0.16, 0.8, 8),
       darkMat,
     );
-    bollard.position.set(x, 6.5, 3.56);
+    bollard.position.set(x, 6.5, 2.72);
     g.add(bollard);
   }
-  // The forward Mk 10 stows facing aft; the loading housing remains on the bow side.
-  const forwardLauncher = launcher.clone(true);
-  forwardLauncher.position.set(23, 6.18, 0);
+  // The forward battery is the same Mk 10 installation and is not a smaller
+  // decorative clone.  Construct it independently so each launcher retains
+  // its own animated rail and ready-round objects.
+  const forwardLauncher = createMk10Launcher(deckMat, darkMat);
+  forwardLauncher.position.set(23.45, 6.55, 0);
   forwardLauncher.rotation.y = Math.PI;
-  forwardLauncher.scale.setScalar(0.88);
-  forwardLauncher.userData.arms = [];
-  forwardLauncher.traverse((o) => {
-    if (o.name === "launcherArm") forwardLauncher.userData.arms.push(o);
-  });
+  forwardLauncher.scale.setScalar(0.5);
   g.add(forwardLauncher);
   const surfaceStrikeHardpoints: ModelWeaponHardpoint[] = [],
     surfaceStrikeLaunchers: THREE.Group[] = [];
@@ -714,7 +809,8 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       darkMat,
       `mk141-${side > 0 ? "port" : "starboard"}`,
     );
-    harpoon.position.set(-12.5, 6.28, side * 2.05);
+    harpoon.position.set(-12.4, 6.34, side * 1.62);
+    harpoon.scale.setScalar(0.72);
     // Cant each bank away from the centreline so a departing round clears the ship.
     harpoon.rotation.y = -side * 0.4;
     surfaceStrikeHardpoints.push(
@@ -729,11 +825,11 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     roughness: 0.65,
   });
   for (const [x, length] of [
-    [-17.4, 3.8],
-    [17.7, 3.35],
+    [16.9, 2.25],
+    [23.45, 2.25],
   ] as const) {
     const hatch = new THREE.Mesh(
-      new THREE.BoxGeometry(length, 0.09, 3.9),
+      new THREE.BoxGeometry(length, 0.09, 2.36),
       darkMat,
     );
     hatch.position.set(x, 6.16, 0);
@@ -743,20 +839,50 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         new THREE.BoxGeometry(length + 0.45, 0.035, 0.09),
         safetyMat,
       );
-      stripe.position.set(x, 6.23, side * 2.18);
+      stripe.position.set(x, 6.23, side * 1.3);
       g.add(stripe);
     }
     for (const end of [-1, 1]) {
       const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.09, 0.035, 4.45),
+        new THREE.BoxGeometry(0.09, 0.035, 2.62),
         safetyMat,
       );
       stripe.position.set(x + (end * (length + 0.45)) / 2, 6.23, 0);
       g.add(stripe);
     }
   }
+
+  // Two Mk 143 Armored Box Launchers replaced the former aft Talos
+  // installation.  They flank the forward edge of the helicopter deck.
+  const ablLaunchers: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const abl = createMk143Abl(deckMat, darkMat);
+    abl.name = `mk143-${side > 0 ? "port" : "starboard"}`;
+    abl.position.set(-19.05, 6.2, side * 1.63);
+    abl.rotation.y = side * 0.055;
+    ablLaunchers.push(abl);
+    g.add(abl);
+  }
+
+  const landingMarkMat = new THREE.MeshBasicMaterial({
+    color: 0xe9e5ce,
+    side: THREE.DoubleSide,
+  });
+  const landingCircle = createDeckCircle(2.35, 0.085, landingMarkMat);
+  landingCircle.position.set(-25.55, 6.25, 0);
+  g.add(landingCircle);
+  const landingLine = new THREE.Mesh(
+    new THREE.BoxGeometry(5.8, 0.025, 0.12),
+    landingMarkMat,
+  );
+  landingLine.position.set(-25.55, 6.26, 0);
+  g.add(landingLine);
+  const landingCross = landingLine.clone();
+  landingCross.geometry = new THREE.BoxGeometry(0.12, 0.025, 4.35);
+  g.add(landingCross);
+
   const aftMast = new THREE.Group();
-  aftMast.position.set(-7, 12, 0);
+  aftMast.position.set(-8.9, 10.1, 0);
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.22, 12, 7),
@@ -782,21 +908,21 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     });
   sps49.position.y = 11;
   const antennaFrame = new THREE.Mesh(
-    new THREE.BoxGeometry(9, 0.18, 0.18),
+    new THREE.BoxGeometry(5.4, 0.16, 0.16),
     antennaMat,
   );
   sps49.add(antennaFrame);
-  for (let x = -4; x <= 4; x += 1) {
+  for (let x = -2.5; x <= 2.5; x += 0.5) {
     const vertical = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 3, 0.08),
+      new THREE.BoxGeometry(0.05, 2.25, 0.07),
       antennaMat,
     );
     vertical.position.set(x, 0, 0);
     sps49.add(vertical);
   }
-  for (const y of [-1.5, 0, 1.5]) {
+  for (const y of [-1.08, -0.54, 0, 0.54, 1.08]) {
     const horizontal = new THREE.Mesh(
-      new THREE.BoxGeometry(9, 0.06, 0.08),
+      new THREE.BoxGeometry(5.4, 0.05, 0.07),
       antennaMat,
     );
     horizontal.position.y = y;
@@ -807,28 +933,29 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     darkMat,
   );
   antennaFeed.rotation.x = Math.PI / 2;
-  antennaFeed.position.z = 1.4;
+  antennaFeed.position.z = 1.05;
   sps49.add(antennaFeed);
   aftMast.add(sps49);
   g.add(aftMast);
-  const directors: THREE.Group[] = [],
+  const visualDirectors: THREE.Group[] = [],
     directorSupports: THREE.Mesh[] = [];
-  for (const [x, z, heading] of [
-    [9, -3.4, -0.38],
-    [-8, 3.4, 2.72],
+  for (const [x, z, heading, y] of [
+    [10.25, -2.52, -0.42, 14.55],
+    [10.25, 2.52, 0.42, 14.55],
+    [-2.35, -2.52, Math.PI + 0.42, 14.45],
+    [-2.35, 2.52, Math.PI - 0.42, 14.45],
   ] as const) {
-    if (x < 0) {
-      const support = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.05, 1.35, 2.5, 12),
-        deckMat,
-      );
-      support.position.set(x, 11.05, z);
-      directorSupports.push(support);
-      g.add(support);
-    }
+    const support = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.54, 0.68, 1.35, 12),
+      deckMat,
+    );
+    support.position.set(x, y - 0.72, z);
+    directorSupports.push(support);
+    g.add(support);
     const director = new THREE.Group();
-    director.position.set(x, 13, z);
+    director.position.set(x, y, z);
     director.rotation.y = heading;
+    director.scale.setScalar(0.48);
     director.userData.stowHeading = heading;
     const pedestal = new THREE.Mesh(
       new THREE.CylinderGeometry(0.75, 1.05, 1.4, 12),
@@ -875,46 +1002,90 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     elevationPivot.add(feedTip);
     director.userData.elevationPivot = elevationPivot;
     director.userData.feedTip = feedTip;
-    directors.push(director);
+    visualDirectors.push(director);
     g.add(director);
   }
+  // Preserve the existing two-channel illumination runtime while displaying
+  // all four late-fit SPG-55 mounts.  The selected forward/aft pair remains
+  // the animated interface consumed by combat code.
+  const directors = [visualDirectors[0], visualDirectors[2]].filter(
+    (director): director is THREE.Group => Boolean(director),
+  );
   const highDetail = new THREE.Group();
   for (const [x, z] of [
-    [-1, -3.7],
-    [-1, 3.7],
-    [6, -3.7],
-    [6, 3.7],
-  ] as const) {
-    const canister = new THREE.Mesh(
-      new THREE.BoxGeometry(4.6, 0.85, 1.05),
-      new THREE.MeshStandardMaterial({
-        color: 0x6d7774,
-        metalness: 0.52,
-        roughness: 0.48,
-      }),
-    );
-    canister.position.set(x, 7.15, z);
-    canister.rotation.y = z > 0 ? 0.12 : -0.12;
-    highDetail.add(canister);
-  }
-  for (const [x, z] of [
-    [-10, -4.1],
-    [-10, 4.1],
+    [-11.3, -2.65],
+    [-11.3, 2.65],
   ] as const) {
     const boat = createShipBoat(
       0.62,
       3.4,
       new THREE.MeshStandardMaterial({ color: 0xc4c1ac, roughness: 0.68 }),
     );
-    boat.position.set(x, 9, z);
+    boat.position.set(x, 9.05, z);
     highDetail.add(boat);
   }
-  for (const [x, z] of [
-    [-14, 0],
-    [13, 0],
+
+  // Break up the otherwise featureless electronics box with restrained
+  // plating joints, equipment-access panels and side catwalks visible in the
+  // 1989 NARA broadside imagery.
+  const superstructureSeamMat = new THREE.MeshStandardMaterial({
+    color: 0x4b5858,
+    metalness: 0.08,
+    roughness: 0.72,
+  });
+  for (const side of [-1, 1]) {
+    for (const x of [-3.6, -0.6, 2.4, 5.4, 8.4, 11.4]) {
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 5.7, 0.025),
+        superstructureSeamMat,
+      );
+      seam.position.set(x, 10.05, side * 2.605);
+      highDetail.add(seam);
+    }
+    for (const y of [7.25, 10.55, 13.22]) {
+      const belt = new THREE.Mesh(
+        new THREE.BoxGeometry(16.4, 0.045, 0.035),
+        superstructureSeamMat,
+      );
+      belt.position.set(4.25, y, side * 2.615);
+      highDetail.add(belt);
+    }
+    const accessDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(1.05, 2.05, 0.045),
+      darkMat,
+    );
+    accessDoor.position.set(-2.9, 8.1, side * 2.63);
+    highDetail.add(accessDoor);
+    const catwalk = new THREE.Mesh(
+      new THREE.BoxGeometry(13.8, 0.14, 0.58),
+      deckMat,
+    );
+    catwalk.position.set(2.8, 12.95, side * 2.86);
+    highDetail.add(catwalk);
+    for (let x = -3.6; x <= 9.4; x += 1.3) {
+      const bracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.52, 0.07),
+        darkMat,
+      );
+      bracket.position.set(x, 12.68, side * 2.86);
+      highDetail.add(bracket);
+    }
+  }
+  for (const [name, x, z, heading] of [
+    ["ciwsFore", -13.25, -2.15, 0],
+    ["ciwsAft", -13.25, 2.15, Math.PI],
   ] as const) {
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.8, 0.95, 0.34, 10),
+      deckMat,
+    );
+    platform.position.set(x, 6.55, z);
+    highDetail.add(platform);
     const ciws = new THREE.Group();
-    ciws.position.set(x, 7.4, z);
+    ciws.name = name;
+    ciws.position.set(x, 6.78, z);
+    ciws.rotation.y = heading;
+    ciws.scale.setScalar(0.5);
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.8, 1.05, 0.8, 12),
       deckMat,
@@ -952,16 +1123,16 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
     highDetail.add(ciws);
   }
   for (const side of [-1, 1])
-    for (let x = -20; x <= 22; x += 3) {
+    for (let x = -26; x <= 24; x += 3) {
       const stanchion = new THREE.Mesh(
         new THREE.CylinderGeometry(0.035, 0.035, 0.7, 5),
         darkMat,
       );
-      stanchion.position.set(x, 6.75, side * 3.82);
+      stanchion.position.set(x, 6.75, side * 2.94);
       highDetail.add(stanchion);
     }
   const breakwater = new THREE.Mesh(
-    createSlopedBoxGeometry(0.7, 1.2, 7.2, 0.18),
+    createSlopedBoxGeometry(0.7, 1.2, 5.25, 0.18),
     darkMat,
   );
   breakwater.position.set(18.5, 6.75, 0);
@@ -974,7 +1145,7 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
         darkMat,
       );
       reel.rotation.y = Math.PI / 2;
-      reel.position.set(x, 6.65, side * 2.8);
+      reel.position.set(x, 6.65, side * 2.35);
       highDetail.add(reel);
     }
   for (const x of [-16, -6, 4, 14]) {
@@ -993,36 +1164,24 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   for (const side of [-1, 1]) {
     for (const x of [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20]) {
       const seam = new THREE.Mesh(new THREE.BoxGeometry(0.045, 2.7, 0.025), platingMat);
-      seam.position.set(x, 4.28, side * 3.72);
+      seam.position.set(x, 4.28, side * 2.88);
       highDetail.add(seam);
     }
     for (const x of [-23, -17, -11, -5, 1, 7, 13, 19]) {
       const scupper = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.045), darkMat);
-      scupper.position.set(x, 5.52, side * 3.77);
+      scupper.position.set(x, 5.52, side * 2.94);
       highDetail.add(scupper);
     }
   }
+  // Damage smoke is supplied by the damage-effects runtime.  Keep the API
+  // but do not attach false propulsion smoke to a nuclear-powered cruiser.
   const smokePuffs: THREE.Mesh[] = [];
-  for (let i = 0; i < 9; i++) {
-    const puff = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 7, 5),
-      new THREE.MeshBasicMaterial({
-        color: 0x526064,
-        transparent: true,
-        opacity: 0.12,
-        depthWrite: false,
-      }),
-    );
-    // Fleet-owned companion ships do not run the flagship smoke-position loop.
-    puff.position.set(-4, 15, 0);
-    smokePuffs.push(puff);
-    highDetail.add(puff);
-  }
   g.add(highDetail);
   const srbocLaunchers = new THREE.Group();
   for (const side of [-1, 1]) {
     const station = new THREE.Group();
-    station.position.set(0, 7.25, side * 3.72);
+    station.position.set(0, 7.25, side * 2.48);
+    station.scale.setScalar(0.68);
     station.rotation.x = side * 0.42;
     const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 1.25), darkMat);
     station.add(base);
@@ -1064,21 +1223,12 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       new THREE.CylinderGeometry(0.1, 0.18, 2.8, 8),
       darkMat,
     );
-    ewAntenna.position.set(2.5, 16.2, side * 3.25);
+    ewAntenna.position.set(2.5, 16.2, side * 2.45);
     ewAntenna.rotation.x = side * 0.28;
     g.add(ewAntenna);
   }
   ewPulse.visible = false;
   g.add(ewPulse);
-  highDetail.children
-    .filter(
-      (o) =>
-        Math.abs(o.position.y - 7.4) < 0.01 && Math.abs(o.position.z) < 0.01,
-    )
-    .forEach((o) => {
-      o.name = o.position.x > 0 ? "ciwsFore" : "ciwsAft";
-      o.rotation.y = o.position.x > 0 ? 0 : Math.PI;
-    });
   const flagGeometry = new THREE.PlaneGeometry(3.8, 2, 12, 4);
   flagGeometry.translate(-1.9, 0, 0);
   const flag = new THREE.Mesh(
@@ -1089,11 +1239,11 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       roughness: 0.72,
     }),
   );
-  flag.position.set(-7, 22, 0);
+  flag.position.set(-8.9, 22.4, 0);
   highDetail.add(flag);
-  for (const x of [-21, 21]) {
+  for (const x of [16.9, 23.45]) {
     const safetyRing = new THREE.Mesh(
-      new THREE.TorusGeometry(3.55, 0.055, 5, 64),
+      new THREE.TorusGeometry(1.72, 0.045, 5, 48),
       new THREE.MeshBasicMaterial({
         color: 0xe1c46d,
         transparent: true,
@@ -1108,11 +1258,11 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   const mediumDetail = new THREE.Group();
   for (const side of [-1, 1]) {
     const rail = createGuardRailBeam(
-      42,
+      52,
       0.08,
       new THREE.MeshBasicMaterial({ color: 0x81908d }),
     );
-    rail.position.set(-1, 6.9, side * 3.82);
+    rail.position.set(-1, 6.9, side * 2.96);
     mediumDetail.add(rail);
   }
   for (const x of [-18, -8, 3, 14]) {
@@ -1125,27 +1275,123 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
   }
   g.add(mediumDetail);
   const lowDetail = new THREE.Group();
+  const lowMat = new THREE.MeshBasicMaterial({ color: 0x778482 });
+  const lowDark = new THREE.MeshBasicMaterial({ color: 0x344043 });
   const lowMast = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.5, 15, 6),
-    darkMat,
+    lowDark,
   );
-  lowMast.position.set(0, 18, 0);
+  lowMast.position.set(1, 19, 0);
   const lowArray = new THREE.Mesh(
-    new THREE.BoxGeometry(5.5, 3.6, 0.28),
-    new THREE.MeshBasicMaterial({ color: 0x82928f }),
+    new THREE.BoxGeometry(3.6, 2.6, 0.2),
+    lowMat,
   );
-  lowArray.position.set(0, 25, 0);
-  const lowStack = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.9, 1.2, 5, 7),
-    darkMat,
+  lowArray.position.set(1, 24.1, 0);
+  const lowAftMast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.38, 11.5, 5),
+    lowDark,
   );
-  lowStack.position.set(-4, 12, 0);
-  lowDetail.add(lowMast, lowArray, lowStack);
+  lowAftMast.position.set(-8.9, 16.2, 0);
+  const lowSps49 = new THREE.Mesh(
+    new THREE.BoxGeometry(5.25, 1.85, 0.16),
+    lowMat,
+  );
+  lowSps49.position.set(-8.9, 21.05, 0);
+
+  // Standard quality still needs Long Beach's unmistakable command-island
+  // silhouette.  The full bridge geometry remains part of the persistent
+  // model, while these inexpensive accents replace the windows, roof crown
+  // and mast shoulders that are intentionally culled with `detail`.
+  const lowBridgeCrown = new THREE.Mesh(
+    createSlopedBoxGeometry(6.65, 0.62, 4.55, 0.28),
+    lowDark,
+  );
+  lowBridgeCrown.position.set(8.65, 16.22, 0);
+  const lowBridgeFrontWindows = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.62, 4.08),
+    lowDark,
+  );
+  lowBridgeFrontWindows.position.set(12.04, 15.02, 0);
+  const lowBridgeSideWindows = [-1, 1].map((side) => {
+    const band = new THREE.Mesh(
+      new THREE.BoxGeometry(4.45, 0.58, 0.1),
+      lowDark,
+    );
+    band.position.set(9.35, 15.02, side * 2.22);
+    return band;
+  });
+  const lowMastShoulders = [-1, 1].map((side) => {
+    const shoulder = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 0.22, 0.22),
+      lowDark,
+    );
+    shoulder.position.set(0.15, 17.45, side * 1.12);
+    shoulder.rotation.z = side * 0.7;
+    return shoulder;
+  });
+
+  const createLowMk10 = (x: number, y: number) => {
+    const lowLauncher = new THREE.Group();
+    lowLauncher.position.set(x, y, 0);
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.15, 1.36, 0.38, 8),
+      lowDark,
+    );
+    base.position.y = 0.19;
+    lowLauncher.add(base);
+    const housing = new THREE.Mesh(
+      createSlopedBoxGeometry(1.7, 0.72, 1.72, 0.18),
+      lowMat,
+    );
+    housing.position.set(0.25, 0.72, 0);
+    lowLauncher.add(housing);
+    for (const z of [-0.58, 0.58]) {
+      const arm = new THREE.Mesh(
+        new THREE.BoxGeometry(3.6, 0.22, 0.24),
+        lowMat,
+      );
+      arm.position.set(-1.25, 1.08, z);
+      lowLauncher.add(arm);
+    }
+    return lowLauncher;
+  };
+  const lowAfterMk10 = createLowMk10(16.9, 6.25);
+  const lowForwardMk10 = createLowMk10(23.45, 6.5);
+  const lowAblPort = new THREE.Mesh(
+    createSlopedBoxGeometry(4.05, 1.45, 1.42, 0.18),
+    lowMat,
+  );
+  lowAblPort.position.set(-19.05, 6.95, 1.63);
+  const lowAblStarboard = lowAblPort.clone();
+  lowAblStarboard.position.z = -1.63;
+  const lowHelipad = createDeckCircle(2.32, 0.11, landingMarkMat);
+  lowHelipad.position.set(-25.55, 6.26, 0);
+  lowDetail.add(
+    lowMast,
+    lowArray,
+    lowAftMast,
+    lowSps49,
+    lowBridgeCrown,
+    lowBridgeFrontWindows,
+    ...lowBridgeSideWindows,
+    ...lowMastShoulders,
+    lowAfterMk10,
+    lowForwardMk10,
+    lowAblPort,
+    lowAblStarboard,
+    lowHelipad,
+  );
   lowDetail.visible = false;
   g.add(lowDetail);
   g.userData = {
     hullStations: LONG_BEACH_HULL.length,
     hullSectionPoints: 8,
+    hullLength: LONG_BEACH_MODEL_LENGTH,
+    hullBeam: LONG_BEACH_MODEL_BEAM,
+    realLengthMeters: LONG_BEACH_REAL_LENGTH_M,
+    realBeamMeters: LONG_BEACH_REAL_BEAM_M,
+    modelMetersPerUnit: LONG_BEACH_REAL_LENGTH_M / LONG_BEACH_MODEL_LENGTH,
+    verticalScale: LONG_BEACH_VERTICAL_SCALE,
     surfaceStrikeHardpoints,
     radar,
     secondaryRadar: sps49,
@@ -1170,13 +1416,18 @@ export function buildLongBeach(color = 0x7a8583, scale = 1) {
       forwardLauncher,
       windows,
       aftMast,
+      ventTrunks,
       gunMount,
       portGun,
       aftDirector,
       aftDirectorPedestal,
       ...directorSupports,
       ...surfaceStrikeLaunchers,
-      ...directors,
+      ...ablLaunchers,
+      landingCircle,
+      landingLine,
+      landingCross,
+      ...visualDirectors,
     ],
   };
   return g;

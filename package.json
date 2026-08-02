@@ -1,7 +1,7 @@
 {
   "name": "codewar-intercept",
   "private": true,
-  "version": "1.15.0",
+  "version": "1.20.0",
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
@@ -88,6 +88,7 @@
     "capture:webgpu-ocean": "node scripts/capture-webgpu-ocean.mjs",
     "capture:ship-asset-ultra": "node scripts/capture-ship-asset-ultra.mjs",
     "capture:moskva-asset": "node scripts/capture-moskva-asset.mjs",
+    "capture:surface-platform-lods": "node scripts/capture-surface-platform-lod-gallery.mjs",
     "verify:webgpu-particles": "node scripts/verify-webgpu-particles.mjs",
     "capture:webgpu-particles": "node scripts/capture-webgpu-particles.mjs",
     "capture:webgpu-bruneton": "node scripts/capture-webgpu-bruneton.mjs",

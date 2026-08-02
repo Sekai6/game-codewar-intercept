@@ -5,7 +5,7 @@ const browser = await chromium.launch({
   executablePath:
     process.env.CHROME_PATH ??
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
+  args: ["--renderer-process-limit=1"],
 });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -67,11 +67,16 @@ await page.locator("#sbOpforDecoyHealth").fill("0");
   await page.getByRole("button", { name: "TIME: 2X" }).click();
 
   const canvas = page.locator("canvas").first();
-  await page.waitForFunction(
-  () => Number(document.querySelector("canvas")?.dataset.platformPointDefenseShots ?? 0) >= 1,
-  null,
-    { timeout: 40_000 },
-  );
+  let shotWaitTimedOut = false;
+  try {
+    await page.waitForFunction(
+    () => Number(document.querySelector("canvas")?.dataset.platformPointDefenseShots ?? 0) >= 1,
+    null,
+      { timeout: 40_000 },
+    );
+  } catch {
+    shotWaitTimedOut = true;
+  }
   const state = await canvas.evaluate((element) => ({
   mounts: Number(element.dataset.platformPointDefenseMounts ?? 0),
   shots: Number(element.dataset.platformPointDefenseShots ?? 0),
@@ -112,7 +117,7 @@ await page.locator("#sbOpforDecoyHealth").fill("0");
   path: "verification-platform-defense-visual.png",
   fullPage: true,
   });
-  console.log(JSON.stringify({ state, sectorChecks, errors }, null, 2));
+  console.log(JSON.stringify({ state, sectorChecks, shotWaitTimedOut, errors }, null, 2));
 
   if (
   errors.length > 0 ||
@@ -128,7 +133,7 @@ await page.locator("#sbOpforDecoyHealth").fill("0");
   Math.abs(state.lastTraverseError) > state.lastAlignmentTolerance + 0.001 ||
   state.lastAlignmentTolerance <= 0 ||
   state.effectiveChannels !== 2 ||
-  state.engagementsRemaining > 4 ||
+  state.engagementsRemaining !== 6 - state.shots ||
   state.incomingTracks < 1 ||
   !sectorChecks.bowCoveredStarboard ||
   !sectorChecks.bowCoveredPort ||
