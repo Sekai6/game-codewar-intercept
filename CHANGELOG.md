@@ -1,6 +1,45 @@
 # Changelog
 
-> Documentation snapshot: v1.15.0 · 2026-07-29. Later releases may revise these notes.
+> Documentation snapshot: v1.20.0 · 2026-08-02. Later releases may revise these notes.
+
+## 1.20.0 - 2026-08-02
+
+### Changed
+
+- Rebuilt the procedural USS Long Beach (CGN-9), USS Lake Champlain (CG-57), and Project 1164/Slava-class surface assets with more faithful hull proportions, superstructure massing, sensor silhouettes, weapon placement, and aviation-deck layouts.
+- Corrected Long Beach to the declared real-world length-to-beam ratio and reduced the inherited vertical exaggeration without changing ship-local launcher and hardpoint ownership.
+- Reworked CG-57's separated AEGIS blocks, SPY-1 faces, SPG-62 directors, lattice masts, uptakes, Mk 41 banks, guns, hangar, and deck equipment.
+- Reworked Project 1164's stepped superstructure, paired P-500 canisters, S-300F field, radar set, close-in weapons, and aft aviation area.
+- Enabled quality-aware ship LOD selection and preserved class-identifying features in Standard quality, including the Long Beach command island and both CG-57 Mk 41 banks.
+- Updated multi-ship browser regressions to validate total SAM consumption and physical owner/launcher evidence without assuming a single interceptor subtype.
+
+### Added
+
+- A dedicated surface-platform gallery for CGN-9, CG-57, and Project 1164 with fixed bow-quarter, beam, top, and stern-quarter inspection views.
+- A serial 18-image Chromium capture gate covering Ultra, High, and Standard tiers, visible dimensions, real/model length-to-beam ratios, mesh counts, and triangle counts.
+- Display-only Standard-tier launcher and silhouette proxies that do not expose launcher metadata, ammunition, hardpoints, or weapon authority.
+
+### Release Boundaries
+
+- V1.20 is a surface-platform visual, proportion, LOD, and validation update. It does not retune ship sensors, weapon performance, seeker logic, or lethality.
+- Real platform and equipment names remain paired with game-scaled performance values.
+- Static gallery evidence verifies visible construction and LOD behavior; physical launch ownership remains covered by runtime browser regressions and AAR evidence.
+
+### Verification Evidence
+
+- `git diff --check`
+- `npm run verify:docs`
+- `npx tsc --noEmit`
+- `npm run build`
+- `npm run capture:surface-platform-lods`
+- `npm run verify:cg57`
+- `npm run verify:fleet-launch-cycle`
+- `npm run verify:default-engagement`
+- `npm run verify:bilateral-launch`
+- `npm run verify:surface-salvo`
+- `npm run verify:platform-defense-visual`
+- `npm run verify:default-platform`
+- `npm run verify:platform-arrival`
 
 ## 1.15.0 - 2026-07-29
 

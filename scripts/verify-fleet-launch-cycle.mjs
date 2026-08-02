@@ -19,6 +19,11 @@ try {
   });
   await page.locator("#sbFleetMode").check();
   await page.locator("#sbStart").click();
+  await page.waitForFunction(() =>
+    (document.querySelector("#scene")?.dataset.fleetSamMagazines ?? "").includes("blue-cg-57:"),
+  null, { timeout: 15_000 });
+  const initialMagazines = await page.locator("#scene").evaluate((canvas) =>
+    canvas.dataset.fleetSamMagazines ?? "");
   await page.getByRole("button", { name: "TIME: 1X" }).click();
   await page.getByRole("button", { name: "TIME: 2X" }).click();
   await page.waitForFunction(() => {
@@ -52,6 +57,14 @@ try {
     Number(entry.match(/OFFSET=([\d.-]+)/)?.[1] ?? Number.POSITIVE_INFINITY));
   result.noBypassEvent = !messages.some((message) => message.includes("SHIP SAM AUTO LAUNCH"));
   result.originsOwnedByCg57 = offsets.length > 0 && offsets.every((offset) => offset < 80);
+  const magazineTotal = (value, shipId) => {
+    const entry = value.split("|").find((candidate) => candidate.startsWith(`${shipId}:`)) ?? "";
+    return [...entry.matchAll(/(?:RIM|MR|ER)=(\d+)/g)]
+      .reduce((total, match) => total + Number(match[1]), 0);
+  };
+  result.initialMagazines = initialMagazines;
+  result.cg57RoundsSpent = magazineTotal(initialMagazines, "blue-cg-57")
+    - magazineTotal(result.magazines ?? "", "blue-cg-57");
   result.errors = errors;
   await page.screenshot({ path: "verification-fleet-launch-cycle.png", fullPage: true });
   console.log(JSON.stringify(result, null, 2));
@@ -62,7 +75,7 @@ try {
       || !result.launchHud.includes("MK 41")
       || !result.launchHud.includes("ORGANIC LAUNCH")
       || !result.engagements?.includes(":weapons-away:")
-      || !result.magazines?.includes("blue-cg-57:RIM=0,MR=46")
+      || result.cg57RoundsSpent !== 2
       || !result.physicalLaunches?.includes("MK 41")
       || !result.physicalLaunches?.includes("CELL")) process.exitCode = 1;
 } finally {

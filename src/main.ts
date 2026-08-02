@@ -405,6 +405,7 @@ function registerShipAssetLod(ship: THREE.Group) {
     low: [low],
     persistentUntilMedium: persistent,
     exclusiveTiers: true,
+    qualityAware: true,
   });
 }
 registerShipAssetLod(defender);

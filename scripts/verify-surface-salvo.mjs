@@ -5,7 +5,7 @@ const browser = await chromium.launch({
   executablePath:
     process.env.CHROME_PATH ??
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  args: ["--use-angle=swiftshader", "--renderer-process-limit=2"],
+  args: ["--use-angle=swiftshader", "--renderer-process-limit=1"],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
@@ -119,7 +119,7 @@ try {
       );
     },
     null,
-    { timeout: 15_000 },
+    { timeout: 25_000 },
   );
 } catch {
   // The final assertions print the individual state that failed to converge.

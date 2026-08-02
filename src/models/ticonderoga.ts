@@ -36,17 +36,22 @@ const TICONDEROGA_LENGTH_SCALE =
 const TICONDEROGA_MODEL_BEAM = TICONDEROGA_REAL_BEAM_M / MODEL_METERS_PER_UNIT;
 const longitudinal = (value: number) => value * TICONDEROGA_LENGTH_SCALE;
 const TICONDEROGA_HULL: readonly HullStation[] = [
-  { x: longitudinal(-34), deckHalf: 2.92, shoulderHalf: 2.82, waterlineHalf: 2.62, keelHalf: 1.02, deckY: 5.5, shoulderY: 3.28, waterlineY: 0.34, keelY: -0.62 },
-  { x: longitudinal(-32.2), deckHalf: 3.28, shoulderHalf: 3.16, waterlineHalf: 2.92, keelHalf: 1.12, deckY: 5.56, shoulderY: 3.23, waterlineY: 0.31, keelY: -0.74 },
-  { x: longitudinal(-28), deckHalf: 3.52, shoulderHalf: 3.4, waterlineHalf: 3.08, keelHalf: 1.18, deckY: 5.64, shoulderY: 3.18, waterlineY: 0.29, keelY: -0.84 },
+  // Spruance-derived fine bow, long parallel middle body and clipped transom.
+  // Additional end stations keep the characteristic cruiser silhouette from
+  // collapsing into a generic rectangular hull at oblique viewing angles.
+  { x: longitudinal(-34), deckHalf: 2.72, shoulderHalf: 2.68, waterlineHalf: 2.48, keelHalf: 0.92, deckY: 5.48, shoulderY: 3.34, waterlineY: 0.38, keelY: -0.56 },
+  { x: longitudinal(-33.1), deckHalf: 3.08, shoulderHalf: 3, waterlineHalf: 2.76, keelHalf: 1.02, deckY: 5.52, shoulderY: 3.28, waterlineY: 0.34, keelY: -0.66 },
+  { x: longitudinal(-31), deckHalf: 3.38, shoulderHalf: 3.27, waterlineHalf: 2.98, keelHalf: 1.12, deckY: 5.58, shoulderY: 3.22, waterlineY: 0.31, keelY: -0.78 },
+  { x: longitudinal(-27), deckHalf: 3.55, shoulderHalf: 3.42, waterlineHalf: 3.11, keelHalf: 1.18, deckY: 5.65, shoulderY: 3.18, waterlineY: 0.29, keelY: -0.86 },
   { x: longitudinal(-20), deckHalf: 3.66, shoulderHalf: 3.52, waterlineHalf: 3.16, keelHalf: 1.2, deckY: 5.74, shoulderY: 3.16, waterlineY: 0.28, keelY: -0.9 },
   { x: longitudinal(-8), deckHalf: 3.73, shoulderHalf: 3.58, waterlineHalf: 3.19, keelHalf: 1.2, deckY: 5.82, shoulderY: 3.16, waterlineY: 0.27, keelY: -0.94 },
   { x: longitudinal(6), deckHalf: 3.73, shoulderHalf: 3.58, waterlineHalf: 3.17, keelHalf: 1.18, deckY: 5.86, shoulderY: 3.18, waterlineY: 0.27, keelY: -0.94 },
   { x: longitudinal(14), deckHalf: 3.68, shoulderHalf: 3.52, waterlineHalf: 3.07, keelHalf: 1.12, deckY: 5.91, shoulderY: 3.24, waterlineY: 0.29, keelY: -0.88 },
-  { x: longitudinal(20.5), deckHalf: 3.45, shoulderHalf: 3.26, waterlineHalf: 2.78, keelHalf: 0.96, deckY: 6.01, shoulderY: 3.42, waterlineY: 0.32, keelY: -0.72 },
-  { x: longitudinal(25.5), deckHalf: 3.0, shoulderHalf: 2.78, waterlineHalf: 2.28, keelHalf: 0.74, deckY: 6.18, shoulderY: 3.67, waterlineY: 0.36, keelY: -0.54 },
-  { x: longitudinal(29), deckHalf: 2.2, shoulderHalf: 1.96, waterlineHalf: 1.5, keelHalf: 0.44, deckY: 6.42, shoulderY: 3.98, waterlineY: 0.42, keelY: -0.28 },
-  { x: longitudinal(31.5), deckHalf: 1.2, shoulderHalf: 0.98, waterlineHalf: 0.68, keelHalf: 0.2, deckY: 6.66, shoulderY: 4.3, waterlineY: 0.48, keelY: -0.02 },
+  { x: longitudinal(18), deckHalf: 3.56, shoulderHalf: 3.4, waterlineHalf: 2.94, keelHalf: 1.02, deckY: 5.97, shoulderY: 3.34, waterlineY: 0.31, keelY: -0.78 },
+  { x: longitudinal(22.5), deckHalf: 3.34, shoulderHalf: 3.12, waterlineHalf: 2.63, keelHalf: 0.88, deckY: 6.07, shoulderY: 3.5, waterlineY: 0.34, keelY: -0.66 },
+  { x: longitudinal(26.5), deckHalf: 2.82, shoulderHalf: 2.54, waterlineHalf: 2.03, keelHalf: 0.64, deckY: 6.23, shoulderY: 3.75, waterlineY: 0.38, keelY: -0.48 },
+  { x: longitudinal(29.5), deckHalf: 2.02, shoulderHalf: 1.7, waterlineHalf: 1.28, keelHalf: 0.38, deckY: 6.46, shoulderY: 4.06, waterlineY: 0.44, keelY: -0.22 },
+  { x: longitudinal(31.8), deckHalf: 1.05, shoulderHalf: 0.82, waterlineHalf: 0.54, keelHalf: 0.16, deckY: 6.7, shoulderY: 4.36, waterlineY: 0.5, keelY: 0.04 },
   { x: longitudinal(33.1), deckHalf: 0.42, shoulderHalf: 0.31, waterlineHalf: 0.18, keelHalf: 0.05, deckY: 6.84, shoulderY: 4.57, waterlineY: 0.55, keelY: 0.2 },
   { x: longitudinal(34), deckHalf: 0.045, shoulderHalf: 0.035, waterlineHalf: 0.02, keelHalf: 0.008, deckY: 6.94, shoulderY: 4.75, waterlineY: 0.59, keelY: 0.36 },
 ];
@@ -114,6 +119,11 @@ export function buildTiconderoga() {
       metalness: 0.24,
       roughness: 0.58,
     }),
+    sensorBorderMat = new THREE.MeshStandardMaterial({
+      color: 0x657274,
+      metalness: 0.12,
+      roughness: 0.68,
+    }),
     windowMat = new THREE.MeshStandardMaterial({
       color: 0x18363d,
       emissive: 0x092126,
@@ -129,6 +139,7 @@ export function buildTiconderoga() {
   applySurfaceDetail(superMat, "painted-metal", 0.26);
   applySurfaceDetail(dark, "dark-metal", 0.34);
   applySurfaceDetail(arrayMat, "painted-metal", 0.2);
+  applySurfaceDetail(sensorBorderMat, "painted-metal", 0.24);
   const hull = new THREE.Mesh(createLoftedHullGeometry(TICONDEROGA_HULL), hullMat),
     waterline = new THREE.Mesh(
       createWaterlineBandGeometry(TICONDEROGA_HULL),
@@ -140,118 +151,212 @@ export function buildTiconderoga() {
     deckMat,
   );
   ship.add(deck);
+  // CG-57 retained the class' conspicuously tall, slab-sided AEGIS houses.
+  // Keeping the forward and after houses as separate masses is more important
+  // to the silhouette than adding generic surface clutter to one long wedge.
   const forwardHouse = new THREE.Mesh(
-    createChamferedSlopedBoxGeometry(longitudinal(15.5), 7.8, 6.35, 0.42, longitudinal(2.8), longitudinal(0.65)),
+    createChamferedSlopedBoxGeometry(
+      longitudinal(13.2),
+      7.55,
+      6.55,
+      0.24,
+      longitudinal(1.85),
+      longitudinal(0.32),
+    ),
     superMat,
   );
-  forwardHouse.position.set(longitudinal(5.5), 9.6, 0);
-  ship.add(forwardHouse);
+  forwardHouse.position.set(longitudinal(6.9), 9.68, 0);
+  const forwardHouseCap = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(8.8),
+      0.42,
+      6.05,
+      0.16,
+      longitudinal(0.72),
+      longitudinal(0.22),
+    ),
+    deckMat,
+  );
+  forwardHouseCap.position.set(longitudinal(7.7), 13.55, 0);
   const bridge = new THREE.Mesh(
-    createChamferedSlopedBoxGeometry(longitudinal(8.8), 3.1, 5.85, 0.38, longitudinal(1.8), longitudinal(0.45)),
+    createChamferedSlopedBoxGeometry(
+      longitudinal(7.8),
+      3.15,
+      5.82,
+      0.26,
+      longitudinal(1.45),
+      longitudinal(0.32),
+    ),
     superMat,
   );
-  bridge.position.set(longitudinal(9.4), 14.85, 0);
-  ship.add(bridge);
+  bridge.position.set(longitudinal(9.35), 15.15, 0);
   const bridgeRoof = new THREE.Mesh(
-    createChamferedSlopedBoxGeometry(longitudinal(6.4), 0.55, 5.2, 0.24, longitudinal(0.7), longitudinal(0.25)),
+    createChamferedSlopedBoxGeometry(
+      longitudinal(6.25),
+      0.52,
+      5.18,
+      0.18,
+      longitudinal(0.52),
+      longitudinal(0.18),
+    ),
     dark,
   );
-  bridgeRoof.position.set(longitudinal(8.4), 16.65, 0);
-  ship.add(bridgeRoof);
+  bridgeRoof.position.set(longitudinal(8.55), 16.96, 0);
+  ship.add(forwardHouse, forwardHouseCap, bridge, bridgeRoof);
   for (const side of [-1, 1])
     for (let x = 6.7; x <= 11.7; x += 0.82) {
       const window = new THREE.Mesh(
         new THREE.BoxGeometry(0.55, 0.42, 0.1),
         windowMat,
       );
-      window.position.set(longitudinal(x), 15.25, side * 2.98);
-      ship.add(window);
+      window.position.set(longitudinal(x), 15.55, side * 2.94);
+      highDetail.add(window);
     }
   for (let z = -2.15; z <= 2.15; z += 0.72) {
     const window = new THREE.Mesh(
       new THREE.BoxGeometry(0.1, 0.42, 0.48),
       windowMat,
     );
-    window.position.set(longitudinal(13.25), 15.25, z);
-    ship.add(window);
+    window.position.set(longitudinal(12.4), 15.55, z);
+    highDetail.add(window);
   }
   for (const side of [-1, 1]) {
     const windowBrow = new THREE.Mesh(
       createChamferedSlopedBoxGeometry(longitudinal(6.2), 0.18, 0.24, 0.06, longitudinal(0.45), longitudinal(0.15)),
       dark,
     );
-    windowBrow.position.set(longitudinal(9.2), 15.58, side * 3.04);
-    ship.add(windowBrow);
+    windowBrow.position.set(longitudinal(9.15), 15.88, side * 3.0);
+    highDetail.add(windowBrow);
   }
   for (const side of [-1, 1]) {
     const bridgeWing = new THREE.Mesh(
       new THREE.BoxGeometry(longitudinal(3.1), 0.32, 1.15),
       superMat,
     );
-    bridgeWing.position.set(longitudinal(9.9), 14.05, side * 3.28);
+    bridgeWing.position.set(longitudinal(9.8), 14.35, side * 3.23);
     const bulwark = new THREE.Mesh(
       new THREE.BoxGeometry(longitudinal(3.25), 0.48, 0.09),
       superMat,
     );
-    bulwark.position.set(longitudinal(9.9), 14.42, side * 3.82);
+    bulwark.position.set(longitudinal(9.8), 14.72, side * 3.77);
     highDetail.add(bridgeWing, bulwark);
   }
   const aftHouse = new THREE.Mesh(
-    createChamferedSlopedBoxGeometry(longitudinal(14), 6.8, 6.35, 0.42, longitudinal(0.75), longitudinal(1.9)),
+    createChamferedSlopedBoxGeometry(
+      longitudinal(9.8),
+      6.75,
+      6.42,
+      0.24,
+      longitudinal(0.38),
+      longitudinal(1.1),
+    ),
     superMat,
   );
-  aftHouse.position.set(longitudinal(-7.8), 9.1, 0);
-  ship.add(aftHouse);
+  aftHouse.position.set(longitudinal(-7.8), 9.35, 0);
+  const aftUpperHouse = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(6.2),
+      2.75,
+      5.82,
+      0.2,
+      longitudinal(0.3),
+      longitudinal(0.68),
+    ),
+    superMat,
+  );
+  aftUpperHouse.position.set(longitudinal(-9.0), 14.08, 0);
+  const aftHouseCap = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(5.7),
+      0.34,
+      5.25,
+      0.14,
+      longitudinal(0.22),
+      longitudinal(0.42),
+    ),
+    deckMat,
+  );
+  aftHouseCap.position.set(longitudinal(-9.05), 15.62, 0);
+  ship.add(aftHouse, aftUpperHouse, aftHouseCap);
   const hangar = new THREE.Mesh(
-    createChamferedSlopedBoxGeometry(longitudinal(8.2), 4.2, 6.25, 0.38, longitudinal(0.25), longitudinal(1.15)),
+    createChamferedSlopedBoxGeometry(
+      longitudinal(7.8),
+      4.35,
+      6.3,
+      0.2,
+      longitudinal(0.2),
+      longitudinal(0.55),
+    ),
     superMat,
   );
-  hangar.position.set(longitudinal(-14.3), 8, 0);
-  ship.add(hangar);
+  hangar.position.set(longitudinal(-14.75), 8.12, 0);
+  const hangarRoof = new THREE.Mesh(
+    new THREE.BoxGeometry(longitudinal(7.5), 0.18, 6.18),
+    deckMat,
+  );
+  hangarRoof.position.set(longitudinal(-14.7), 10.38, 0);
+  ship.add(hangar, hangarRoof);
+  const hangarDoors: THREE.Object3D[] = [];
   for (const side of [-1, 1]) {
-    const door = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.45, 0.12), dark);
-    door.position.set(longitudinal(-15.2), 7.8, side * 3.18);
-    ship.add(door);
-    const catwalk = new THREE.Mesh(
-      new THREE.BoxGeometry(longitudinal(12), 0.18, 0.85),
+    // The two helicopter bays open aft onto the central flight deck rather
+    // than reading as generic black openings in the ship's side.
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 2.7, 2.48),
       dark,
     );
-    catwalk.position.set(longitudinal(-8.5), 10.9, side * 3.55);
-    ship.add(catwalk);
+    door.position.set(longitudinal(-18.7), 7.92, side * 1.42);
+    highDetail.add(door);
+    hangarDoors.push(door);
+    for (let y = 6.82; y <= 9.02; y += 0.55) {
+      const doorSeam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.045, 2.34),
+        sensorBorderMat,
+      );
+      doorSeam.position.set(longitudinal(-18.77), y, side * 1.42);
+      highDetail.add(doorSeam);
+      hangarDoors.push(doorSeam);
+    }
+    const catwalk = new THREE.Mesh(
+      new THREE.BoxGeometry(longitudinal(10.8), 0.18, 0.76),
+      dark,
+    );
+    catwalk.position.set(longitudinal(-9.2), 11.02, side * 3.52);
+    highDetail.add(catwalk);
   }
   const arrays: THREE.Group[] = [];
   arrays.push(
     createSpy1Array(
       arrayMat,
-      dark,
-      new THREE.Vector3(longitudinal(12.95), 12.25, 0),
+      sensorBorderMat,
+      new THREE.Vector3(longitudinal(12.2), 11.55, 0),
       new THREE.Euler(0, Math.PI / 2, 0),
     ),
   );
   arrays.push(
     createSpy1Array(
       arrayMat,
-      dark,
-      new THREE.Vector3(longitudinal(5.8), 12.25, -3.22),
+      sensorBorderMat,
+      new THREE.Vector3(longitudinal(5.65), 11.5, -3.3),
       new THREE.Euler(0, Math.PI, 0),
     ),
   );
   arrays.push(
     createSpy1Array(
       arrayMat,
-      dark,
-      new THREE.Vector3(longitudinal(-14.9), 11.65, 0),
+      sensorBorderMat,
+      new THREE.Vector3(longitudinal(-11.82), 14.08, 0),
       new THREE.Euler(0, -Math.PI / 2, 0),
     ),
   );
   arrays.push(
     createSpy1Array(
       arrayMat,
-      dark,
-      new THREE.Vector3(longitudinal(-8.6), 11.65, 3.22),
+      sensorBorderMat,
+      new THREE.Vector3(longitudinal(-9.0), 14.08, 2.94),
       new THREE.Euler(0, 0, 0),
     ),
   );
+  arrays.forEach((array) => array.scale.setScalar(0.43));
   ship.add(...arrays);
   const platingMat = new THREE.MeshStandardMaterial({ color: 0x445255, metalness: 0.08, roughness: 0.76 });
   for (const side of [-1, 1]) {
@@ -266,109 +371,194 @@ export function buildTiconderoga() {
       highDetail.add(scupper);
     }
   }
-  for (const x of [longitudinal(1.2), longitudinal(-8.5)]) {
+  const exhaustUptakes: THREE.Object3D[] = [];
+  for (const rawX of [0.25, -6.1]) {
+    const uptakeGroup = new THREE.Group();
+    uptakeGroup.position.x = longitudinal(rawX);
     const trunk = new THREE.Mesh(
-      slopedBox(3.1, 3.2, 3.5, 0.45, 0.45),
+      slopedBox(3.05, 3.25, 3.35, 0.28, 0.28),
       superMat,
     );
-    trunk.position.set(x, 14.4, 0);
-    ship.add(trunk);
-    for (const z of [-0.72, 0.72]) {
+    trunk.position.y = 14.15;
+    uptakeGroup.add(trunk);
+    // The class has two distinct rectangular uptake pairs. Cylindrical stacks
+    // made the old model read like a generic frigate from every side view.
+    for (const z of [-0.68, 0.68]) {
       const stack = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.68, 0.82, 2.45, 10),
+        createChamferedSlopedBoxGeometry(0.82, 2.35, 0.76, 0.1, 0.07, 0.07),
         dark,
       );
-      stack.position.set(x, 17, z);
+      stack.position.set(0, 16.82, z);
       const cap = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.74, 0.74, 0.25, 10),
-        new THREE.MeshBasicMaterial({ color: 0x111719 }),
+        new THREE.BoxGeometry(0.74, 0.16, 0.66),
+        new THREE.MeshBasicMaterial({ color: 0x101618 }),
       );
-      cap.position.set(x, 18.3, z);
-      ship.add(stack, cap);
+      cap.position.set(0, 18.06, z);
+      uptakeGroup.add(stack, cap);
     }
+    for (const side of [-1, 1])
+      for (let y = 13.35; y <= 14.85; y += 0.5) {
+        const louver = new THREE.Mesh(
+          new THREE.BoxGeometry(1.8, 0.055, 0.045),
+          dark,
+        );
+        louver.position.set(0, y, side * 1.69);
+        uptakeGroup.add(louver);
+      }
+    exhaustUptakes.push(uptakeGroup);
+    ship.add(uptakeGroup);
   }
   const foreMast = new THREE.Group();
-  foreMast.position.set(longitudinal(4.2), 15, 0);
+  foreMast.position.set(longitudinal(3.65), 15.15, 0);
   for (const side of [-1, 1])
     strut(
       foreMast,
-      new THREE.Vector3(-1, 0, side * 1.7),
-      new THREE.Vector3(0, 10, side * 0.45),
-      0.13,
+      new THREE.Vector3(-1.05, 0, side * 1.62),
+      new THREE.Vector3(0, 8.9, side * 0.38),
+      0.12,
       dark,
     );
   strut(
     foreMast,
-    new THREE.Vector3(1.2, 0, 0),
-    new THREE.Vector3(0, 10, 0),
-    0.13,
+    new THREE.Vector3(1.15, 0, 0),
+    new THREE.Vector3(0, 8.9, 0),
+    0.12,
     dark,
   );
-  for (let y = 2; y < 9; y += 2) {
+  for (let y = 1.7; y < 8.5; y += 1.7) {
     const bar = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14, 0.14, 3 - y * 0.18),
+      new THREE.BoxGeometry(0.12, 0.12, 3.05 - y * 0.2),
       dark,
     );
     bar.position.y = y;
     foreMast.add(bar);
+    for (const side of [-1, 1]) {
+      strut(
+        foreMast,
+        new THREE.Vector3(-0.72, y - 0.7, side * (1.5 - y * 0.12)),
+        new THREE.Vector3(0.54, y + 0.75, side * (1.28 - y * 0.11)),
+        0.045,
+        dark,
+      );
+      strut(
+        foreMast,
+        new THREE.Vector3(0.54, y - 0.7, side * (1.38 - y * 0.11)),
+        new THREE.Vector3(-0.72, y + 0.75, side * (1.18 - y * 0.1)),
+        0.045,
+        dark,
+      );
+    }
   }
   const platform = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.8, 2.1, 0.25, 10),
+    new THREE.CylinderGeometry(1.65, 1.92, 0.24, 10),
     dark,
   );
-  platform.position.y = 8.5;
+  platform.position.y = 7.85;
   foreMast.add(platform);
   const mastPole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.22, 8, 7),
+    new THREE.CylinderGeometry(0.1, 0.2, 6.8, 7),
     dark,
   );
-  mastPole.position.y = 13;
+  mastPole.position.y = 12.15;
   foreMast.add(mastPole);
   const sps49 = new THREE.Group();
-  sps49.position.y = 10.2;
-  const radarBar = new THREE.Mesh(
-    new THREE.BoxGeometry(7, 0.12, 0.12),
-    arrayMat,
-  );
-  sps49.add(radarBar);
-  for (let x = -3; x <= 3; x += 0.75) {
+  sps49.position.y = 9.45;
+  const radarFrame = new THREE.Group();
+  for (const y of [-0.88, 0.88]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(6.35, 0.065, 0.07),
+      arrayMat,
+    );
+    rail.position.y = y;
+    radarFrame.add(rail);
+  }
+  for (let x = -3.05; x <= 3.05; x += 0.42) {
     const tine = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 2.1, 0.06),
+      new THREE.BoxGeometry(0.042, 1.76, 0.055),
       arrayMat,
     );
     tine.position.x = x;
-    sps49.add(tine);
+    radarFrame.add(tine);
   }
+  const radarYoke = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.48, 1.1),
+    dark,
+  );
+  radarYoke.position.y = -1.12;
+  sps49.add(radarFrame, radarYoke);
   foreMast.add(sps49);
+  for (const [y, width] of [[5.5, 4.6], [11.7, 6.1], [14.4, 4.1]] as const) {
+    const yard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, width), dark);
+    yard.position.y = y;
+    foreMast.add(yard);
+  }
+  for (const [y, radius] of [[12.35, 0.42], [15.0, 0.27]] as const) {
+    const radome = new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 7), superMat);
+    radome.position.y = y;
+    foreMast.add(radome);
+  }
   ship.add(foreMast);
   const aftMast = new THREE.Group();
-  aftMast.position.set(longitudinal(-11.5), 14, 0);
+  aftMast.position.set(longitudinal(-10.45), 14.4, 0);
   for (const side of [-1, 1])
     strut(
       aftMast,
-      new THREE.Vector3(-1, 0, side * 1.5),
-      new THREE.Vector3(0, 8, side * 0.4),
-      0.12,
+      new THREE.Vector3(-0.95, 0, side * 1.42),
+      new THREE.Vector3(0, 7.6, side * 0.34),
+      0.11,
       dark,
     );
   strut(
     aftMast,
     new THREE.Vector3(1, 0, 0),
-    new THREE.Vector3(0, 8, 0),
-    0.12,
+    new THREE.Vector3(0, 7.6, 0),
+    0.11,
     dark,
   );
   const aftPole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.2, 6.5, 7),
+    new THREE.CylinderGeometry(0.09, 0.18, 5.8, 7),
     dark,
   );
-  aftPole.position.y = 10.5;
-  aftMast.add(aftPole);
+  aftPole.position.y = 10.25;
+  const aftPlatform = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.42, 0.22, 10),
+    dark,
+  );
+  aftPlatform.position.y = 6.8;
+  const aftYard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.1, 5),
+    dark,
+  );
+  aftYard.position.y = 10.15;
+  const surfaceRadar = new THREE.Group();
+  surfaceRadar.position.y = 7.7;
+  const surfaceRadarPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(2.35, 0.68, 0.07),
+    arrayMat,
+  );
+  const surfaceRadarYoke = new THREE.Mesh(
+    new THREE.BoxGeometry(0.11, 0.42, 0.65),
+    dark,
+  );
+  surfaceRadarYoke.position.y = -0.45;
+  surfaceRadar.add(surfaceRadarPanel, surfaceRadarYoke);
+  for (let y = 1.2; y < 6.7; y += 1.45)
+    for (const side of [-1, 1])
+      strut(
+        aftMast,
+        new THREE.Vector3(-0.62, y - 0.55, side * (1.28 - y * 0.12)),
+        new THREE.Vector3(0.48, y + 0.65, side * (1.08 - y * 0.1)),
+        0.042,
+        dark,
+      );
+  aftMast.add(aftPole, aftPlatform, aftYard, surfaceRadar);
   ship.add(aftMast);
   const forwardVls = createMk41VlsBank(8, 8, 0.72, superMat, dark, [0, 1, 8]);
-  forwardVls.position.set(longitudinal(21.5), 5.9, 0);
+  forwardVls.position.set(longitudinal(21.4), 6.02, 0);
+  forwardVls.scale.setScalar(0.74);
   const aftVls = createMk41VlsBank(8, 8, 0.72, superMat, dark, [55, 62, 63]);
-  aftVls.position.set(longitudinal(-25.2), 5.9, 0);
+  aftVls.position.set(longitudinal(-25.2), 5.96, 0);
+  aftVls.scale.setScalar(0.74);
   ship.add(forwardVls, aftVls);
   const vlsCells = [
     ...(forwardVls.userData.cells as VlsCell[]).map((cell) => ({
@@ -381,63 +571,68 @@ export function buildTiconderoga() {
     })),
   ];
   const foreGun = createMk45Gun(superMat, dark);
-  foreGun.position.set(longitudinal(29.2), 6.15, 0);
+  foreGun.position.set(longitudinal(29.15), 6.32, 0);
+  foreGun.scale.setScalar(0.72);
   const aftGun = createMk45Gun(superMat, dark);
-  aftGun.position.set(longitudinal(-31), 6.15, 0);
+  aftGun.position.set(longitudinal(-31), 6.18, 0);
   aftGun.rotation.y = Math.PI;
+  aftGun.scale.setScalar(0.72);
   ship.add(foreGun, aftGun);
   const directors = [
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(10), 13.5, -3.7),
-      -0.25,
+      new THREE.Vector3(longitudinal(10.35), 17.45, -2.05),
+      -0.42,
     ),
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(10), 13.5, 3.7),
-      0.25,
+      new THREE.Vector3(longitudinal(10.35), 17.45, 2.05),
+      0.42,
     ),
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(-10.8), 13, -3.7),
-      Math.PI + 0.3,
+      new THREE.Vector3(longitudinal(-10.65), 16.13, -2.1),
+      Math.PI + 0.44,
     ),
     createSpg62Director(
       arrayMat,
       dark,
-      new THREE.Vector3(longitudinal(-10.8), 13, 3.7),
-      Math.PI - 0.3,
+      new THREE.Vector3(longitudinal(-10.65), 16.13, 2.1),
+      Math.PI - 0.44,
     ),
   ];
+  directors.forEach((director) => director.scale.setScalar(0.68));
   ship.add(...directors);
   const foreCiws = createPhalanxCiws(superMat, dark, "ciwsFore");
   foreCiws.position.set(longitudinal(13.5), 9.3, 0);
+  foreCiws.scale.setScalar(0.82);
   const aftCiws = createPhalanxCiws(superMat, dark, "ciwsAft");
   aftCiws.position.set(longitudinal(-15.5), 10.2, -3.55);
   aftCiws.rotation.y = Math.PI;
+  aftCiws.scale.setScalar(0.82);
   ship.add(foreCiws, aftCiws);
   const flightDeck = new THREE.Mesh(
-    new THREE.BoxGeometry(longitudinal(7.8), 0.14, 6.35),
+    new THREE.BoxGeometry(longitudinal(8.8), 0.14, 6.35),
     deckMat,
   );
-  flightDeck.position.set(longitudinal(-19.2), 6.05, 0);
+  flightDeck.position.set(longitudinal(-19.5), 6.05, 0);
   ship.add(flightDeck);
   const marking = new THREE.Mesh(
     new THREE.RingGeometry(2.05, 2.18, 48),
     new THREE.MeshBasicMaterial({ color: 0xe8e4cb, side: THREE.DoubleSide }),
   );
   marking.rotation.x = -Math.PI / 2;
-  marking.position.set(longitudinal(-19.2), 6.14, 0);
+  marking.position.set(longitudinal(-19.5), 6.14, 0);
   highDetail.add(marking);
   for (const side of [-1, 1]) {
     const line = new THREE.Mesh(
-      new THREE.BoxGeometry(longitudinal(7.2), 0.025, 0.08),
+      new THREE.BoxGeometry(longitudinal(8.15), 0.025, 0.08),
       new THREE.MeshBasicMaterial({ color: 0xe8e4cb }),
     );
-    line.position.set(longitudinal(-19.2), 6.15, side * 2.75);
+    line.position.set(longitudinal(-19.5), 6.15, side * 2.75);
     highDetail.add(line);
   }
   for (const side of [-1, 1])
@@ -453,24 +648,24 @@ export function buildTiconderoga() {
       );
       highDetail.add(post);
     }
-  for (const side of [-1, 1])
-    for (const x of [-2, -6, -10]) {
-      const boat = createShipBoat(
-        0.42,
-        2.5,
-        new THREE.MeshStandardMaterial({ color: 0xe1d9c8, roughness: 0.66 }),
-      );
-      boat.position.set(longitudinal(x), 9.1, side * 4.05);
-      highDetail.add(boat);
-    }
+  for (const side of [-1, 1]) {
+    const boat = createShipBoat(
+      0.48,
+      3.25,
+      new THREE.MeshStandardMaterial({ color: 0xd9d6c9, roughness: 0.68 }),
+    );
+    boat.position.set(longitudinal(-5.8), 9.05, side * 3.92);
+    boat.rotation.y = side > 0 ? 0.05 : -0.05;
+    highDetail.add(boat);
+  }
   for (const side of [-1, 1]) {
     const boatBay = new THREE.Mesh(
-      new THREE.BoxGeometry(longitudinal(10.5), 2.15, 0.18),
+      new THREE.BoxGeometry(longitudinal(6.2), 2.05, 0.18),
       dark,
     );
-    boatBay.position.set(longitudinal(-6), 8.85, side * 3.61);
+    boatBay.position.set(longitudinal(-5.8), 8.85, side * 3.61);
     highDetail.add(boatBay);
-    for (const x of [-10.5, -6, -1.5]) {
+    for (const x of [-8.3, -3.3]) {
       const davit = new THREE.Mesh(
         new THREE.TorusGeometry(0.72, 0.055, 6, 14, Math.PI),
         dark,
@@ -498,9 +693,10 @@ export function buildTiconderoga() {
       dark,
       `mk141-${side > 0 ? "port" : "starboard"}`,
     );
-    harpoon.position.set(longitudinal(-1.5), 7.2, side * 2.15);
+    harpoon.position.set(longitudinal(-2.2), 7.18, side * 2.05);
     // Cant each bank outboard instead of across the ship's centreline.
     harpoon.rotation.y = -side * 0.42;
+    harpoon.scale.setScalar(0.7);
     surfaceStrikeHardpoints.push(
       ...(harpoon.userData.weaponHardpoints as ModelWeaponHardpoint[]),
     );
@@ -563,10 +759,10 @@ export function buildTiconderoga() {
   highDetail.add(rastTrack);
   const smokePuffs: THREE.Mesh[] = [],
     smokeOrigins = [
-      new THREE.Vector3(longitudinal(1.2), 18.3, -0.72),
-      new THREE.Vector3(longitudinal(1.2), 18.3, 0.72),
-      new THREE.Vector3(longitudinal(-8.5), 18.3, -0.72),
-      new THREE.Vector3(longitudinal(-8.5), 18.3, 0.72),
+      new THREE.Vector3(longitudinal(0.25), 18.15, -0.68),
+      new THREE.Vector3(longitudinal(0.25), 18.15, 0.68),
+      new THREE.Vector3(longitudinal(-6.1), 18.15, -0.68),
+      new THREE.Vector3(longitudinal(-6.1), 18.15, 0.68),
     ];
   for (let n = 0; n < 12; n++) {
     const anchor = new THREE.Group(),
@@ -596,7 +792,7 @@ export function buildTiconderoga() {
       side: THREE.DoubleSide,
     }),
   );
-  flag.position.set(longitudinal(-11.5), 25, 0);
+  flag.position.set(longitudinal(-10.45), 25, 0);
   highDetail.add(flag);
   ship.add(highDetail);
   for (const side of [-1, 1]) {
@@ -609,17 +805,119 @@ export function buildTiconderoga() {
     mediumDetail.add(rail);
   }
   ship.add(mediumDetail);
-  const lowHull = new THREE.Mesh(
-    new THREE.BoxGeometry(longitudinal(28), 5, 7),
+  const lowForwardHouse = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(12.8),
+      7.35,
+      6.4,
+      0.2,
+      longitudinal(1.55),
+      longitudinal(0.25),
+    ),
     superMat,
   );
-  lowHull.position.set(longitudinal(-1), 9, 0);
-  const lowMast = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.35, 15, 6),
+  lowForwardHouse.position.set(longitudinal(6.85), 9.65, 0);
+  const lowBridge = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(7.4),
+      3,
+      5.6,
+      0.2,
+      longitudinal(1.2),
+      longitudinal(0.25),
+    ),
+    superMat,
+  );
+  lowBridge.position.set(longitudinal(9.25), 15.05, 0);
+  const lowAftHouse = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(9.5),
+      6.55,
+      6.2,
+      0.2,
+      longitudinal(0.3),
+      longitudinal(0.85),
+    ),
+    superMat,
+  );
+  lowAftHouse.position.set(longitudinal(-7.8), 9.3, 0);
+  const lowHangar = new THREE.Mesh(
+    createChamferedSlopedBoxGeometry(
+      longitudinal(7.5),
+      4.15,
+      6.15,
+      0.18,
+      longitudinal(0.16),
+      longitudinal(0.42),
+    ),
+    superMat,
+  );
+  lowHangar.position.set(longitudinal(-14.7), 8.08, 0);
+  const lowForeMast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.4, 14, 6),
     dark,
   );
-  lowMast.position.set(longitudinal(2), 19, 0);
-  lowDetail.add(lowHull, lowMast);
+  lowForeMast.position.set(longitudinal(3.65), 22.1, 0);
+  const lowAftMast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.36, 11.5, 6),
+    dark,
+  );
+  lowAftMast.position.set(longitudinal(-10.45), 20.2, 0);
+
+  // The operational Mk 41 groups are hidden at Standard quality together
+  // with the rest of `detail`.  Supply visual-only banks at the exact same
+  // deck coordinates so low LOD never makes the cruiser's VLS disappear.
+  // These meshes deliberately carry no cell metadata or launcher handles.
+  const createLowVlsBank = (rawX: number, y: number) => {
+    const bank = new THREE.Group();
+    bank.position.set(longitudinal(rawX), y, 0);
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(longitudinal(4.55), 0.18, 4.55),
+      superMat,
+    );
+    base.position.y = 0.09;
+    bank.add(base);
+    const lidGeometry = new THREE.BoxGeometry(
+      longitudinal(0.42),
+      0.075,
+      0.42,
+    );
+    const lids = new THREE.InstancedMesh(lidGeometry, dark, 64);
+    const cellTransform = new THREE.Matrix4();
+    let cellIndex = 0;
+    for (let row = 0; row < 8; row++)
+      for (let column = 0; column < 8; column++) {
+        cellTransform.makeTranslation(
+          longitudinal((column - 3.5) * 0.52),
+          0.22,
+          (row - 3.5) * 0.52,
+        );
+        lids.setMatrixAt(cellIndex++, cellTransform);
+      }
+    lids.instanceMatrix.needsUpdate = true;
+    bank.add(lids);
+    return bank;
+  };
+  const lowForwardVls = createLowVlsBank(21.4, 6.02);
+  const lowAftVls = createLowVlsBank(-25.2, 5.96);
+  lowDetail.add(
+    lowForwardHouse,
+    lowBridge,
+    lowAftHouse,
+    lowHangar,
+    lowForeMast,
+    lowAftMast,
+    lowForwardVls,
+    lowAftVls,
+  );
+  for (const rawX of [0.25, -6.1]) {
+    const lowUptake = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 4.55, 2.45),
+      dark,
+    );
+    lowUptake.position.set(longitudinal(rawX), 15.8, 0);
+    lowDetail.add(lowUptake);
+  }
   lowDetail.visible = false;
   ship.add(lowDetail);
   const numberMaterial = new THREE.MeshBasicMaterial({
@@ -663,7 +961,7 @@ export function buildTiconderoga() {
       new THREE.SphereGeometry(0.14, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xf5fff0 }),
     );
-  mastLight.position.set(longitudinal(4.2), 31, 0);
+  mastLight.position.set(longitudinal(3.65), 30.1, 0);
   mastBulb.position.copy(mastLight.position);
   navigationLights.push(mastLight);
   lightBulbs.push(mastBulb);
@@ -730,6 +1028,7 @@ export function buildTiconderoga() {
     mediumDetail,
     lowDetail,
     smokePuffs,
+    hangarDoors,
     flag,
     hullMat,
     ewPulse,
@@ -737,11 +1036,17 @@ export function buildTiconderoga() {
     lightBulbs,
     detail: [
       forwardHouse,
+      forwardHouseCap,
       bridge,
+      bridgeRoof,
       aftHouse,
+      aftUpperHouse,
+      aftHouseCap,
       hangar,
+      hangarRoof,
       foreMast,
       aftMast,
+      ...exhaustUptakes,
       forwardVls,
       aftVls,
       foreGun,

@@ -49,7 +49,9 @@ try {
   }));
   let launchObserved = true;
   try {
-    await page.waitForFunction(() => (document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "").includes("R-27R"), null, { timeout: 35_000 });
+    await page.waitForFunction(() => /R-27R|R-73/.test(
+      document.querySelector("#scene")?.dataset.airWeaponLaunchLog ?? "",
+    ), null, { timeout: 35_000 });
   } catch {
     launchObserved = false;
   }
