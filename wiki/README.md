@@ -10,6 +10,7 @@
 - [平台](PLATFORMS/README.md)
 - [武器](WEAPONS/README.md)
 - [场景](SCENARIOS/README.md)
+- [音乐与氛围](MUSIC.md)
 - [版本说明](VERSIONING.md)
 
 ## 未来路线图
