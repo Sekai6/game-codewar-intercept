@@ -120,6 +120,7 @@ await page.locator("#sbOpforDecoyHealth").fill("0");
   console.log(JSON.stringify({ state, sectorChecks, shotWaitTimedOut, errors }, null, 2));
 
   if (
+  shotWaitTimedOut ||
   errors.length > 0 ||
   state.mounts !== 6 ||
   state.shots < 1 ||
