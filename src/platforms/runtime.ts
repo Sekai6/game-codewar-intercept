@@ -404,6 +404,7 @@ export function updateEnemyPlatform(
   targetRadarCrossSection: number,
   sensorsEnabled: boolean,
   targetEmitting: boolean,
+  patrolWaypoint?: THREE.Vector3,
 ) {
   const damageEvents = updatePlatformCasualties(platform, elapsed);
   const previousManeuverMode = platform.maneuverMode;
@@ -501,6 +502,10 @@ export function updateEnemyPlatform(
     } else {
       platform.maneuverMode = "patrol";
       platform.commandedSpeedKnots = mobility.patrolSpeedKnots;
+      if (patrolWaypoint) {
+        const routeOffset = patrolWaypoint.clone().sub(platform.model.position).setY(0);
+        if (routeOffset.lengthSq() > 1) platform.desiredHeading = headingFor(routeOffset.normalize());
+      }
     }
   }
   const maximumSpeed =

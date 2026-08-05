@@ -25,6 +25,8 @@ export interface FleetShipScenarioEntry {
   formationRole: FleetFormationRole;
   commandRoles: readonly FleetCommandRole[];
   initialSpeedKnots?: number;
+  scenarioRoute?: readonly (readonly [number, number, number])[];
+  scenarioRouteLoop?: boolean;
   loadout?: Partial<Record<ShipWeapon | "ciws" | "surfaceStrike", number>>;
 }
 
@@ -109,4 +111,5 @@ export interface NavalForceRuntime {
   assignments: Map<string, ForceEngagementAssignment>;
   engagements: Map<string, ForceEngagementRecord>;
   surfaceAssignments: Map<string, SurfaceStrikeAssignment>;
+  shipComms: Map<string, { connected: boolean; doctrineBehavior?: string; changedAt: number }>;
 }

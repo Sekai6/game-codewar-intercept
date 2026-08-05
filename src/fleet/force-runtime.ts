@@ -66,5 +66,6 @@ export function createNavalForceRuntime(
     assignments: new Map(),
     engagements: new Map(),
     surfaceAssignments: new Map(),
+    shipComms: new Map([...ships.keys()].map((id) => [id, { connected:true, changedAt:0 }])),
   };
 }

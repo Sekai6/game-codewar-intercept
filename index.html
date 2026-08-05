@@ -15,7 +15,7 @@
     <section class="hud">
       <header class="masthead">
         <div><div class="brand">FLEETEX 83-4 <span>//</span> NORTH ATLANTIC</div><div class="title">NTU INTERCEPT</div></div>
-        <div class="status"><span class="dot"></span><span id="phase">TRACKING</span><span class="sep">/</span><span id="clock">00:00</span><span class="sep">/</span><span class="version" id="appVersion">V1.20</span></div>
+        <div class="status"><span class="dot"></span><span id="phase">TRACKING</span><span class="sep">/</span><span id="clock">00:00</span><span class="sep">/</span><span class="version" id="appVersion">V1.21</span></div>
       </header>
       <aside class="threat-panel">
         <div class="panel-kicker">THREAT EVALUATION</div><div class="threat-name" id="threatName">TRACK 01 / PENDING ID</div>
@@ -33,7 +33,13 @@
     <div class="target-marker" id="targetMarker" aria-hidden="true"><i></i><span id="targetMarkerLabel"></span></div>
     <div class="combat-flash" id="combatFlash" aria-hidden="true"></div>
     <div class="feed" id="feed"></div>
-    <div class="radar-shell"><div class="radar-heading"><span id="radarName">AN/SPS-48E</span><b>TACTICAL PICTURE</b></div><canvas id="radar" width="260" height="260"></canvas><div class="radar-scale">RINGS 25 km / OUTER 75 km</div></div>
+    <div class="radar-shell">
+      <div class="radar-heading"><span id="radarName">AN/SPS-48E</span><b>TACTICAL PICTURE</b></div>
+      <div class="radar-toolbar"><button id="radarRange" type="button">RNG 100 KM</button><button id="radarOrientation" type="button">NORTH UP</button></div>
+      <canvas id="radar" width="360" height="360"></canvas>
+      <div class="radar-legend"><span class="organic">● ORGANIC</span><span class="network">◇ DATALINK</span><span class="weapon">● FIRE CONTROL</span></div>
+      <div class="radar-status" id="radarStatus">LOCAL PICTURE / ORG 0 / NET 0</div>
+    </div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

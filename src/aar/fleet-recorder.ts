@@ -67,7 +67,7 @@ export class FleetAarRecorder {
       const key = `network:${activity.id}`;
       if (this.seen.has(key)) continue;
       this.seen.add(key);
-      emit(activity.time, "network", `FLEET ${activity.network.toUpperCase()} ${activity.kind.toUpperCase()} / ${activity.senderId}${activity.recipientId ? ` -> ${activity.recipientId}` : ""}${activity.trackId ? ` / TRACK ${activity.trackId}` : ""}${activity.delay !== undefined ? ` / DELAY ${activity.delay.toFixed(2)}s` : ""}`);
+      emit(activity.time, "network", `FLEET ${activity.network.toUpperCase()} ${activity.kind.toUpperCase()} / ${activity.senderId}${activity.recipientId ? ` -> ${activity.recipientId}` : ""}${activity.trackId ? ` / TRACK ${activity.trackId}` : ""}${activity.delay !== undefined ? ` / DELAY ${activity.delay.toFixed(2)}s` : ""}${activity.reason ? ` / REASON ${activity.reason.toUpperCase()}` : ""}`);
     }
     for (const launch of observation.physicalLaunches ?? []) {
       const key = `physical-launch:${launch.shipId}:${launch.launchPoint}:${launch.time}`;

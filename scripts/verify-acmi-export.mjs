@@ -18,6 +18,8 @@ const snapshots = [
   {
     ...base,
     time: 0,
+    spaceWeather:{phase:"total-blackout",intensity:1,hfAvailability:.015,vhfUhfReliability:.07,satelliteReliability:.025,gnssQuality:.1,radarNoise:.4,magneticDisturbance:1,communicationWindowOpen:false,communicationWindowStrength:0},
+    decisions:[{platformId:"fighter-1",side:"blue",domain:"air",action:"continue-last-vector",reason:"lost comms; executing last valid intercept order",targetId:"bomber-1",trackSource:"last-valid-link11",trackQuality:.31,localTrackCount:0,networkTrackCount:1,commsState:"lost",doctrine:"us-cap-last-vector"}],
     aircraft: [
       {
         id: "fighter-1",
@@ -35,6 +37,7 @@ const snapshots = [
         mission: "cap",
         alive: true,
         structure: 100,
+        targetId:"bomber-1",localTracks:0,networkTracks:1,bestTrackSource:"last-valid-link11",bestTrackQuality:.31,lostCommsDoctrine:"us-cap-last-vector",tacticalState:"lost-comms-intercept",
       },
       {
         id: "bomber-1",
@@ -70,6 +73,14 @@ const snapshots = [
         phase: "boost",
         targetId: "bomber-1",
         shooterId: "fighter-1",
+        seekerAcquired:false,
+        midcourseLastUpdateAt:12.5,
+        midcourseTrackQuality:.42,
+        midcourseUncertainty:1850,
+        midcourseLinkLostSeconds:4.25,
+        inertialContinuation:true,
+        autonomousSearchAuthorized:true,
+        midcourseSource:"fighter-radar",
       },
     ],
     aewCommands:[{id:"AEW-CMD-1",controllerId:"blue-E-2C-1",participantId:"fighter-1",controllerTrackId:"AEW-opaque-01",mode:"link4a",x:35,y:70,z:-42,quality:.61,uncertainty:18,commandedSpeed:8.6,radarActivationRange:240,expiresAt:10}],
@@ -191,6 +202,10 @@ assert(
 );
 assert(acmi.includes("|1000.0|-11.46|5.73|90.00"), "attitude conversion failed");
 assert(acmi.includes("Speed=250.00,VerticalSpeed=12.00,Health=100.0,State=cap/engaging"), "extended aircraft telemetry missing");
+assert(acmi.includes("Name=Space Weather")&&acmi.includes("State=total-blackout")&&acmi.includes("HFAvailability=0.015")&&acmi.includes("CommunicationWindowOpen=0"),"space-weather telemetry missing");
+assert(acmi.includes("DecisionAction=continue-last-vector")&&acmi.includes("DecisionTrackSource=last-valid-link11")&&acmi.includes("CommsState=lost")&&acmi.includes("LostCommsDoctrine=us-cap-last-vector"),"platform decision audit telemetry missing");
+assert(acmi.includes("DecisionBestTrack=")&&acmi.includes("DecisionTrackClassification=")&&acmi.includes("DecisionTrackUncertainty=")&&acmi.includes("DecisionTrackAge=")&&acmi.includes("DecisionWeaponAuthority="),"platform decision knowledge telemetry missing");
+assert(acmi.includes("MidcourseLastUpdate=12.50")&&acmi.includes("MidcourseLinkLostSeconds=4.25")&&acmi.includes("InertialContinuation=1")&&acmi.includes("AutonomousSearchAuthorized=1"),"air-weapon midcourse telemetry missing");
 assert(acmi.includes("#0.25"), "second frame missing");
 assert(/#0\.25[\s\S]*-\d+/.test(acmi), "removed weapon was not deleted");
 assert(/0,Event=Destroyed\|\d+/.test(acmi), "structured destruction event missing");

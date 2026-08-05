@@ -1,0 +1,31 @@
+{
+  "id": "silent-meridian",
+  "title": "静默子午线 / Silent Meridian",
+  "sampleRate": 22050,
+  "layers": {
+    "polar-bed": {
+      "file": "polar-bed.wav",
+      "seconds": 73
+    },
+    "link-pulse": {
+      "file": "link-pulse.wav",
+      "seconds": 47
+    },
+    "contact-tension": {
+      "file": "contact-tension.wav",
+      "seconds": 43
+    },
+    "missile-engagement": {
+      "file": "missile-engagement.wav",
+      "seconds": 37
+    },
+    "total-blackout": {
+      "file": "total-blackout.wav",
+      "seconds": 67
+    },
+    "recovery": {
+      "file": "recovery.wav",
+      "seconds": 61
+    }
+  }
+}

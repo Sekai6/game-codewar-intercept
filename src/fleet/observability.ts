@@ -24,6 +24,17 @@ export interface FleetMemberObservation {
   magazines: { rim67: number; sm2mr: number; sm2er: number };
   localTracks: number;
   networkTracks: number;
+  commsConnected: boolean;
+  lostCommsDoctrine: string;
+  bestObservedTrack?: {
+    id: string;
+    source: string;
+    classification: string;
+    quality: number;
+    uncertainty: number;
+    age: number;
+    weaponAuthority: boolean;
+  };
 }
 
 export interface FleetTrackObservation {
@@ -91,6 +102,10 @@ export function observeFleet(
     formation: force.formation,
     members: [...force.ships.values()].map((ship) => {
       const station = force.formationState.stations.get(ship.id);
+      const bestObservedTrack = [
+        ...[...ship.localTracks.values()].map((track) => ({ track, local:true })),
+        ...[...ship.networkTracks.values()].map((track) => ({ track, local:false })),
+      ].sort((left, right) => right.track.quality - left.track.quality)[0];
       return {
         id: ship.id,
         name: ship.definition.name,
@@ -120,6 +135,17 @@ export function observeFleet(
         },
         localTracks: ship.localTracks.size,
         networkTracks: ship.networkTracks.size,
+        commsConnected: force.shipComms.get(ship.id)?.connected !== false,
+        lostCommsDoctrine: force.shipComms.get(ship.id)?.doctrineBehavior ?? "networked",
+        bestObservedTrack: bestObservedTrack ? {
+          id: bestObservedTrack.track.targetId,
+          source: bestObservedTrack.track.source,
+          classification: bestObservedTrack.track.classification,
+          quality: bestObservedTrack.track.quality,
+          uncertainty: bestObservedTrack.track.uncertainty,
+          age: Math.max(0, now - bestObservedTrack.track.updatedAt),
+          weaponAuthority: bestObservedTrack.local && bestObservedTrack.track.weaponQuality,
+        } : undefined,
       };
     }),
     tracks: [...force.picture.entries()].map(([id, track]) => ({

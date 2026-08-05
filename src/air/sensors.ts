@@ -12,6 +12,9 @@ export function airRadarFactors(input: {
   precision: number;
   ecmStrength?: number;
   burnThroughRange?: number;
+  radarRangeFactor?: number;
+  detectionProbabilityFactor?: number;
+  measurementNoiseFactor?: number;
 }) {
   const burned = input.range <= (input.burnThroughRange ?? 0);
   const jamFactor = burned ? 1 : 1 - (input.ecmStrength ?? 0) * 0.35;
@@ -19,7 +22,7 @@ export function airRadarFactors(input: {
     input.nominalRange *
     Math.pow(Math.max(0.05, input.targetRcs / 8), 0.25) *
     input.radarHealth *
-    jamFactor;
+    jamFactor * (input.radarRangeFactor ?? 1);
   const horizon = radarHorizonWorldUnits(
     Math.max(3, input.sensorAltitude * 50),
     Math.max(1, input.targetAltitude * 50),
@@ -45,7 +48,7 @@ export function airRadarFactors(input: {
       ),
     ) *
     input.radarHealth *
-    horizonFactor;
+    horizonFactor * (input.detectionProbabilityFactor ?? 1);
   const quality = Math.max(
     0.05,
     Math.min(
@@ -56,7 +59,7 @@ export function airRadarFactors(input: {
         horizonFactor,
     ),
   );
-  return { burned, jamFactor, effectiveRange, horizon, horizonFactor, probability, quality };
+  return { burned, jamFactor, effectiveRange, horizon, horizonFactor, probability, quality, measurementNoiseFactor:input.measurementNoiseFactor ?? 1 };
 }
 
 export function missileWarningProbability(range: number, active: boolean) {

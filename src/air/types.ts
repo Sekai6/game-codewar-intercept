@@ -236,6 +236,8 @@ export interface AirPlatformInstance extends TargetableEntity {
   nextOoda: number;
   nextScan: number;
   nextCountermeasure: number;
+  radarActive: boolean;
+  ecmActive: boolean;
   noContactSince: number | null;
   chaff: number;
   flares: number;
@@ -248,6 +250,10 @@ export interface AirPlatformInstance extends TargetableEntity {
   countermeasurePrograms: CountermeasureReleaseProgram[];
   formationStatus: FormationStatus;
   formationError: number;
+  scenarioRoute: readonly THREE.Vector3[];
+  scenarioRouteLoop: boolean;
+  scenarioRouteIndex: number;
+  scenarioLaunchZone: { center: THREE.Vector3; radius: number } | null;
 }
 
 export interface AirHardpointInstance {
@@ -290,6 +296,13 @@ export interface AirMissileInstance extends TargetableEntity {
   launchRtr: number;
   launchRmax: number;
   maximumAltitude: number;
+  midcourseLastUpdateAt: number;
+  midcourseTrackQuality: number;
+  midcourseUncertainty: number;
+  midcourseLinkLostAt: number | null;
+  inertialContinuation: boolean;
+  autonomousSearchAuthorized: boolean;
+  midcourseSource: "organic-radar" | "network-cue" | "launch-solution";
 }
 
 export interface AirDecoyInstance extends CombatEntity {
@@ -309,6 +322,12 @@ export interface AirScenarioContext {
   sovietCommandEra?: SovietCommandEra;
   sovietCommandEnabled?: boolean;
   advancedAirAiEnabled?: boolean;
+  localWeatherAt?: (position: THREE.Vector3) => {
+    radarRangeFactor: number;
+    detectionProbabilityFactor: number;
+    measurementNoiseFactor: number;
+    turbulence: number;
+  };
   targets?: readonly TargetableEntity[];
   countermeasures?: (targetId: string) => {
     ecmEnabled: boolean;
@@ -344,6 +363,13 @@ export type AirCombatEvent = {
     | "guidance"
     | "maneuver";
   text: string;
+  side?: CombatSide;
+  platformId?: string;
+  entityId?: string;
+  launchId?: string;
+  weaponId?: string;
+  launcherId?: string;
+  targetTrackId?: string;
 };
 
 export interface AirSpawn {
@@ -357,4 +383,11 @@ export interface AirSpawn {
   mission?: AirMissionOrder;
   protectedFormationId?: string;
   pilotSkill?: PilotSkill;
+  scenarioRoute?: readonly THREE.Vector3[];
+  scenarioRouteLoop?: boolean;
+  scenarioLaunchZone?: { center: THREE.Vector3; radius: number };
+  initialSpeed?: number;
+  initialRadarState?: "active" | "silent";
+  initialEcmEnabled?: boolean;
+  initialLoadout?: Partial<Record<AirWeaponId, number>>;
 }

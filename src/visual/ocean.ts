@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { AFTERNOON_SUN_DIRECTION } from "./sunlight";
+import type { LightingEnvironmentPreset } from "./environment-presets";
 
 export type OceanBackend = "webgl-cpu-waves" | "webgl-hq-gerstner" | "webgpu-fft";
 
@@ -9,7 +10,8 @@ export interface OceanSurface {
   setHighQuality(enabled: boolean): void;
   setUltraCloudVolume(texture: THREE.Data3DTexture | null, detailTexture?: THREE.Texture | null): void;
   setUltraSpectrum(texture: THREE.Texture | null, frameCount?: number): void;
-  setAuroraMode(enabled: boolean): void;
+  setAuroraMode(enabled: boolean, intensity?: number): void;
+  setLightingEnvironment(preset: LightingEnvironmentPreset): void;
   setVesselWake(position: THREE.Vector3, heading: number, speedRatio: number): void;
   addSplash(position: THREE.Vector3, energy: number): void;
   update(time: number, cameraPosition?: THREE.Vector3): void;
@@ -117,7 +119,22 @@ class WebglOcean implements OceanSurface {
     this.highQualityMaterial.uniforms.ultraSpectrumMix.value = texture ? 1 : 0;
     this.highQualityMaterial.uniforms.spectrumFrames.value = Math.max(1, frameCount);
   }
-  setAuroraMode(enabled: boolean) { this.highQualityMaterial.uniforms.auroraMix.value = enabled ? 1 : 0; }
+  setAuroraMode(enabled: boolean, intensity = 1) {
+    this.highQualityMaterial.uniforms.auroraMix.value = enabled
+      ? THREE.MathUtils.clamp(intensity * .24, .035, .30)
+      : 0;
+  }
+  setLightingEnvironment(preset: LightingEnvironmentPreset) {
+    const uniforms = this.highQualityMaterial.uniforms;
+    uniforms.sunDirection.value.copy(preset.sunDirection);
+    uniforms.sunColor.value.setHex(preset.sunColor);
+    uniforms.deepColor.value.setHex(preset.oceanDeepColor);
+    uniforms.shallowColor.value.setHex(preset.oceanShallowColor);
+    uniforms.skyColor.value.setHex(preset.oceanSkyColor);
+    uniforms.fogColor.value.setHex(preset.fogColor);
+    uniforms.fogDensity.value = preset.fogDensity;
+    this.standardMaterial.color.setHex(preset.oceanDeepColor);
+  }
   setVesselWake(position: THREE.Vector3, heading: number, speedRatio: number) {
     this.highQualityMaterial.uniforms.wakePosition.value.set(position.x, position.z);
     this.highQualityMaterial.uniforms.wakeDirection.value.set(Math.cos(heading), -Math.sin(heading)).normalize();

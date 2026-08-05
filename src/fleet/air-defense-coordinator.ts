@@ -121,13 +121,18 @@ export class FleetAirDefenseCoordinator {
         (plannedChannels.get(assignment.shooterId) ?? 0) + assignment.requestedShots,
       );
     }
-    const threats = [...force.picture.entries()]
-      .filter(([trackId, track]) => !forceEngagementSuppressesAssignment(force.engagements.get(trackId))
+    const centralized = [...force.picture.entries()].map(([trackId, track]) => ({ trackId, track, autonomousShooterId:undefined as string|undefined }));
+    const autonomous = [...force.ships.values()]
+      .filter((ship) => force.shipComms.get(ship.id)?.connected === false)
+      .flatMap((ship) => [...ship.localTracks.entries()].map(([trackId, track]) => ({trackId:`${ship.id}:organic:${trackId}`,track,autonomousShooterId:ship.id})));
+    const threats = [...centralized, ...autonomous]
+      .filter(({trackId, track}) => !forceEngagementSuppressesAssignment(force.engagements.get(trackId))
         && (track.classification === "missile" || track.classification === "aircraft"))
-      .map(([trackId, track]) => ({ trackId, track, ...assessFleetAirThreat(force, track, now) }))
+      .map(({trackId, track, autonomousShooterId}) => ({ trackId, track, autonomousShooterId, ...assessFleetAirThreat(force, track, now) }))
       .sort((a, b) => b.score - a.score);
     for (const threat of threats) {
       const shooter = [...force.ships.values()]
+        .filter((ship) => threat.autonomousShooterId ? ship.id === threat.autonomousShooterId : force.shipComms.get(ship.id)?.connected !== false)
         .map((ship) => shooterUtility(
           force, ship, threat.track, threat.timeToImpact, plannedChannels.get(ship.id) ?? 0,
         ))

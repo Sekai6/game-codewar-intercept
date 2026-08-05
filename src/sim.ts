@@ -173,6 +173,7 @@ export class CombatPicture {
     radarHealth: number | SensorHealth = 1,
     sensorPosition = new THREE.Vector3(),
     aspectHealth: SensorAspectHealth = {},
+    environment: { rangeFactor?: number; probabilityFactor?: number; measurementNoiseFactor?: number } = {},
   ) {
     for (const track of this.tracks.values()) {
       track.age += dt;
@@ -243,7 +244,7 @@ export class CombatPicture {
           effective =
             sensor.maxRange *
             Math.pow(Math.max(0.05, target.rcs / 0.5), 0.25) *
-            targetHealth;
+            targetHealth * (environment.rangeFactor ?? 1);
         if (range > effective * 1.05) continue;
         const horizon = this.radarHorizon(sensor.radarHeight, target.altitude),
           horizonLimited = target.domain === "surface" && range > horizon,
@@ -263,7 +264,7 @@ export class CombatPicture {
             highAltitudeGain +
             (!sensor.threeDimensional && target.altitude > 3000 ? 0.12 : 0),
         );
-        if (this.rand() >= probability) continue;
+        if (this.rand() >= probability * (environment.probabilityFactor ?? 1)) continue;
         const measuredQuality = THREE.MathUtils.clamp(
           (1 - ratio) *
             horizonFactor *
@@ -275,7 +276,7 @@ export class CombatPicture {
         );
         const errorMeters =
             (Math.pow(1 - measuredQuality, 1.65) * 4200 + this.rand() * 500) /
-            sensor.precision,
+            sensor.precision * (environment.measurementNoiseFactor ?? 1),
           errorWorld = errorMeters / 100;
         const measuredPosition = target.position
           .clone()

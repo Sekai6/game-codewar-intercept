@@ -1,0 +1,43 @@
+{
+  "id": "across-the-silent-band",
+  "title": "越过静默带 / Across the Silent Band",
+  "composerCredit": "Original score for Cold War Intercept",
+  "seconds": 300,
+  "sampleRate": 44100,
+  "bpm": 117.5,
+  "file": "across-the-silent-band.mp3",
+  "form": [
+    {
+      "at": 0,
+      "title": "Fleet Under the Aurora"
+    },
+    {
+      "at": 32.680851063829785,
+      "title": "Link Order"
+    },
+    {
+      "at": 81.70212765957446,
+      "title": "Flare Drift"
+    },
+    {
+      "at": 138.89361702127658,
+      "title": "Loss of Common Picture"
+    },
+    {
+      "at": 167.48936170212764,
+      "title": "Carrier Fracture"
+    },
+    {
+      "at": 175.65957446808508,
+      "title": "Total Blackout"
+    },
+    {
+      "at": 257.36170212765956,
+      "title": "Intermittent Window"
+    },
+    {
+      "at": 281.8723404255319,
+      "title": "After-action Picture"
+    }
+  ]
+}

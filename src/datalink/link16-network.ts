@@ -6,6 +6,8 @@ import type {
   Link16TrackReport,
   TacticalNetworkActivity,
 } from "./types.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface Link16NetworkOptions {
   frameSeconds: number;
@@ -55,6 +57,8 @@ export class Link16Network {
   private nextFrameAt = 0;
   private serial = 0;
   private delayTotal = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
+  private propagationZones: readonly PropagationSpatialZone[] = [];
   private diagnosticsState: Link16Diagnostics = {
     queued: 0,
     transmitted: 0,
@@ -97,6 +101,13 @@ export class Link16Network {
       terminalHealth: THREE.MathUtils.clamp(state.terminalHealth, 0, 1),
       timeSyncQuality: THREE.MathUtils.clamp(state.timeSyncQuality, 0, 1),
     });
+  }
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) {
+    this.propagationSnapshot = snapshot;
+  }
+  setPropagationZones(zones: readonly PropagationSpatialZone[]) {
+    this.propagationZones = zones.map((zone) => ({ ...zone, center:[...zone.center] as [number,number,number] }));
   }
 
   publishTrack(
@@ -184,6 +195,7 @@ export class Link16Network {
         const range = sender.position.distanceTo(recipient.position);
         if (range > this.options.maximumRange) {
           this.diagnosticsState.droppedLink++;
+          this.record({kind:"drop",time:frameTime,senderId:sender.id,recipientId:recipient.id,trackId:report.trackId,reason:"out-of-range"});
           continue;
         }
         const rangeFactor = range / this.options.maximumRange;
@@ -194,15 +206,32 @@ export class Link16Network {
           0.05,
           0.995,
         );
-        if (hash01(`${report.messageId}:${recipient.id}`) > successProbability) {
+        const propagation = this.propagationSnapshot
+          ? evaluatePropagation(this.propagationSnapshot, {
+              channel: "link16", messageId: report.messageId,
+              senderId: sender.id, recipientId: recipient.id,
+              baseQuality: report.quality, baseSuccessProbability: successProbability,
+              rangeRatio: rangeFactor,
+              senderPosition:[sender.position.x,sender.position.y,sender.position.z],
+              recipientPosition:[recipient.position.x,recipient.position.y,recipient.position.z],
+              spatialZones:this.propagationZones,
+            })
+          : null;
+        if (propagation?.dropped || (!propagation && hash01(`${report.messageId}:${recipient.id}`) > successProbability)) {
           this.diagnosticsState.droppedLink++;
+          this.record({kind:"drop",time:frameTime,senderId:sender.id,recipientId:recipient.id,trackId:report.trackId,reason:propagation?.reason==="localized-disturbance"?"localized-disturbance":propagation?.reason==="space-weather-loss"?"space-weather-loss":"link-quality"});
           continue;
         }
         const slotDelay = (slot / this.options.slotsPerFrame) * this.options.frameSeconds;
-        const networkDelay = this.options.baseLatency + slotDelay + rangeFactor * 0.12;
+        const networkDelay = this.options.baseLatency + slotDelay + rangeFactor * 0.12 + (propagation?.delaySeconds ?? 0);
+        const deliveredReport = cloneReport(report);
+        if (propagation) {
+          deliveredReport.quality *= propagation.qualityMultiplier;
+          deliveredReport.uncertainty *= propagation.uncertaintyMultiplier;
+        }
         this.pending.push({
           recipientId: recipient.id,
-          report: cloneReport(report),
+          report: deliveredReport,
           receivedAt: frameTime + networkDelay,
           networkDelay,
           deliverAt: frameTime + networkDelay,

@@ -7,6 +7,12 @@ export interface AuroraRuntime {
   readonly requested: boolean;
   readonly active: boolean;
   activate(ultraActive: boolean): boolean;
+  setEnvironmentalState(state: {
+    controlled: boolean;
+    enabled: boolean;
+    intensity: number;
+    magneticDisturbance: number;
+  }): void;
   handleUltraDisabled(): void;
   update(time: number, cameraPosition: THREE.Vector3): void;
   writeDiagnostics(canvas: HTMLCanvasElement): void;
@@ -37,6 +43,13 @@ export function createAuroraRuntime(options: AuroraRuntimeOptions): AuroraRuntim
   options.menu.insertBefore(field, options.insertBefore);
   const input = field.querySelector("input") as HTMLInputElement;
   let active = false;
+  let ultraAvailable = false;
+  let environmental = {
+    controlled: false,
+    enabled: false,
+    intensity: 0,
+    magneticDisturbance: 0,
+  };
 
   input.addEventListener("change", async () => {
     if (!input.checked || options.ultraInput.checked) return;
@@ -44,11 +57,17 @@ export function createAuroraRuntime(options: AuroraRuntimeOptions): AuroraRuntim
     await options.requestUltra();
   });
 
+  function requested() {
+    return environmental.controlled ? environmental.enabled : input.checked;
+  }
+
   function apply(enabled: boolean) {
     active = enabled;
     environment.setEnabled(enabled);
-    options.highQualityEnvironment.setAuroraMode(enabled);
-    options.ocean.setAuroraMode(enabled);
+    environment.setIntensity(environmental.controlled ? environmental.intensity : 1);
+    const visualIntensity = environmental.controlled ? environmental.intensity : 1;
+    options.highQualityEnvironment.setAuroraMode(enabled, visualIntensity);
+    options.ocean.setAuroraMode(enabled, visualIntensity);
     if (!enabled) return;
     options.renderer.toneMappingExposure = 1.22;
     options.ambientSky.intensity = 0.54;
@@ -61,22 +80,35 @@ export function createAuroraRuntime(options: AuroraRuntimeOptions): AuroraRuntim
   }
 
   return {
-    get requested() { return input.checked; },
+    get requested() { return requested(); },
     get active() { return active; },
     activate(ultraActive) {
-      apply(input.checked && ultraActive);
+      ultraAvailable = ultraActive;
+      apply(requested() && ultraActive);
       return active;
+    },
+    setEnvironmentalState(state) {
+      environmental = { ...state };
+      input.disabled = state.controlled;
+      field.title = state.controlled
+        ? "Aurora intensity is controlled by the active scenario space-weather state."
+        : "Ultra environment; enable separately from graphics quality.";
+      apply(requested() && ultraAvailable);
     },
     handleUltraDisabled() {
       input.checked = false;
+      ultraAvailable = false;
       apply(false);
     },
     update(time, cameraPosition) { environment.update(time, cameraPosition); },
     writeDiagnostics(canvas) {
-      canvas.dataset.auroraRequested = String(input.checked);
+      canvas.dataset.auroraRequested = String(requested());
       canvas.dataset.auroraEnvironment = String(active);
       canvas.dataset.auroraLayers = String(active ? environment.layerCount : 0);
       canvas.dataset.auroraRequiresUltra = "true";
+      canvas.dataset.auroraEnvironmentControlled = String(environmental.controlled);
+      canvas.dataset.auroraIntensity = environmental.intensity.toFixed(3);
+      canvas.dataset.magneticDisturbance = environmental.magneticDisturbance.toFixed(3);
     },
     dispose() {
       options.scene.remove(environment.object);

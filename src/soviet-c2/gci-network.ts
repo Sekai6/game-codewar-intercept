@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { SovietCommandEra } from "./era.js";
 import { SOVIET_COMMAND_ERAS, sovietGciOperational } from "./era.js";
+import { evaluatePropagation } from "../space-weather/propagation-effects.js";
+import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface GciParticipant {
   id: string;
@@ -102,6 +104,9 @@ export class SovietGciNetwork {
   private delivered = 0;
   private dropped = 0;
   private totalDelay = 0;
+  private propagationSnapshot: SpaceWeatherSnapshot | null = null;
+
+  setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) { this.propagationSnapshot = snapshot; }
 
   reset(era: SovietCommandEra = "ntu-1980s", enabled = true) {
     this.era = era;
@@ -180,11 +185,16 @@ export class SovietGciNetwork {
       const commandMode = SOVIET_COMMAND_ERAS[this.era].automaticGci ? "automated" : "voice";
       if (commandMode === "voice") interceptPoint = quantizeVoiceIntercept(participant, interceptPoint);
       const jitter = (deterministic(`${noiseSeed}:delay`) - .5) * parameters.delay * .3;
-      const delay = Math.max(.4, parameters.delay + jitter);
-      if (deterministic(`${noiseSeed}:link`) > parameters.reliability) {
+      const baseDelay = Math.max(.4, parameters.delay + jitter);
+      const propagation = this.propagationSnapshot ? evaluatePropagation(this.propagationSnapshot, {
+        channel:"soviet-gci",messageId:noiseSeed,senderId:"soviet-gci-controller",recipientId:participant.id,
+        baseQuality:quality,baseDelaySeconds:baseDelay,baseSuccessProbability:parameters.reliability,
+      }) : null;
+      if (propagation?.dropped || (!propagation && deterministic(`${noiseSeed}:link`) > parameters.reliability)) {
         this.dropped++;
         continue;
       }
+      const delay = propagation?.delaySeconds ?? baseDelay;
       const deliveredAt = time + delay;
       this.pending.push({
         deliverAt: deliveredAt,
@@ -201,8 +211,8 @@ export class SovietGciNetwork {
           commandedSpeed: parameters.commandedSpeed,
           radarActivationRange: parameters.radarActivationRange,
           commandMode,
-          quality,
-          uncertainty,
+          quality: quality * (propagation?.qualityMultiplier ?? 1),
+          uncertainty: uncertainty * (propagation?.uncertaintyMultiplier ?? 1),
           observedAt: time,
           deliveredAt,
           expiresAt: deliveredAt + parameters.commandLife,

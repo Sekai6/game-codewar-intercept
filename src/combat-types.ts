@@ -231,6 +231,12 @@ export type AarFleetSnapshot = {
     stationStatus: string; stationError: number;
     magazines: { rim67: number; sm2mr: number; sm2er: number };
     localTracks: number; networkTracks: number;
+    commsConnected: boolean; lostCommsDoctrine: string;
+    bestObservedTrack?: {
+      id: string; source: string; classification: string;
+      quality: number; uncertainty: number; age: number;
+      weaponAuthority: boolean;
+    };
   }>;
   tracks: Array<{ id: string; x: number; y: number; z: number; classification: string; quality: number; uncertainty: number; age: number; contributors: string[]; weaponAuthority: false }>;
   assignments: Array<{ id: string; targetId: string; shooterId: string; localTrackId: string; weapon: string; requestedShots: number; weaponsAway: number; status: string; rejectionReason?: string; updatedAt: number }>;
@@ -242,6 +248,25 @@ export type AarAewCommand = {
   mode:"link4a"|"voice-gci"; x:number; y:number; z:number;
   quality:number; uncertainty:number; commandedSpeed:number;
   radarActivationRange:number; expiresAt:number;
+};
+export type AarDecisionAuditRecord = {
+  platformId: string;
+  side: "blue" | "red";
+  domain: "air" | "surface";
+  action: string;
+  reason: string;
+  targetId: string | null;
+  trackSource: string;
+  trackQuality: number;
+  localTrackCount: number;
+  networkTrackCount: number;
+  commsState: "connected" | "lost";
+  doctrine: string;
+  bestTrackId?: string;
+  trackClassification?: string;
+  trackUncertainty?: number;
+  trackAge?: number;
+  weaponAuthority?: boolean;
 };
 export type AarSnapshot = {
   time: number;
@@ -280,6 +305,13 @@ export type AarSnapshot = {
     mission: string;
     alive: boolean;
     structure: number;
+    targetId: string | null;
+    localTracks: number;
+    networkTracks: number;
+    bestTrackSource: string;
+    bestTrackQuality: number;
+    lostCommsDoctrine: string;
+    tacticalState: string;
   })[];
   airWeapons: (AarKinematics & {
     id: string;
@@ -288,6 +320,14 @@ export type AarSnapshot = {
     phase: string;
     targetId: string;
     shooterId: string;
+    seekerAcquired: boolean;
+    midcourseLastUpdateAt: number;
+    midcourseTrackQuality: number;
+    midcourseUncertainty: number;
+    midcourseLinkLostSeconds: number;
+    inertialContinuation: boolean;
+    autonomousSearchAuthorized: boolean;
+    midcourseSource: string;
   })[];
   airDecoys: (AarKinematics & {
     id: string;
@@ -299,4 +339,11 @@ export type AarSnapshot = {
   sovietC2?: AarSovietC2Snapshot;
   fleet?: AarFleetSnapshot;
   aewCommands?: AarAewCommand[];
+  decisions?: AarDecisionAuditRecord[];
+  spaceWeather?: {
+    phase: string; intensity: number; hfAvailability: number; vhfUhfReliability: number;
+    satelliteReliability: number; gnssQuality: number; radarNoise: number;
+    magneticDisturbance: number; communicationWindowOpen: boolean;
+    communicationWindowStrength: number;
+  };
 };

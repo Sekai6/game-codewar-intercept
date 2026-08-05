@@ -68,9 +68,25 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
       ...snapshot.ship,
     },
   ];
+  if (snapshot.spaceWeather) objects.push({
+    key: "environment:space-weather", name: "Space Weather", type: "Misc+Waypoint",
+    coalition: "Neutral", x: 0, y: 0, z: 0, state: snapshot.spaceWeather.phase,
+    properties: {
+      Intensity: snapshot.spaceWeather.intensity.toFixed(3),
+      HFAvailability: snapshot.spaceWeather.hfAvailability.toFixed(3),
+      VhfUhfReliability: snapshot.spaceWeather.vhfUhfReliability.toFixed(3),
+      SatelliteReliability: snapshot.spaceWeather.satelliteReliability.toFixed(3),
+      GnssQuality: snapshot.spaceWeather.gnssQuality.toFixed(3),
+      RadarNoise: snapshot.spaceWeather.radarNoise.toFixed(3),
+      MagneticDisturbance: snapshot.spaceWeather.magneticDisturbance.toFixed(3),
+      CommunicationWindowOpen: snapshot.spaceWeather.communicationWindowOpen ? 1 : 0,
+      CommunicationWindowStrength: snapshot.spaceWeather.communicationWindowStrength.toFixed(3),
+    },
+  });
   if (snapshot.fleet) {
     objects.splice(0, 1);
     for (const member of snapshot.fleet.members) {
+      const audit = snapshot.decisions?.find((decision) => decision.platformId === member.id);
       objects.push({
         key: `fleet-ship:${member.id}`,
         name: `${member.name} ${member.hullNumber}`,
@@ -93,6 +109,18 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
           SAM_SM2ER: member.magazines.sm2er,
           LocalTracks: member.localTracks,
           NetworkTracks: member.networkTracks,
+          CommsConnected: member.commsConnected === false ? 0 : 1,
+          LostCommsDoctrine: member.lostCommsDoctrine ?? "networked",
+          DecisionAction: audit?.action ?? "unknown",
+          DecisionReason: audit?.reason ?? "not-recorded",
+          DecisionTarget: audit?.targetId ?? "none",
+          DecisionTrackSource: audit?.trackSource ?? "none",
+          DecisionBestTrack: audit?.bestTrackId ?? "none",
+          DecisionTrackClassification: audit?.trackClassification ?? "unknown",
+          DecisionTrackUncertainty: (audit?.trackUncertainty ?? 0).toFixed(1),
+          DecisionTrackAge: (audit?.trackAge ?? 0).toFixed(2),
+          DecisionWeaponAuthority: String(audit?.weaponAuthority ?? false),
+          DecisionTrackQuality: (audit?.trackQuality ?? 0).toFixed(3),
         },
       });
     }
@@ -130,10 +158,12 @@ function frameObjects(snapshot: AarSnapshot, blueShipName: string): AcmiObject[]
     objects.push({ key: `sam:${item.id}`, name: item.weapon, type: "Weapon+Missile", coalition: "Blue", target: item.targetId, parent: item.shooterId ?? "blue-surface-ship", state: "engaged", ...item });
   for (const item of snapshot.surfaceStrikes)
     objects.push({ key: `surface:${item.id}`, name: "RGM-84 Harpoon", type: "Weapon+Missile", coalition: "Blue", target: item.targetId ?? "red-surface-ship", parent: "blue-surface-ship", state: item.phase, ...item });
-  for (const item of snapshot.aircraft)
-    objects.push({ key: `aircraft:${item.id}`, type: "Air+FixedWing", coalition: item.side === "blue" ? "Blue" : "Red", health: item.structure, disabled: !item.alive, ...item, state: `${item.mission}/${item.state}` });
+  for (const item of snapshot.aircraft) {
+    const audit = snapshot.decisions?.find((decision) => decision.platformId === item.id);
+    objects.push({ key: `aircraft:${item.id}`, type: "Air+FixedWing", coalition: item.side === "blue" ? "Blue" : "Red", health: item.structure, disabled: !item.alive, ...item, state: `${item.mission}/${item.state}`, properties:{DecisionAction:audit?.action??item.state,DecisionReason:audit?.reason??"not-recorded",DecisionTarget:audit?.targetId??item.targetId??"none",DecisionTrackSource:audit?.trackSource??item.bestTrackSource??"none",DecisionTrackQuality:(audit?.trackQuality??item.bestTrackQuality??0).toFixed(3),DecisionBestTrack:audit?.bestTrackId??"none",DecisionTrackClassification:audit?.trackClassification??"unknown",DecisionTrackUncertainty:(audit?.trackUncertainty??0).toFixed(1),DecisionTrackAge:(audit?.trackAge??0).toFixed(2),DecisionWeaponAuthority:String(audit?.weaponAuthority??false),LocalTracks:item.localTracks??0,NetworkTracks:item.networkTracks??0,BestTrackSource:item.bestTrackSource??"none",BestTrackQuality:(item.bestTrackQuality??0).toFixed(3),CommsState:audit?.commsState??"connected",LostCommsDoctrine:item.lostCommsDoctrine??"networked",TacticalState:item.tacticalState??"unknown"} });
+  }
   for (const item of snapshot.airWeapons)
-    objects.push({ key: `airweapon:${item.id}`, type: "Weapon+Missile", coalition: item.side === "blue" ? "Blue" : "Red", target: item.targetId, parent: item.shooterId, ...item, state: item.phase });
+    objects.push({ key: `airweapon:${item.id}`, type: "Weapon+Missile", coalition: item.side === "blue" ? "Blue" : "Red", target: item.targetId, parent: item.shooterId, ...item, state: item.phase, properties:{SeekerAcquired:item.seekerAcquired?1:0,MidcourseLastUpdate:(item.midcourseLastUpdateAt??0).toFixed(2),MidcourseTrackQuality:(item.midcourseTrackQuality??0).toFixed(3),MidcourseUncertainty:(item.midcourseUncertainty??0).toFixed(1),MidcourseLinkLostSeconds:(item.midcourseLinkLostSeconds??0).toFixed(2),InertialContinuation:item.inertialContinuation?1:0,AutonomousSearchAuthorized:item.autonomousSearchAuthorized?1:0,MidcourseSource:item.midcourseSource??"none"} });
   for (const item of snapshot.chaff)
     objects.push({ key: `chaff:${item.id}`, name: "Chaff", type: "Misc+Decoy", coalition: item.side === "platform" || item.side === "threat" ? "Red" : "Blue", ...item });
   for (const item of snapshot.airDecoys)

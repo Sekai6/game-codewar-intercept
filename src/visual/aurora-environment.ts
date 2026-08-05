@@ -4,6 +4,7 @@ export interface AuroraEnvironment {
   readonly object: THREE.Group;
   readonly layerCount: number;
   setEnabled(enabled: boolean): void;
+  setIntensity(intensity: number): void;
   update(time: number, cameraPosition: THREE.Vector3): void;
   dispose(): void;
 }
@@ -48,10 +49,10 @@ export function createAuroraEnvironment(): AuroraEnvironment {
           float rays=pow(clamp(1.-abs(alt-center)/.38,0.,1.),1.7)*folds;
           float breakup=smoothstep(.2,.78,fbm(vec2(az*8.-drift*.35,alt*12.+phase)));
           float alpha=(ribbon*.72+rays*.30)*oval*horizon*(.55+.45*breakup)*intensity;
-          vec3 green=vec3(.12,1.18,.52),cyan=vec3(.06,.66,1.15),violet=vec3(.62,.12,1.08);
+          vec3 green=vec3(.055,.58,.24),cyan=vec3(.035,.34,.58),violet=vec3(.30,.065,.52);
           float colorShift=.5+.5*sin(az*5.2+phase+time*.011);
           vec3 color=mix(green,cyan,colorShift*.55);color=mix(color,violet,smoothstep(.72,1.,alt)*(.38+.25*sin(az*7.)));
-          color*=alpha*(1.2+ribbon*.85);if(alpha<.004)discard;gl_FragColor=vec4(color,clamp(alpha,0.,.72));
+          color*=alpha*(.78+ribbon*.42);if(alpha<.004)discard;gl_FragColor=vec4(color,clamp(alpha,0.,.46));
         }`,
     });
     const mesh = new THREE.Mesh(geometry, material);
@@ -66,6 +67,12 @@ export function createAuroraEnvironment(): AuroraEnvironment {
     object,
     layerCount: layers.length,
     setEnabled(enabled) { object.visible = enabled; },
+    setIntensity(intensity) {
+      const value = THREE.MathUtils.clamp(intensity, 0, 1.35) * .42;
+      materials.forEach((material, index) => {
+        material.uniforms.intensity.value = value * (0.72 - index * 0.12);
+      });
+    },
     update(time, cameraPosition) {
       if (!object.visible) return;
       object.position.copy(cameraPosition);
