@@ -163,7 +163,7 @@ const layers = {
 };
 
 await mkdir(OUTPUT, { recursive:true });
-const manifest = { id:"silent-meridian", title:"静默子午线 / Silent Meridian", sampleRate:SAMPLE_RATE, generatedAt:new Date().toISOString(), layers:{} };
+const manifest = { id:"silent-meridian", title:"静默子午线 / Silent Meridian", sampleRate:SAMPLE_RATE, layers:{} };
 for (const [name, create] of Object.entries(layers)) {
   const audio = create(), file = `${name}.wav`;
   await writeFile(resolve(OUTPUT, file), wav(audio));
