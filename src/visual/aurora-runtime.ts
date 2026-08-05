@@ -65,8 +65,9 @@ export function createAuroraRuntime(options: AuroraRuntimeOptions): AuroraRuntim
     active = enabled;
     environment.setEnabled(enabled);
     environment.setIntensity(environmental.controlled ? environmental.intensity : 1);
-    options.highQualityEnvironment.setAuroraMode(enabled);
-    options.ocean.setAuroraMode(enabled);
+    const visualIntensity = environmental.controlled ? environmental.intensity : 1;
+    options.highQualityEnvironment.setAuroraMode(enabled, visualIntensity);
+    options.ocean.setAuroraMode(enabled, visualIntensity);
     if (!enabled) return;
     options.renderer.toneMappingExposure = 1.22;
     options.ambientSky.intensity = 0.54;

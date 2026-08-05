@@ -17,8 +17,11 @@ runtime.setPaused(true); runtime.update(200);
 assert.equal(runtime.snapshot().scenarioTime,25,"paused updates do not advance guidance time");
 runtime.observe({type:"objective-state",objectiveId:"protect-fleet",state:"failed"},150);
 assert.equal(runtime.snapshot().scenarioTime,25,"observations cannot advance guidance clock while paused");
+assert.equal(runtime.snapshot().pending.length,0,"paused observations cannot enqueue cues");
 runtime.setPaused(false); runtime.update(31);
-assert.equal(runtime.snapshot().activeCue.cue.id,"objective","objective changes produce explicit guidance");
+assert.equal(runtime.snapshot().activeCue,undefined,"events observed only while paused are not replayed as simulation truth");
+runtime.observe({type:"objective-state",objectiveId:"protect-fleet",state:"failed"},31);
+assert.equal(runtime.snapshot().activeCue.cue.id,"objective","objective changes produce explicit guidance after resume");
 runtime.dismissCurrent();
 runtime.observe({type:"network-state",side:"red",state:"disconnected"},32);
 assert.equal(runtime.snapshot().activeCue,undefined,"other side observation does not leak/trigger");
@@ -45,4 +48,14 @@ assert.equal(critical.snapshot().activeCue.cue.id,"network","non-expiring critic
 critical.setMode("off");
 critical.observe({type:"confirmed-track",side:"blue",classification:"aircraft"},27);
 assert.equal(critical.snapshot().activeCue,undefined,"off suppresses all cues");
+
+const accelerated = new ScenarioGuidanceRuntime({ ...definition, cues:[
+  { id:"window-1",level:"critical",trigger:{type:"time",at:748},title:"W1",message:"Window",category:"network",once:true },
+  { id:"window-2",level:"critical",trigger:{type:"time",at:824},title:"W2",message:"Window",category:"network",once:true },
+  { id:"window-3",level:"critical",trigger:{type:"time",at:914},title:"W3",message:"Window",category:"network",once:true },
+] }, "critical");
+accelerated.update(960);
+assert.deepEqual(accelerated.snapshot().firedCueIds.sort(), ["window-1","window-2","window-3"], "large time-scale steps cannot skip critical time cues");
+assert.equal(accelerated.snapshot().activeCue.cue.id, "window-1");
+assert.deepEqual(accelerated.snapshot().pending.map(entry => entry.cue.id), ["window-2","window-3"]);
 console.log("Scenario guidance runtime verification passed.");

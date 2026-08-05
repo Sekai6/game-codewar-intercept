@@ -13,3 +13,6 @@ KEYS/
 *.log
 .DS_Store
 Thumbs.db
+
+# Regenerated music mastering intermediates; browser builds use the MP3 theme.
+public/audio/**/across-the-silent-band.wav

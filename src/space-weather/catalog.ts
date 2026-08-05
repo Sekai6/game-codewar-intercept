@@ -10,6 +10,11 @@ const frame = (
   ionosphericScintillation, magneticDisturbance });
 
 export const SPACE_WEATHER_PRESETS: Readonly<Record<SpaceWeatherPresetId, SpaceWeatherPreset>> = {
+  "scenario-quiet": {
+    id: "scenario-quiet", label: "Quiet Ionosphere", durationSeconds: 3600,
+    keyframes: [frame(0, "quiet", 0, 1, 1, 1, 1, 0, 0, 0)],
+    communicationWindows: [],
+  },
   EXTREME_SPACE_WEATHER: {
     id: "EXTREME_SPACE_WEATHER", label: "Extreme Space Weather", durationSeconds: 1080,
     keyframes: [

@@ -69,4 +69,5 @@ export interface TacticalNetworkActivity {
   recipientId?: string;
   trackId?: string;
   delay?: number;
+  reason?: "out-of-range" | "space-weather-loss" | "localized-disturbance" | "link-quality" | "capacity" | "duplicate";
 }

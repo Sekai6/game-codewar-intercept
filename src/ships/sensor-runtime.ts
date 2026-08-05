@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { CombatPicture } from "../sim.js";
 import type { TargetableEntity } from "../combat-entity.js";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./types.js";
@@ -15,6 +16,7 @@ export class ShipSensorRuntime {
     now: number,
     dt: number,
     observations: readonly ShipSensorObservation[],
+    localWeather?: (position: THREE.Vector3) => { radarRangeFactor:number; detectionProbabilityFactor:number; measurementNoiseFactor:number },
   ) {
     let picture = this.pictures.get(ship.id);
     if (!picture) {
@@ -45,6 +47,8 @@ export class ShipSensorRuntime {
         ...(secondary ? { [secondary.name]: (ship.subsystemHealth.get("secondaryRadar") ?? 0) / 100 } : {}),
       },
       ship.position,
+      {},
+      localWeather ? (() => { const weather=localWeather(ship.position); return {rangeFactor:weather.radarRangeFactor,probabilityFactor:weather.detectionProbabilityFactor,measurementNoiseFactor:weather.measurementNoiseFactor}; })() : {},
     );
     const classifications = new Map(observations.map(({ entity }) => [entity.id, entity.kind]));
     const next = new Map<string, ShipTrackEstimate>();

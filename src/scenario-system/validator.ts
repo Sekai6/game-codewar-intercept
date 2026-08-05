@@ -3,6 +3,16 @@ import { LOST_COMMS_DOCTRINES } from "../lost-comms/doctrine-catalog.js";
 import { SOVIET_COMMAND_ERAS } from "../soviet-c2/era.js";
 import { SPACE_WEATHER_PRESETS } from "../space-weather/catalog.js";
 import type { ScenarioDocument, ScenarioValidationIssue, ScenarioValidationResult, ScenarioVec3 } from "./types.js";
+import {
+  SCENARIO_AIR_PLATFORM_IDS,
+  SCENARIO_AIR_WEAPON_IDS,
+  SCENARIO_COAST_BACKDROP_IDS,
+  SCENARIO_ENVIRONMENT_PRESET_IDS,
+  SCENARIO_SHIP_LOADOUT_IDS,
+  SCENARIO_THREAT_IDS,
+  SCENARIO_TIME_OF_DAY_IDS,
+  SCENARIO_WEAPON_IDS,
+} from "./reference-catalogs.js";
 
 const SIDES = new Set(["blue", "red", "neutral"]);
 const FORCE_KINDS = new Set(["ship", "air-formation"]);
@@ -10,7 +20,7 @@ const FORMATION_ROLES = new Set(["command", "picket", "screen", "escort", "hvu"]
 const COMMAND_ROLES = new Set(["otc", "aawc", "asuwc"]);
 const MISSIONS = new Set(["cap", "intercept", "escort", "anti-ship", "aew", "egress", "return"]);
 const ROUTE_KINDS = new Set(["transit", "orbit", "attack", "rendezvous"]);
-const ZONE_KINDS = new Set(["rendezvous", "launch-corridor", "weather-front", "magnetic-disturbance", "comms-window", "exclusion", "threat-estimate"]);
+const ZONE_KINDS = new Set(["rendezvous", "launch-corridor", "weather-front", "magnetic-disturbance", "comms-window", "exclusion", "threat-estimate", "deployment-zone"]);
 const TIMELINE_TYPES = new Set(["space-weather-phase", "comms-window", "objective", "guidance"]);
 const WEATHER_PHASES = new Set(["quiet", "warning", "solar-flare", "degrading", "total-blackout", "intermittent", "recovery"]);
 const OBJECTIVE_KINDS = new Set(["protect", "intercept", "survive", "observe", "strike"]);
@@ -18,7 +28,6 @@ const GUIDANCE_LEVELS = new Set(["full", "critical"]);
 const GUIDANCE_CATEGORIES = new Set(["mission", "sensor", "network", "weather", "combat"]);
 const TRIGGER_TYPES = new Set(["time", "space-weather-phase", "network-state", "platform-lost-comms", "confirmed-track", "weapon-launch", "objective-state", "inactivity"]);
 const FOCUS_KINDS = new Set(["entity", "formation", "zone", "overview", "network"]);
-const DEFAULT_AIR_PLATFORM_IDS = new Set(["F-14A", "TU-16K", "A-6E", "MIG-29A", "E-2C", "TU-126"]);
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
@@ -29,6 +38,12 @@ const stringArray = (value: unknown): value is string[] => Array.isArray(value) 
 export interface ScenarioValidationCatalogs {
   shipDefinitions?: ReadonlyMap<string, unknown> | ReadonlySet<string> | readonly string[];
   airDefinitions?: ReadonlySet<string> | readonly string[];
+  environmentPresets?: ReadonlySet<string> | readonly string[];
+  timeOfDayPresets?: ReadonlySet<string> | readonly string[];
+  coastBackdrops?: ReadonlySet<string> | readonly string[];
+  shipLoadoutIds?: ReadonlySet<string> | readonly string[];
+  weaponIds?: ReadonlySet<string> | readonly string[];
+  threatDefinitions?: ReadonlyMap<string, unknown> | ReadonlySet<string> | readonly string[];
 }
 
 function definitionIds(input: ReadonlyMap<string, unknown> | ReadonlySet<string> | readonly string[] | undefined): ReadonlySet<string> | undefined {
@@ -43,7 +58,14 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
   if (!record(input)) return { valid: false, issues: [{ path: "$", message: "Scenario must be an object" }] };
   const document = input;
   const knownShips = definitionIds(catalogs.shipDefinitions);
-  const knownAir = definitionIds(catalogs.airDefinitions) ?? DEFAULT_AIR_PLATFORM_IDS;
+  const knownAir = definitionIds(catalogs.airDefinitions) ?? new Set(SCENARIO_AIR_PLATFORM_IDS);
+  const knownEnvironments = definitionIds(catalogs.environmentPresets) ?? new Set(SCENARIO_ENVIRONMENT_PRESET_IDS);
+  const knownTimesOfDay = definitionIds(catalogs.timeOfDayPresets) ?? new Set(SCENARIO_TIME_OF_DAY_IDS);
+  const knownCoastBackdrops = definitionIds(catalogs.coastBackdrops) ?? new Set(SCENARIO_COAST_BACKDROP_IDS);
+  const knownShipLoadouts = definitionIds(catalogs.shipLoadoutIds) ?? new Set(SCENARIO_SHIP_LOADOUT_IDS);
+  const knownWeapons = definitionIds(catalogs.weaponIds) ?? new Set(SCENARIO_WEAPON_IDS);
+  const knownAirWeapons = new Set(SCENARIO_AIR_WEAPON_IDS);
+  const knownThreats = definitionIds(catalogs.threatDefinitions) ?? new Set(SCENARIO_THREAT_IDS);
 
   if (document.schemaVersion !== 1) fail("schemaVersion", "Only scenario schema version 1 is supported");
   if (!text(document.id)) fail("id", "Scenario id is required");
@@ -72,8 +94,11 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
   if (!record(document.environment)) fail("environment", "Environment config is required");
   else {
     if (!text(document.environment.presetId)) fail("environment.presetId", "Environment preset id is required");
+    else if (!knownEnvironments.has(document.environment.presetId)) fail("environment.presetId", `Unknown environment preset ${document.environment.presetId}`);
     if (document.environment.spaceWeatherPresetId !== undefined && (!text(document.environment.spaceWeatherPresetId) || !(document.environment.spaceWeatherPresetId in SPACE_WEATHER_PRESETS))) fail("environment.spaceWeatherPresetId", "Unknown space-weather preset");
     if (document.environment.auroraControlled !== undefined && typeof document.environment.auroraControlled !== "boolean") fail("environment.auroraControlled", "auroraControlled must be boolean");
+    if (document.environment.timeOfDay !== undefined && (!text(document.environment.timeOfDay) || !knownTimesOfDay.has(document.environment.timeOfDay))) fail("environment.timeOfDay", `Unknown time-of-day preset ${String(document.environment.timeOfDay)}`);
+    if (document.environment.coastBackdropId !== undefined && (!text(document.environment.coastBackdropId) || !knownCoastBackdrops.has(document.environment.coastBackdropId))) fail("environment.coastBackdropId", `Unknown coast backdrop ${String(document.environment.coastBackdropId)}`);
   }
 
   const routes = Array.isArray(document.routes) ? document.routes : [];
@@ -97,6 +122,7 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
   });
 
   const forces = Array.isArray(document.forces) ? document.forces : [];
+  const referencedZoneIds = new Set((Array.isArray(document.zones) ? document.zones : []).flatMap((zone) => record(zone) && text(zone.id) ? [zone.id] : []));
   if (!Array.isArray(document.forces) || forces.length === 0) fail("forces", "At least one force entity is required");
   const entityIds = new Set<string>();
   const forceIds = new Set<string>();
@@ -123,12 +149,51 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
       if (!Array.isArray(force.commandRoles) || !force.commandRoles.every((role) => COMMAND_ROLES.has(String(role)))) fail(`${path}.commandRoles`, "Invalid command roles");
       if (force.ecmEnabled !== undefined && typeof force.ecmEnabled !== "boolean") fail(`${path}.ecmEnabled`, "ecmEnabled must be boolean");
       if (force.loadout !== undefined && (!record(force.loadout) || Object.values(force.loadout).some((count) => !Number.isInteger(count) || Number(count) < 0))) fail(`${path}.loadout`, "Loadout counts must be non-negative integers");
+      else if (record(force.loadout)) for (const weaponId of Object.keys(force.loadout))
+        if (!knownShipLoadouts.has(weaponId)) fail(`${path}.loadout.${weaponId}`, `Unknown ship loadout weapon ${weaponId}`);
     } else if (force.kind === "air-formation") {
       if (!Number.isInteger(force.count) || Number(force.count) < 1 || Number(force.count) > 12) fail(`${path}.count`, "Air formation count must be 1..12");
       if (!finite(force.altitude) || force.altitude < 0) fail(`${path}.altitude`, "Altitude must be finite and non-negative");
       if (force.speed !== undefined && (!finite(force.speed) || force.speed < 0)) fail(`${path}.speed`, "Speed must be finite and non-negative");
       if (!MISSIONS.has(String(force.mission))) fail(`${path}.mission`, "Unknown air mission");
+      if (force.ecmEnabled !== undefined && typeof force.ecmEnabled !== "boolean") fail(`${path}.ecmEnabled`, "ecmEnabled must be boolean");
+      if (force.loadout !== undefined && (!record(force.loadout) || Object.values(force.loadout).some((count) => !Number.isInteger(count) || Number(count) < 0))) fail(`${path}.loadout`, "Loadout counts must be non-negative integers");
+      else if (record(force.loadout)) for (const weaponId of Object.keys(force.loadout))
+        if (!knownAirWeapons.has(weaponId as typeof SCENARIO_AIR_WEAPON_IDS[number])) fail(`${path}.loadout.${weaponId}`, `Unknown air loadout weapon ${weaponId}`);
+      if (force.launchZoneId !== undefined && (!text(force.launchZoneId) || !referencedZoneIds.has(force.launchZoneId))) fail(`${path}.launchZoneId`, `Unknown launch zone ${String(force.launchZoneId)}`);
+      if (force.deployment !== undefined) {
+        if (!record(force.deployment)) fail(`${path}.deployment`, "Deployment must be an object");
+        else {
+          if (!text(force.deployment.zoneId) || !referencedZoneIds.has(force.deployment.zoneId)) fail(`${path}.deployment.zoneId`, `Unknown deployment zone ${String(force.deployment.zoneId)}`);
+          if (force.deployment.groupId !== undefined && !text(force.deployment.groupId)) fail(`${path}.deployment.groupId`, "groupId must be a non-empty string");
+          if (force.deployment.offset !== undefined && !finiteVec3(force.deployment.offset)) fail(`${path}.deployment.offset`, "offset must be a finite three-number tuple");
+          for (const key of ["minRadiusFactor", "maxRadiusFactor"])
+            if (force.deployment[key] !== undefined && (!finite(force.deployment[key]) || Number(force.deployment[key]) < 0 || Number(force.deployment[key]) > 1)) fail(`${path}.deployment.${key}`, `${key} must be in 0..1`);
+          if (finite(force.deployment.minRadiusFactor) && finite(force.deployment.maxRadiusFactor) && Number(force.deployment.minRadiusFactor) > Number(force.deployment.maxRadiusFactor)) fail(`${path}.deployment`, "minRadiusFactor must not exceed maxRadiusFactor");
+          if (force.deployment.routeMode !== undefined && force.deployment.routeMode !== "translate" && force.deployment.routeMode !== "converge") fail(`${path}.deployment.routeMode`, "routeMode must be translate or converge");
+        }
+      }
     }
+  });
+
+  const threatWaves = document.threatWaves === undefined ? [] : (Array.isArray(document.threatWaves) ? document.threatWaves : []);
+  if (document.threatWaves !== undefined && !Array.isArray(document.threatWaves)) fail("threatWaves", "Threat waves must be an array");
+  const waveIds = new Set<string>();
+  threatWaves.forEach((wave, index) => {
+    const path = `threatWaves[${index}]`;
+    if (!record(wave)) return fail(path, "Threat wave must be an object");
+    if (!text(wave.id)) fail(`${path}.id`, "Wave id is required"); else if (waveIds.has(wave.id)) fail(`${path}.id`, `Duplicate wave id ${wave.id}`); else waveIds.add(wave.id);
+    if (!text(wave.threatId)) fail(`${path}.threatId`, "Threat catalog id is required");
+    else if (!knownThreats.has(wave.threatId)) fail(`${path}.threatId`, `Unknown threat ${wave.threatId}`);
+    if (wave.side !== "blue" && wave.side !== "red") fail(`${path}.side`, "Threat side must be blue or red");
+    if (wave.source !== "in-flight" && wave.source !== "surface-platform") fail(`${path}.source`, "Unknown threat source");
+    if (wave.source === "surface-platform" && (!text(wave.sourcePlatformId) || !entityIds.has(wave.sourcePlatformId))) fail(`${path}.sourcePlatformId`, "Surface-platform wave requires a valid source entity");
+    if (!Number.isInteger(wave.count) || Number(wave.count) < 1 || Number(wave.count) > 48) fail(`${path}.count`, "Wave count must be 1..48");
+    if (!finite(wave.firstLaunchAt) || wave.firstLaunchAt < 0) fail(`${path}.firstLaunchAt`, "First launch time must be non-negative");
+    if (!finite(wave.intervalSeconds) || wave.intervalSeconds < 0) fail(`${path}.intervalSeconds`, "Launch interval must be non-negative");
+    if (!finiteVec3(wave.origin)) fail(`${path}.origin`, "Origin must be a finite three-number tuple");
+    if (!finite(wave.altitude) || wave.altitude < 0) fail(`${path}.altitude`, "Altitude must be non-negative");
+    if (!finite(wave.spread) || wave.spread < 0) fail(`${path}.spread`, "Spread must be non-negative");
   });
   forces.forEach((force, index) => {
     if (record(force) && force.protectedFormationId !== undefined && (!text(force.protectedFormationId) || !entityIds.has(force.protectedFormationId))) fail(`forces[${index}].protectedFormationId`, `Unknown protected formation ${String(force.protectedFormationId)}`);
@@ -146,6 +211,26 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
     if (!finite(zone.radius) || zone.radius <= 0) fail(`${path}.radius`, "Zone radius must be positive");
     if (zone.side !== undefined && !SIDES.has(String(zone.side))) fail(`${path}.side`, "Unknown side");
     if (zone.visibleInBriefing !== undefined && typeof zone.visibleInBriefing !== "boolean") fail(`${path}.visibleInBriefing`, "visibleInBriefing must be boolean");
+    if (zone.motion !== undefined) {
+      if (!record(zone.motion) || !finiteVec3(zone.motion.velocity)) fail(`${path}.motion.velocity`, "Motion requires a finite velocity tuple");
+      else if (zone.motion.oscillation !== undefined) {
+        const wave = zone.motion.oscillation;
+        if (!record(wave) || !finiteVec3(wave.axis) || !finite(wave.amplitude) || wave.amplitude < 0 || !finite(wave.periodSeconds) || wave.periodSeconds <= 0)
+          fail(`${path}.motion.oscillation`, "Oscillation requires axis, non-negative amplitude and positive periodSeconds");
+      }
+    }
+    if (zone.weather !== undefined) {
+      const weather = zone.weather;
+      if (zone.kind !== "weather-front") fail(`${path}.weather`, "Weather properties are only valid on weather-front zones");
+      if (!record(weather)) fail(`${path}.weather`, "Weather must be an object");
+      else {
+        for (const key of ["intensity", "radarAttenuation", "measurementNoise", "turbulence"])
+          if (!finite(weather[key]) || Number(weather[key]) < 0 || Number(weather[key]) > 1) fail(`${path}.weather.${key}`, `${key} must be in 0..1`);
+        if (!finite(weather.visibilityKm) || weather.visibilityKm <= 0) fail(`${path}.weather.visibilityKm`, "visibilityKm must be positive");
+        if (!finite(weather.cloudBase) || !finite(weather.cloudTop) || weather.cloudBase < 0 || weather.cloudTop <= weather.cloudBase)
+          fail(`${path}.weather`, "cloudTop must be above a non-negative cloudBase");
+      }
+    }
   });
 
   const objectives = Array.isArray(document.objectives) ? document.objectives : [];
@@ -161,10 +246,19 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
     if (!OBJECTIVE_KINDS.has(String(objective.kind))) fail(`${path}.kind`, "Unknown objective kind");
     if (!Array.isArray(objective.targetIds) || objective.targetIds.length === 0) fail(`${path}.targetIds`, "Objective needs targets");
     else objective.targetIds.forEach((target) => { if (!text(target) || !entityIds.has(target)) fail(`${path}.targetIds`, `Unknown target ${String(target)}`); });
+    if (objective.criteria !== undefined) {
+      if (!record(objective.criteria)) fail(`${path}.criteria`, "Objective criteria must be an object");
+      else {
+        for (const key of ["requiredLaunchByFormationIds", "forbiddenLaunchByFormationIds"])
+          if (objective.criteria[key] !== undefined && (!stringArray(objective.criteria[key]) || objective.criteria[key].some((id) => !entityIds.has(id)))) fail(`${path}.criteria.${key}`, "Formation references must identify scenario entities");
+        if (objective.criteria.requiredWeaponIds !== undefined && (!stringArray(objective.criteria.requiredWeaponIds) || objective.criteria.requiredWeaponIds.some((id) => !knownWeapons.has(id)))) fail(`${path}.criteria.requiredWeaponIds`, "Unknown or invalid weapon id");
+        if (objective.criteria.requiredSpaceWeatherPhases !== undefined && (!stringArray(objective.criteria.requiredSpaceWeatherPhases) || objective.criteria.requiredSpaceWeatherPhases.some((phase) => !WEATHER_PHASES.has(phase)))) fail(`${path}.criteria.requiredSpaceWeatherPhases`, "Unknown required space-weather phase");
+      }
+    }
   });
 
   const timeline = Array.isArray(document.timeline) ? document.timeline : [];
-  if (!Array.isArray(document.timeline) || timeline.length === 0) fail("timeline", "Timeline needs at least one event");
+  if (!Array.isArray(document.timeline)) fail("timeline", "Timeline must be an array");
   const timelineIds = new Set<string>();
   timeline.forEach((event, index) => {
     const path = `timeline[${index}]`;
@@ -184,7 +278,7 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
   });
   const weatherEvents = timeline.filter((event) => record(event) && event.type === "space-weather-phase")
     .sort((left, right) => Number(left.at) - Number(right.at));
-  if (!weatherEvents.length || weatherEvents[0].at !== 0) fail("timeline", "Space-weather timeline must begin at t=0");
+  if (record(document.environment) && document.environment.spaceWeatherPresetId && (!weatherEvents.length || weatherEvents[0].at !== 0)) fail("timeline", "Space-weather timeline must begin at t=0");
   for (let index = 1; index < weatherEvents.length; index++)
     if (weatherEvents[index].at === weatherEvents[index - 1].at) fail("timeline", "Space-weather phase transitions need unique times");
   const windows = timeline.filter((event) => record(event) && event.type === "comms-window" && finite(event.at) && finite(event.duration))
@@ -194,9 +288,31 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
 
   if (!record(document.guidance)) fail("guidance", "Guidance definition is required");
   else {
+    if (document.guidance.soundtrack !== undefined) {
+      if (!record(document.guidance.soundtrack) || !text(document.guidance.soundtrack.id) || !text(document.guidance.soundtrack.title))
+        fail("guidance.soundtrack", "Soundtrack requires non-empty id and title");
+    }
     if (!record(document.guidance.briefing)) fail("guidance.briefing", "Briefing is required");
     else for (const key of ["strategicBackground", "blueMission", "intelligenceEstimate", "features", "controls"])
       if (!stringArray(document.guidance.briefing[key])) fail(`guidance.briefing.${key}`, "Briefing section must be an array of strings");
+    if (record(document.guidance.briefing) && document.guidance.briefing.dossier !== undefined) {
+      const dossier = document.guidance.briefing.dossier;
+      if (!record(dossier)) fail("guidance.briefing.dossier", "Dossier must be an object");
+      else {
+        for (const key of ["title", "classification", "dateline", "lead"])
+          if (!text(dossier[key])) fail(`guidance.briefing.dossier.${key}`, `${key} must be a non-empty string`);
+        if (!Array.isArray(dossier.sections) || !dossier.sections.length) fail("guidance.briefing.dossier.sections", "Dossier requires at least one section");
+        else dossier.sections.forEach((section, index) => {
+          const path = `guidance.briefing.dossier.sections[${index}]`;
+          if (!record(section)) fail(path, "Dossier section must be an object");
+          else {
+            if (!text(section.heading)) fail(`${path}.heading`, "Section heading must be a non-empty string");
+            if (section.kicker !== undefined && !text(section.kicker)) fail(`${path}.kicker`, "Section kicker must be a non-empty string");
+            if (!stringArray(section.paragraphs) || !section.paragraphs.length) fail(`${path}.paragraphs`, "Section paragraphs must be a non-empty string array");
+          }
+        });
+      }
+    }
     if (document.guidance.estimatedContactWindow !== undefined && (!Array.isArray(document.guidance.estimatedContactWindow) || document.guidance.estimatedContactWindow.length !== 2 || !document.guidance.estimatedContactWindow.every(finite) || document.guidance.estimatedContactWindow[0] > document.guidance.estimatedContactWindow[1])) fail("guidance.estimatedContactWindow", "Contact window must be an ordered two-number tuple");
     if (!Array.isArray(document.guidance.cues)) fail("guidance.cues", "Guidance cues must be an array");
     else {

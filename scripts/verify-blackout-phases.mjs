@@ -28,10 +28,14 @@ try {
     lost:canvas.dataset.lostCommsStates,
     aircraft:canvas.dataset.aircraftTotal,
     fleetShips:canvas.dataset.fleetShips,
+    fleetComms:canvas.dataset.fleetCommsDoctrine,
+    fleetNetworkTracks:canvas.dataset.fleetNetworkTracks,
   }));
   await page.screenshot({ path:"verification-blackout-total-band-denial.png", fullPage:true });
   console.log(JSON.stringify({ flare, blackout, errors }, null, 2));
   if (errors.length || flare.phase !== "solar-flare" || blackout.phase !== "total-blackout"
       || !blackout.lost?.includes(":lost:") || Number(blackout.aircraft) < 1
-      || !blackout.fleetShips?.includes("blue-cg-57")) process.exitCode = 1;
+      || !blackout.fleetShips?.includes("blue-cg-57")
+      || !blackout.fleetComms?.includes("blue-cg-57:autonomous:local-defense")
+      || !blackout.fleetComms?.includes("blue-long-beach:autonomous:hold-command")) process.exitCode = 1;
 } finally { await browser.close(); }

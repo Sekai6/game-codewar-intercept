@@ -7,7 +7,7 @@ import type {
   TacticalNetworkActivity,
 } from "./types.js";
 import { evaluatePropagation } from "../space-weather/propagation-effects.js";
-import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 export interface Link11ParticipantState extends Link16ParticipantState {
   netControlCapable: boolean;
@@ -37,8 +37,10 @@ export class Link11Network {
   private nextRollCallAt = 0;
   private pollIndex = 0;
   private serial = 0;
+  private activitySerial = 0;
   private delayTotal = 0;
   private propagationSnapshot: SpaceWeatherSnapshot | null = null;
+  private propagationZones: readonly PropagationSpatialZone[] = [];
   private readonly pollSeconds = 2;
   private readonly maximumRange = 1200;
   private diagnosticsState: Link11Diagnostics = this.emptyDiagnostics();
@@ -53,7 +55,7 @@ export class Link11Network {
     this.participants.clear(); this.queues.clear(); this.pending.length = 0;
     this.inboxes.clear(); this.seen.clear(); this.nextRollCallAt = 0;
     this.activities.length = 0;
-    this.pollIndex = 0; this.serial = 0; this.delayTotal = 0;
+    this.pollIndex = 0; this.serial = 0; this.activitySerial = 0; this.delayTotal = 0;
     this.diagnosticsState = this.emptyDiagnostics();
   }
 
@@ -64,6 +66,7 @@ export class Link11Network {
   }
 
   setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) { this.propagationSnapshot = snapshot; }
+  setPropagationZones(zones: readonly PropagationSpatialZone[]) { this.propagationZones = zones.map((zone) => ({ ...zone, center:[...zone.center] as [number,number,number] })); }
 
   publishTrack(senderId:string,
     input:Omit<Link16TrackReport,"messageId"|"senderId"|"side"|"transmittedAt">,
@@ -109,11 +112,11 @@ export class Link11Network {
     for(const recipient of live) {
       if(recipient.id===sender.id||recipient.side!==sender.side||!recipient.receiveEnabled||recipient.terminalHealth<=.05)continue;
       const range=sender.position.distanceTo(recipient.position);
-      if(range>this.maximumRange){this.diagnosticsState.droppedLink++;continue;}
+      if(range>this.maximumRange){this.diagnosticsState.droppedLink++;this.record({kind:"drop",time,senderId:sender.id,recipientId:recipient.id,trackId:item.report.trackId,reason:"out-of-range"});continue;}
       const rangeFactor=range/this.maximumRange;
       const success=THREE.MathUtils.clamp(.91*sender.terminalHealth*recipient.terminalHealth-rangeFactor*.22,.08,.96);
-      const propagation=this.propagationSnapshot?evaluatePropagation(this.propagationSnapshot,{channel:"link11",messageId:item.report.messageId,senderId:sender.id,recipientId:recipient.id,baseQuality:item.report.quality,baseSuccessProbability:success,rangeRatio:rangeFactor}):null;
-      if(propagation?.dropped||(!propagation&&hash01(`${item.report.messageId}:${recipient.id}`)>success)){this.diagnosticsState.droppedLink++;this.record({kind:"drop",time,senderId:sender.id,recipientId:recipient.id,trackId:item.report.trackId});continue;}
+      const propagation=this.propagationSnapshot?evaluatePropagation(this.propagationSnapshot,{channel:"link11",messageId:item.report.messageId,senderId:sender.id,recipientId:recipient.id,baseQuality:item.report.quality,baseSuccessProbability:success,rangeRatio:rangeFactor,senderPosition:[sender.position.x,sender.position.y,sender.position.z],recipientPosition:[recipient.position.x,recipient.position.y,recipient.position.z],spatialZones:this.propagationZones}):null;
+      if(propagation?.dropped||(!propagation&&hash01(`${item.report.messageId}:${recipient.id}`)>success)){this.diagnosticsState.droppedLink++;this.record({kind:"drop",time,senderId:sender.id,recipientId:recipient.id,trackId:item.report.trackId,reason:propagation?.reason==="localized-disturbance"?"localized-disturbance":propagation?.reason==="space-weather-loss"?"space-weather-loss":"link-quality"});continue;}
       const networkDelay=Math.max(0,time-item.report.observedAt)+1.1+rangeFactor*.8+(propagation?.delaySeconds??0);
       const report={...item.report,position:item.report.position.clone(),velocity:item.report.velocity.clone(),
         quality:item.report.quality*.72*(propagation?.qualityMultiplier??1),uncertainty:(item.report.uncertainty+3500+networkDelay*180)*(propagation?.uncertaintyMultiplier??1)};
@@ -130,7 +133,7 @@ export class Link11Network {
   participantStates(){return [...this.participants.values()].map(p=>({...p,position:p.position.clone()}));}
   recentActivities(time:number){return this.activities.filter(event=>time-event.time<=12).map(event=>({...event}));}
   private record(event:Omit<TacticalNetworkActivity,"id"|"network">){
-    this.activities.push({...event,id:`L11-${this.serial}-${this.activities.length}`,network:"link11"});
+    this.activities.push({...event,id:`L11-A${++this.activitySerial}`,network:"link11"});
     if(this.activities.length>96)this.activities.splice(0,this.activities.length-96);
   }
 }

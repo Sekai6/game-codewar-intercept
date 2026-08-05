@@ -20,7 +20,8 @@ import { FleetElectronicWarfareVisuals } from "./electronic-warfare-visuals.js";
 import { FleetDamageVisuals } from "./damage-visuals.js";
 import { FleetLaunchObservability } from "./launch-observability.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
-import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
+import type { TrackFusionEvent } from "../tracks/conflict-fusion.js";
 
 export interface LegacyFlagshipSnapshot {
   position: THREE.Vector3;
@@ -68,7 +69,9 @@ export class FleetSceneIntegration {
   readonly launchObservability = new FleetLaunchObservability();
   private currentTime = 0;
   private ciwsEnabled = true;
+  private readonly fusionAarStates = new Map<string, { firstSeenAt:number; logged:boolean; lastLoggedAt:number }>();
   private readonly scenarioRoutes = new Map<string, { points: readonly THREE.Vector3[]; loop: boolean; index: number }>();
+  private localWeatherAt?: (position: THREE.Vector3) => { radarRangeFactor:number; detectionProbabilityFactor:number; measurementNoiseFactor:number };
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
@@ -181,15 +184,49 @@ export class FleetSceneIntegration {
   }
 
   updateSensors(now: number, dt: number, observations: readonly ShipSensorObservation[]) {
-    for (const ship of this.force.ships.values()) this.sensors.update(ship, now, dt, observations);
+    for (const ship of this.force.ships.values()) this.sensors.update(ship, now, dt, observations, this.localWeatherAt);
   }
 
   updateNetwork(now: number, enabled: boolean) {
     this.link11.update(this.force, now, enabled);
+    for(const event of this.link11.drainFusionEvents())this.recordFusionAarEvent(event,now);
+  }
+
+  private recordFusionAarEvent(event:TrackFusionEvent,now:number) {
+    const format=(kind:string)=>`TRACK CONFLICT ${kind} / ${event.trackId} / SEP ${event.separation.toFixed(1)} / CONFIRM ${event.confirmations} / ${event.contributors.join("|")}`;
+    if(event.kind==="conflict-detected"){
+      if(!this.fusionAarStates.has(event.trackId))this.fusionAarStates.set(event.trackId,{firstSeenAt:now,logged:false,lastLoggedAt:Number.NEGATIVE_INFINITY});
+      return;
+    }
+    const state=this.fusionAarStates.get(event.trackId);
+    if(event.kind==="conflict-resolved"){
+      if(state?.logged)this.options.log?.(format("RESOLVED"));
+      this.fusionAarStates.delete(event.trackId);
+      return;
+    }
+    if(!state)return;
+    if(!state.logged){
+      if(now-state.firstSeenAt<3)return;
+      this.options.log?.(format("DETECTED"));
+      state.logged=true;state.lastLoggedAt=now;
+      return;
+    }
+    if(now-state.lastLoggedAt>=8){
+      this.options.log?.(format("UPDATED"));
+      state.lastLoggedAt=now;
+    }
   }
 
   setSpaceWeather(snapshot: SpaceWeatherSnapshot | null) {
     this.link11.setPropagationSnapshot(snapshot);
+  }
+  setPropagationZones(zones: readonly PropagationSpatialZone[]) { this.link11.setPropagationZones(zones); }
+  setLocalWeatherProvider(provider: typeof this.localWeatherAt) { this.localWeatherAt = provider; }
+  setShipLostComms(shipId: string, connected: boolean, doctrineBehavior: string | undefined, now: number) {
+    if (!this.force.ships.has(shipId)) return false;
+    this.force.shipComms.set(shipId, { connected, doctrineBehavior, changedAt:now });
+    if (!connected) this.force.ships.get(shipId)!.networkTracks.clear();
+    return true;
   }
 
   updateAirDefense(now: number, dt: number) {
@@ -319,6 +356,7 @@ export class FleetSceneIntegration {
     this.force.formationState.lastCommandReassessmentAt = Number.NEGATIVE_INFINITY;
     this.sensors.reset();
     this.link11.reset(this.force);
+    this.fusionAarStates.clear();
     this.airDefense.reset(this.force);
     this.surfaceWarfare.reset(this.force);
     this.ciws.reset();

@@ -35,7 +35,25 @@ const result={
 };
 runtime.update(force,17,false);
 result.disabledClears=otc.networkTracks.size===0&&force.picture.size===0;
+
+const recoveryForce = createNavalForceRuntime(NAVAL_FORCE_SCENARIOS["blue-ntu-screen"], new Map([
+  ["long-beach",definition("long-beach")],["ticonderoga",definition("ticonderoga")],
+]));
+const recoveryOtc=recoveryForce.ships.get("blue-cgn-9"), recoveryPicket=recoveryForce.ships.get("blue-cg-57");
+if(!recoveryOtc||!recoveryPicket)throw new Error("Recovery fleet members missing");
+recoveryPicket.localTracks.set("blackout-contact",{
+  targetId:"blackout-contact",position:new THREE.Vector3(120,24,-100),velocity:new THREE.Vector3(-1,0,0),
+  quality:.7,uncertainty:650,classification:"aircraft",source:"local-radar",updatedAt:2,weaponQuality:true,
+});
+recoveryForce.shipComms.set(recoveryPicket.id,{connected:false,doctrineBehavior:"local-defense",changedAt:0});
+const recoveryRuntime=new FleetLink11Runtime();
+for(let time=0;time<=8;time+=.25)recoveryRuntime.update(recoveryForce,time,true);
+const deliveredBeforeRestore=recoveryRuntime.diagnostics().delivered;
+recoveryForce.shipComms.set(recoveryPicket.id,{connected:true,doctrineBehavior:"networked",changedAt:8.25});
+for(let time=8.25;time<=24;time+=.25)recoveryRuntime.update(recoveryForce,time,true);
+result.deferredRequeued=deliveredBeforeRestore===0&&recoveryRuntime.diagnostics().delivered>0;
+result.deferredCueOnly=[...recoveryOtc.networkTracks.values()].every(track=>!track.weaponQuality);
 console.log(JSON.stringify(result,null,2));
 if(!result.received||!result.anonymous||!result.cueOnly||!result.localAuthorityPreserved
   ||!result.forcePicture||!result.forcePictureCueOnly||result.ncs!=="blue-cgn-9"
-  ||!result.delivered||!result.disabledClears)process.exitCode=1;
+  ||!result.delivered||!result.disabledClears||!result.deferredRequeued||!result.deferredCueOnly)process.exitCode=1;

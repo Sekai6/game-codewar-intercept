@@ -49,7 +49,7 @@ import {
   planFormationTactics,
   type FormationContactObservation,
 } from "./ai/formation-tactics.js";
-import { formationSlot, updateFormationStatus } from "./formation";
+import { formationSlotForIndex, updateFormationStatus } from "./formation";
 import {
   airDamageDisposition,
   resolveAircraftHit,
@@ -113,7 +113,7 @@ import type {
   AirTrack,
   AirWeaponId,
 } from "./types";
-import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -220,8 +220,11 @@ function instantiate(
 ): AirPlatformInstance {
   const model = spawn.definition.buildModel();
   model.position.copy(spawn.position);
+  const configuredLoadout = spawn.initialLoadout
+    ? { ...spawn.definition.loadout, ...spawn.initialLoadout }
+    : spawn.definition.loadout;
   const remaining = new Map(
-    Object.entries(spawn.definition.loadout) as [AirWeaponId, number][],
+    Object.entries(configuredLoadout) as [AirWeaponId, number][],
   );
   const hardpoints = spawn.definition.hardpoints.map((definition) => {
     const weaponId =
@@ -295,7 +298,7 @@ function instantiate(
     networkTracks: new Map(),
     missileWarnings: new Map(),
     ammo: new Map(
-      Object.entries(spawn.definition.loadout) as [AirWeaponId, number][],
+      Object.entries(configuredLoadout) as [AirWeaponId, number][],
     ),
     subsystemHealth: new Map<AirSubsystem, number>([
       ["structure", 100],
@@ -308,6 +311,8 @@ function instantiate(
     nextOoda: 0,
     nextScan: 0,
     nextCountermeasure: 0,
+    radarActive: spawn.initialRadarState !== "silent",
+    ecmActive: spawn.initialEcmEnabled ?? true,
     noContactSince: null,
     chaff: spawn.definition.countermeasures.chaff,
     flares: spawn.definition.countermeasures.flares,
@@ -355,6 +360,10 @@ export class AirCombatSystem {
     this.sovietGci.setPropagationSnapshot(snapshot);
     this.sovietMaritimeTargeting.setPropagationSnapshot(snapshot);
     this.sovietFleetCommand.setPropagationSnapshot(snapshot);
+  }
+  setPropagationZones(zones: readonly PropagationSpatialZone[]) {
+    this.link11.setPropagationZones(zones);
+    this.link16.setPropagationZones(zones);
   }
   private readonly aewCommandNetwork = new AewCommandNetwork();
   private readonly seenAewCommands = new Set<string>();
@@ -956,23 +965,32 @@ export class AirCombatSystem {
             missile.alive && missile.shooterId === member.id &&
             (!missile.seekerAcquired ||
               missile.definition.guidance === "semi-active-radar"));
+          const visibleTrackNumbers = [...contactsByNumber.values()]
+            .filter((contact) =>
+              contact.observerSlots.includes(member.formationIndex))
+            .map((contact) => contact.trackNumber);
+          // A fighter with its own usable contact may tactically detach from
+          // close station to prosecute an intercept. Physical formation error
+          // must not permanently suppress an otherwise legal shooter.
+          const independentIntercept =
+            (member.mission === "cap" || member.mission === "intercept" ||
+              member.mission === "escort") &&
+            member.missionPlanningState.phase === "commit" &&
+            visibleTrackNumbers.length > 0;
           return {
             slot: member.formationIndex,
             alive: member.alive,
             threatened: member.missileWarnings.size > 0 ||
               member.state === "defending",
             joined: member.formationIndex === 0 ||
-              member.formationStatus === "joined",
+              member.formationStatus === "joined" || independentIntercept,
             weaponReady: [...member.ammo.values()].some((count) => count > 0) &&
               (member.subsystemHealth.get("weapons") ?? 0) > 20,
             supportingWeapon: Boolean(supportedWeapon),
             supportedTrackNumber: supportedWeapon
               ? bindings.trackNumberByTarget.get(supportedWeapon.targetId) ?? null
               : null,
-            visibleTrackNumbers: [...contactsByNumber.values()]
-              .filter((contact) =>
-                contact.observerSlots.includes(member.formationIndex))
-              .map((contact) => contact.trackNumber),
+            visibleTrackNumbers,
           };
         }),
         contacts: [...contactsByNumber.values()],
@@ -1427,12 +1445,10 @@ export class AirCombatSystem {
       aircraft.formationError = Infinity;
       return;
     }
-    const slot = formationSlot({
+    const slot = formationSlotForIndex({
         leader: leader.position,
         leaderHeading: leader.heading,
-        lateral: aircraft.formationIndex % 2 ? 12 : -12,
-        vertical: 2,
-        trail: 10,
+        formationIndex: aircraft.formationIndex,
       }),
       slotPosition = new THREE.Vector3(slot.x, slot.y, slot.z);
     aircraft.formationError = aircraft.position.distanceTo(slotPosition);
@@ -1535,7 +1551,7 @@ export class AirCombatSystem {
       a.tracks.size === 0 &&
       a.position.distanceTo(maritimeCue.launchRegionCenter) > 160
     ) return;
-    if (time < a.nextScan || !a.alive) return;
+    if (time < a.nextScan || !a.alive || !a.radarActive) return;
     a.nextScan = time + a.definition.sensor.updateInterval * (interceptCommand ? .75 : 1);
     const radarHealth = (a.subsystemHealth.get("radar") ?? 0) / 100;
     for (const target of this.entities(context)) {
@@ -1551,9 +1567,10 @@ export class AirCombatSystem {
           a.definition.sensor.precision * (gciFocused ? 1 + (interceptCommand?.quality ?? 0) * .16 : 1),
         ),
         ecm =
-          target.kind === "aircraft"
+          target.kind === "aircraft" && (target as AirPlatformInstance).ecmActive
             ? (target as AirPlatformInstance).definition.ecm
             : undefined,
+        localWeather = context.localWeatherAt?.(a.position),
         factors = airRadarFactors({
           sensorAltitude: a.position.y,
           targetAltitude: target.position.y,
@@ -1564,6 +1581,9 @@ export class AirCombatSystem {
           precision: focusedPrecision,
           ecmStrength: ecm?.strength,
           burnThroughRange: ecm?.burnThroughRange,
+          radarRangeFactor: localWeather?.radarRangeFactor,
+          detectionProbabilityFactor: localWeather?.detectionProbabilityFactor,
+          measurementNoiseFactor: localWeather?.measurementNoiseFactor,
         }),
         boresight = a.definition.sensor.coverage === "rotating-360"
           ? 0
@@ -1585,7 +1605,7 @@ export class AirCombatSystem {
             position: target.position,
             velocity: target.velocity,
             quality: factors.quality,
-            precision: focusedPrecision,
+            precision: focusedPrecision / factors.measurementNoiseFactor,
             time,
             noise: [roll(key + 2), roll(key + 3), roll(key + 4)],
           });
@@ -1790,6 +1810,13 @@ export class AirCombatSystem {
             launchRtr: launchZone.rTr,
             launchRmax: launchZone.rMax,
             maximumAltitude: worldPosition.y,
+            midcourseLastUpdateAt: time,
+            midcourseTrackQuality: hardpoint.trackQuality,
+            midcourseUncertainty: releaseTrack.uncertainty,
+            midcourseLinkLostAt: null,
+            inertialContinuation: false,
+            autonomousSearchAuthorized: weapon.guidance === "active-radar" || weapon.guidance === "anti-ship-radar",
+            midcourseSource: "launch-solution",
           };
         this.missiles.push(missile);
         aircraft.ammo.set(
@@ -2520,12 +2547,10 @@ export class AirCombatSystem {
             .sub(a.position)
             .normalize();
         } else if (leader && !autonomousRoute) {
-          const slot = formationSlot({
+          const slot = formationSlotForIndex({
             leader: leader.position,
             leaderHeading: leader.heading,
-            lateral: a.formationIndex % 2 ? 12 : -12,
-            vertical: 2,
-            trail: 10,
+            formationIndex: a.formationIndex,
           });
           a.desiredDirection
             .set(slot.x, slot.y, slot.z)
@@ -2574,7 +2599,10 @@ export class AirCombatSystem {
       speedRatio: a.velocity.length() / a.definition.flight.maxSpeed,
       desiredSpeedRatio: activeGciCommand
         ? activeGciCommand.commandedSpeed / a.definition.flight.maxSpeed
-        : null,
+        : a.formationStatus === "rejoining" || a.formationStatus === "separated"
+          ? Math.min(0.94, 0.76 + a.formationError / 220)
+          : null,
+      formationRejoinError: a.formationIndex > 0 ? a.formationError : null,
       climbDemand,
     });
     if (a.thrustMode !== previousThrustMode) {
@@ -2845,10 +2873,28 @@ export class AirCombatSystem {
     if (missile.phase !== "midcourse" || time < missile.nextDatalink) return;
     missile.nextDatalink = time + missile.definition.datalinkInterval;
     const track = shooter?.tracks.get(target.id);
-    if (track)
+    const fresh = track && time - track.lastUpdate <= Math.max(2.5, (shooter?.definition.sensor.updateInterval ?? 1) * 2.4) && track.quality >= .08;
+    if (fresh) {
       missile.commandPoint
         .copy(track.position)
         .addScaledVector(track.velocity, missile.definition.datalinkInterval);
+      if (missile.midcourseLinkLostAt !== null)
+        this.emit(time, "guidance", `${missile.definition.name} MIDCOURSE LINK RESTORED / ${missile.id} / LOST ${(time - missile.midcourseLinkLostAt).toFixed(1)}S / Q ${Math.round(track.quality * 100)}% / U ${track.uncertainty.toFixed(1)}`,
+          {entityId:missile.id,weaponId:missile.definition.id,platformId:missile.shooterId});
+      missile.midcourseLastUpdateAt = time;
+      missile.midcourseTrackQuality = track.quality;
+      missile.midcourseUncertainty = track.uncertainty;
+      missile.midcourseLinkLostAt = null;
+      missile.inertialContinuation = false;
+      missile.midcourseSource = track.source === "local-radar" ? "organic-radar" : "network-cue";
+    } else {
+      if (missile.midcourseLinkLostAt === null) {
+        missile.midcourseLinkLostAt = time;
+        this.emit(time, "guidance", `${missile.definition.name} MIDCOURSE LINK LOST / ${missile.id} / LAST UPDATE T+${missile.midcourseLastUpdateAt.toFixed(1)} / Q ${Math.round(missile.midcourseTrackQuality * 100)}% / U ${missile.midcourseUncertainty.toFixed(1)} / INERTIAL CONTINUE / AUTONOMOUS SEARCH ${missile.autonomousSearchAuthorized ? "AUTHORIZED" : "NOT AUTHORIZED"}`,
+          {entityId:missile.id,weaponId:missile.definition.id,platformId:missile.shooterId});
+      }
+      missile.inertialContinuation = true;
+    }
   }
   private matchingDecoy(missile: AirMissileInstance, target: AirRuntimeTarget) {
     return this.decoys
@@ -2923,8 +2969,8 @@ export class AirCombatSystem {
       });
     } else if (missile.definition.guidance !== "infrared") {
       const ecm =
-        target.kind === "aircraft"
-          ? (target as AirPlatformInstance).definition.ecm
+          target.kind === "aircraft" && (target as AirPlatformInstance).ecmActive
+            ? (target as AirPlatformInstance).definition.ecm
           : undefined;
       captureProbability = radarSeekerCaptureProbability({
         range,
@@ -2991,8 +3037,8 @@ export class AirCombatSystem {
     time: number,
   ) {
     const targetEcm =
-        target.kind === "aircraft"
-          ? (target as AirPlatformInstance).definition.ecm
+          target.kind === "aircraft" && (target as AirPlatformInstance).ecmActive
+            ? (target as AirPlatformInstance).definition.ecm
           : undefined,
       burnedThrough = range <= (targetEcm?.burnThroughRange ?? 0),
       measurementUncertainty =
@@ -3031,8 +3077,8 @@ export class AirCombatSystem {
           ? target.infraredSignature
           : target.radarCrossSection,
       ecm =
-        target.kind === "aircraft"
-          ? (target as AirPlatformInstance).definition.ecm
+          target.kind === "aircraft" && (target as AirPlatformInstance).ecmActive
+            ? (target as AirPlatformInstance).definition.ecm
           : undefined,
       burned = range <= (ecm?.burnThroughRange ?? 0),
       capture =
@@ -3502,6 +3548,17 @@ export class AirCombatSystem {
         phase: aircraft.missionPlanningState.phase,
         reason: aircraft.missionPlanningState.reason,
         updates: aircraft.missionPlanningState.updates,
+        position: aircraft.position.toArray(),
+        fuelRemaining: aircraft.fuel,
+        fuelRatio: aircraft.fuel /
+          Math.max(1, aircraft.definition.flight.fuelSeconds),
+        routeIndex: aircraft.scenarioRouteIndex,
+        routePointCount: aircraft.scenarioRoute.length,
+        launchZoneDistance: aircraft.scenarioLaunchZone
+          ? aircraft.position.distanceTo(aircraft.scenarioLaunchZone.center)
+          : null,
+        launchZoneRadius: aircraft.scenarioLaunchZone?.radius ?? null,
+        weapons: [...aircraft.ammo.entries()].map(([id, count]) => ({ id, count })),
       })),
       pilotUpdates: this.aircraft.reduce(
         (sum, aircraft) => sum + aircraft.pilotState.updates,

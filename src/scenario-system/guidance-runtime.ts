@@ -136,7 +136,11 @@ export class ScenarioGuidanceRuntime {
   }
 
   observe(event: ScenarioGuidanceObservation, scenarioTime = this.time) {
-    if (!this.paused) this.time = Math.max(this.time, scenarioTime);
+    // A paused scenario is a frozen simulation boundary.  Ignore observations
+    // as well as clock updates so asynchronous UI/telemetry callbacks cannot
+    // enqueue guidance while the player is inspecting the paused state.
+    if (this.paused) return this.snapshot();
+    this.time = Math.max(this.time, scenarioTime);
     this.lastSignificantEventAt = this.time;
     this.inactivityArmedAt.clear();
     for (const cue of this.definition.cues) if (observationMatches(cue, event)) this.activate(cue);

@@ -58,12 +58,18 @@ import { createCinematicAtmospherePass, setCinematicClusteredLighting, setCinema
 import { createAuroraRuntime } from "./visual/aurora-runtime";
 import { createArcticCoastBackdrop } from "./visual/arctic-coast-backdrop";
 import { ScenarioGuidanceUi } from "./visual/scenario-guidance-ui";
+import { TacticalRadarDisplay } from "./visual/tactical-radar";
+import { tacticalRadarFrameForShip } from "./visual/tactical-radar-ship-adapter";
 import { createTacticalNetworkRuntime } from "./visual/tactical-network-runtime";
 import { registerAssetDetailLod, updateRegisteredAssetDetailLods } from "./visual/asset-detail-lod";
-import { AFTERNOON_SUN_ALTITUDE_DEG, AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
+import { AFTERNOON_SUN_DIRECTION } from "./visual/sunlight";
+import { environmentPresetFor } from "./visual/environment-presets";
 import { initializeWebGpuUltra, type FroxelLightInput, type WebGpuUltraResult, type WebGpuUltraStatus } from "./visual/webgpu-ultra";
 import { TemporalReconstructionPass } from "./visual/temporal-reconstruction-pass";
 import { collectVolumetricLightSamples } from "./visual/volumetric-light-samples";
+import { createNightSubjectFill } from "./visual/night-subject-fill";
+import { DynamicScoreRuntime } from "./audio/dynamic-score-runtime";
+import { ThemeTrackRuntime } from "./audio/theme-track-runtime";
 import { HiZScreenSpacePass } from "./visual/hiz-screen-space-pass";
 import {
   ENEMY_PLATFORM_DEFINITIONS,
@@ -100,6 +106,7 @@ import {
 } from "./platforms/defense";
 import { recordPlatformPointDefenseShot } from "./platforms/visual-defense";
 import { AirCombatSystem } from "./air/runtime";
+import { writeSovietAirDiagnostics } from "./air/observability-diagnostics";
 import { createShipInterceptorModel } from "./models/ship-interceptors";
 import {
   AIR_SCENARIO_PRESETS,
@@ -123,14 +130,18 @@ import {
   initialSurfaceLoadout,
   initialSurfaceThreats,
 } from "./scenarios/surface-scenarios";
-import { BUILT_IN_SCENARIOS, getBuiltInScenario } from "./scenario-system/catalog";
+import { BUILT_IN_SCENARIOS, copyBuiltInScenario, getBuiltInScenario } from "./scenario-system/catalog";
 import { compileScenario, type CompiledScenario } from "./scenario-system/compiler";
 import { ScenarioRuntime } from "./scenario-system/runtime";
 import { ScenarioGuidanceRuntime, type ScenarioGuidanceObservation } from "./scenario-system/guidance-runtime";
 import { importScenarioJson, exportScenarioJson } from "./scenario-system/import-export";
 import type { GuidanceFocus, ScenarioDocument } from "./scenario-system/types";
+import { ScenarioSession } from "./scenario-system/session";
+import { ScenarioObjectiveRuntime } from "./scenario-system/objective-runtime";
+import { applyScenarioEnvironment } from "./visual/scenario-environment";
 import { SpaceWeatherTimelineRuntime } from "./space-weather/timeline-runtime";
-import type { SpaceWeatherSnapshot } from "./space-weather/types";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "./space-weather/types";
+import { applySpatialWeather } from "./space-weather/spatial-effects";
 import { LostCommsRuntime } from "./lost-comms/runtime";
 import type { LostCommsDoctrineId } from "./lost-comms/types";
 import { LOST_COMMS_DOCTRINES } from "./lost-comms/doctrine-catalog";
@@ -313,10 +324,12 @@ scene.add(sun);
 const atmosphericFill = new THREE.DirectionalLight(0x83b8dc, 0);
 atmosphericFill.position.set(140, 180, -180);
 scene.add(atmosphericFill);
+const nightSubjectFill = createNightSubjectFill(scene);
 const ocean = createOceanSurface();
 scene.add(ocean.object);
 const highQualityEnvironment = createHighQualityEnvironment();
 scene.add(highQualityEnvironment.object);
+let activeLightingPreset = environmentPresetFor();
 const arcticCoastBackdrop = createArcticCoastBackdrop();
 scene.add(arcticCoastBackdrop.object);
 let highQualityEnvironmentEnabled = false;
@@ -764,6 +777,14 @@ function resetSurfaceStrikeLoadout() {
 resetSurfaceStrikeLoadout();
 const radarCanvas = document.querySelector("#radar") as HTMLCanvasElement;
 const radarCtx = radarCanvas?.getContext("2d");
+const radarName = document.querySelector("#radarName") as HTMLElement;
+const tacticalRadar = new TacticalRadarDisplay({
+  canvas: radarCanvas,
+  title: radarName,
+  status: document.querySelector<HTMLElement>("#radarStatus"),
+  rangeButton: document.querySelector<HTMLButtonElement>("#radarRange"),
+  orientationButton: document.querySelector<HTMLButtonElement>("#radarOrientation"),
+});
 let launcherCycle = 0;
 const lastTrackClasses = new Map<number, string>(),
   lastAltitudeState = new Map<number, boolean>();
@@ -2287,14 +2308,43 @@ let activeSpaceWeatherSnapshot: SpaceWeatherSnapshot | null = null;
 let activeGuidanceRuntime: ScenarioGuidanceRuntime | null = null;
 let scenarioBriefingLocked = false;
 let activeGuidanceUi: ScenarioGuidanceUi | null = null;
+const dynamicScore = new DynamicScoreRuntime();
+const themeTrack = new ThemeTrackRuntime();
 const lostCommsRuntime = new LostCommsRuntime();
 let lastGuidanceWeatherPhase = "";
 let lastGuidanceNetworkState = "";
+let lastScenarioCommsWindowOpen = false;
+const lastSpatialZoneSignatures = new Map<string,string>();
+const lastWeatherZoneSignatures = new Map<string,string>();
 let scenarioBlueAirTrackObserved = false;
-let scenarioFlagshipRouteIndex = 0;
-let scenarioRedSurfaceRouteIndex = 0;
+let activeScenarioSession: ScenarioSession | null = null;
+let activeObjectiveRuntime: ScenarioObjectiveRuntime | null = null;
 let scenarioEndHandled = false;
 const scenarioLaunchCounts = new Map<string, number>();
+
+function scenarioPropagationZones(): readonly PropagationSpatialZone[] {
+  return (activeScenarioDocument?.zones ?? [])
+    .filter((zone): zone is typeof zone & { kind:"magnetic-disturbance" | "comms-window" } =>
+      zone.kind === "magnetic-disturbance" || zone.kind === "comms-window")
+    .map((zone) => ({ id:zone.id, kind:zone.kind, center:zone.center, radius:zone.radius }));
+}
+
+function scenarioForcePosition(force: ScenarioDocument["forces"][number]): readonly [number,number,number] {
+  if (force.kind === "air-formation") {
+    const members = airCombat.aircraft.filter((aircraft) => aircraft.alive && aircraft.formationId === force.id);
+    if (members.length) return [
+      members.reduce((sum, aircraft) => sum + aircraft.position.x, 0) / members.length,
+      members.reduce((sum, aircraft) => sum + aircraft.position.y, 0) / members.length,
+      members.reduce((sum, aircraft) => sum + aircraft.position.z, 0) / members.length,
+    ];
+  } else {
+    if (force.id === fleetIntegration?.flagshipId) return [defender.position.x, defender.position.y, defender.position.z];
+    const ship = fleetIntegration?.force.ships.get(force.id);
+    if (ship) return [ship.position.x, ship.position.y, ship.position.z];
+    if (force.side === "red" && enemyPlatform) return [enemyPlatform.model.position.x, enemyPlatform.model.position.y, enemyPlatform.model.position.z];
+  }
+  return force.position;
+}
 
 function rebuildFleetIntegration() {
   fleetIntegration?.dispose();
@@ -2369,6 +2419,7 @@ function rebuildFleetIntegration() {
     createCiwsTracer: (target, origin) => createCiwsTracer(scene, target, origin),
     log,
   });
+  fleetIntegration.setPropagationZones(scenarioPropagationZones());
   canvas.dataset.fleetId = fleetIntegration.force.id;
   canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
@@ -2874,6 +2925,9 @@ const airScenarioContext = createAirScenarioContext(() => {
     sovietCommandEra: sovietCommandEraInput.value as SovietCommandEra,
     sovietCommandEnabled: sovietCommandInput.checked,
     advancedAirAiEnabled: advancedAirAiInput.checked,
+    localWeatherAt: activeCompiledScenario
+      ? (position) => activeCompiledScenario!.weatherFronts.effectAt(position, elapsed)
+      : undefined,
     applyBlueDamage: (damage, hitPoint) => {
       hullIntegrity = Math.max(0, hullIntegrity - damage);
       airShipHits++;
@@ -2916,7 +2970,8 @@ const airScenarioContext = createAirScenarioContext(() => {
     },
     requestShipCountermeasure: ({ targetId, threatPosition }) =>
       fleetIntegration?.requestCountermeasure(targetId, threatPosition, elapsed)
-      || (targetId === "blue-surface-ship" && deployShipChaffAt(threatPosition)),
+      || (shipEcmEnabled && targetId === "blue-surface-ship" &&
+        deployShipChaffAt(threatPosition)),
     tacticalNetworkParticipants: [
       {
         entity: blueLinkEntity,
@@ -3307,12 +3362,12 @@ threatSelect.onchange = () => {
 
 const scenarioField = document.createElement("label");
 scenarioField.className = "sandbox-field";
-scenarioField.innerHTML = `<span>SCENARIO</span><select id="sbScenario"><option value="legacy-sandbox">SANDBOX / LEGACY PRESETS</option>${BUILT_IN_SCENARIOS.map((scenario) => `<option value="${scenario.id}">${scenario.metadata.subtitle ?? scenario.metadata.title} / ${scenario.metadata.year}</option>`).join("")}</select>`;
+scenarioField.innerHTML = `<span>SCENARIO</span><select id="sbScenario"><option value="sandbox-custom" selected>CUSTOM SANDBOX / V1.20 CONTROLS</option>${BUILT_IN_SCENARIOS.map((scenario) => `<option value="${scenario.id}">${scenario.metadata.subtitle ?? scenario.metadata.title} / ${scenario.metadata.year}</option>`).join("")}</select>`;
 sandbox.insertBefore(scenarioField, sandbox.firstElementChild?.nextSibling ?? sandbox.firstChild);
 const scenarioInput = scenarioField.querySelector("select") as HTMLSelectElement;
 const scenarioIo = document.createElement("div");
 scenarioIo.className = "scenario-io-controls";
-scenarioIo.innerHTML = '<button type="button" data-import>IMPORT SCENARIO JSON</button><button type="button" data-export>EXPORT SCENARIO JSON</button><input type="file" accept="application/json,.json" hidden>';
+scenarioIo.innerHTML = '<button type="button" data-import>IMPORT SCENARIO JSON</button><button type="button" data-copy>COPY BUILT-IN</button><button type="button" data-export>EXPORT SCENARIO JSON</button><input type="file" accept="application/json,.json" hidden>';
 sandbox.insertBefore(scenarioIo, scenarioField.nextSibling);
 const scenarioFileInput = scenarioIo.querySelector("input") as HTMLInputElement;
 
@@ -3320,8 +3375,32 @@ function setNumberInput(selector: string, value: number) {
   (sandbox.querySelector(selector) as HTMLInputElement).value = String(value);
 }
 
+function previewImportedScenario(scenario: ScenarioDocument): Promise<boolean> {
+  const ships = scenario.forces.filter((force) => force.kind === "ship").length;
+  const formations = scenario.forces.filter((force) => force.kind === "air-formation");
+  const aircraft = formations.reduce((sum, force) => sum + force.count, 0);
+  const minutes = Math.round(scenario.simulation.durationSeconds / 60);
+  const overlay = document.createElement("div");
+  overlay.className = "scenario-import-preview";
+  const escape = (value: string) => {
+    const span = document.createElement("span");
+    span.textContent = value;
+    return span.innerHTML;
+  };
+  overlay.innerHTML = `<section role="dialog" aria-modal="true" aria-label="Scenario import preview"><small>LOCAL SCENARIO IMPORT / READ-ONLY PREVIEW</small><h2>${escape(scenario.metadata.title)}</h2><p>${escape(scenario.metadata.description)}</p><div class="summary"><span>SCHEMA<b>v${scenario.schemaVersion}</b></span><span>FORCES<b>${scenario.forces.length}</b></span><span>SHIPS / AIRCRAFT<b>${ships} / ${aircraft}</b></span><span>DURATION<b>${minutes} MIN</b></span></div><div class="validation">VALIDATION PASSED — IDs, references, routes, catalogs and schema are internally consistent.</div><p><small>${escape(scenario.metadata.region)} · ${scenario.metadata.year} · SEED ${scenario.simulation.seed}<br>Imported files are data only. They cannot execute code or load external resources.</small></p><footer><button type="button" data-cancel>CANCEL</button><button type="button" data-confirm>LOAD SCENARIO</button></footer></section>`;
+  document.body.append(overlay);
+  return new Promise((resolve) => {
+    const finish = (accepted: boolean) => { overlay.remove(); resolve(accepted); };
+    overlay.querySelector<HTMLElement>("[data-cancel]")!.onclick = () => finish(false);
+    overlay.querySelector<HTMLElement>("[data-confirm]")!.onclick = () => finish(true);
+    overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") finish(false); });
+    (overlay.querySelector("[data-confirm]") as HTMLButtonElement).focus();
+  });
+}
+
 function applyScenarioToSandbox(compiled: CompiledScenario | null) {
   activeCompiledScenario = compiled;
+  activeScenarioSession = compiled ? new ScenarioSession(compiled) : null;
   activeScenarioDocument = compiled?.document ?? null;
   if (!compiled) {
     activeScenarioRuntime = null;
@@ -3333,6 +3412,7 @@ function applyScenarioToSandbox(compiled: CompiledScenario | null) {
     lostCommsRuntime.reset();
     auroraRuntime.setEnvironmentalState({ controlled:false,enabled:false,intensity:0,magneticDisturbance:0 });
     arcticCoastBackdrop.setEnabled(false);
+    airCombat.setPropagationZones([]);
     rebuildFleetIntegration();
     return;
   }
@@ -3344,7 +3424,7 @@ function applyScenarioToSandbox(compiled: CompiledScenario | null) {
     setNumberInput("#sbShipX", flagship.position[0]);
     setNumberInput("#sbShipZ", flagship.position[2]);
   }
-  const redPlatform = compiled.surfacePlatformSpawns[0];
+  const redPlatform = activeScenarioSession?.surfacePlatform();
   if (redPlatform) {
     platformSelect.value = redPlatform.platformId;
     syncPlatformThreatOptions();
@@ -3353,6 +3433,17 @@ function applyScenarioToSandbox(compiled: CompiledScenario | null) {
     // A data-driven scenario may contain a surface combatant without granting it
     // an immediate legacy sandbox salvo. Weapons must be authorized by scenario AI.
     setNumberInput("#sbCount", 0);
+  }
+  const initialWave = compiled.threatWaves[0];
+  if (initialWave) {
+    platformSelect.value = initialWave.source === "in-flight" ? "AIRBORNE" : platformSelect.value;
+    (sandbox.querySelector("#sbType") as HTMLSelectElement).value = initialWave.threatId;
+    setNumberInput("#sbCount", initialWave.count);
+    setNumberInput("#sbInterval", initialWave.intervalSeconds);
+    setNumberInput("#sbAltitude", initialWave.altitude);
+    setNumberInput("#sbX", initialWave.origin.x);
+    setNumberInput("#sbZ", initialWave.origin.z);
+    setNumberInput("#sbSpread", initialWave.spread);
   }
   fleetModeEnabled = Boolean(blueForce);
   fleetScenarioInput.checked = fleetModeEnabled;
@@ -3363,6 +3454,7 @@ function applyScenarioToSandbox(compiled: CompiledScenario | null) {
   sovietCommandEraInput.value = compiled.document.simulation.sovietCommandEra;
   sovietCommandInput.checked = true;
   wave2Select.value = "NONE";
+  airCombat.setPropagationZones(scenarioPropagationZones());
   rebuildFleetIntegration();
 }
 
@@ -3372,18 +3464,49 @@ function compileSelectedScenario(document: ScenarioDocument) {
   });
 }
 
+function selectUserScenario(scenarioDocument: ScenarioDocument) {
+  let option = [...scenarioInput.options].find((candidate) => candidate.value === scenarioDocument.id);
+  if (!option) {
+    option = document.createElement("option");
+    scenarioInput.append(option);
+  }
+  option.value = scenarioDocument.id;
+  option.textContent = `${scenarioDocument.metadata.subtitle ?? scenarioDocument.metadata.title} / USER`;
+  option.dataset.userScenario = "true";
+  scenarioInput.value = scenarioDocument.id;
+}
+
 scenarioInput.addEventListener("change", () => {
-  if (scenarioInput.value === "legacy-sandbox") applyScenarioToSandbox(null);
-  else applyScenarioToSandbox(compileSelectedScenario(getBuiltInScenario(scenarioInput.value)));
+  if (scenarioInput.value === "sandbox-custom") {
+    applyScenarioToSandbox(null);
+    return;
+  }
+  applyScenarioToSandbox(compileSelectedScenario(getBuiltInScenario(scenarioInput.value)));
 });
 scenarioIo.querySelector<HTMLElement>("[data-import]")!.onclick = () => scenarioFileInput.click();
+scenarioIo.querySelector<HTMLElement>("[data-copy]")!.onclick = () => {
+  const builtIn = BUILT_IN_SCENARIOS.find((scenario) => scenario.id === scenarioInput.value);
+  if (!builtIn) {
+    log("SCENARIO COPY INHIBIT / SELECT A BUILT-IN SCENARIO");
+    return;
+  }
+  const copy = copyBuiltInScenario(builtIn.id, `${builtIn.id}-user-copy`);
+  applyScenarioToSandbox(compileSelectedScenario(copy));
+  selectUserScenario(copy);
+  log(`SCENARIO USER COPY / ${builtIn.id} -> ${copy.id}`);
+};
 scenarioFileInput.onchange = async () => {
   const file = scenarioFileInput.files?.[0];
   if (!file) return;
   try {
-    const document = importScenarioJson(await file.text());
+    const parsed = importScenarioJson(await file.text());
+    const document: ScenarioDocument = { ...parsed, metadata: { ...parsed.metadata, builtIn: false } };
+    if (!await previewImportedScenario(document)) {
+      log(`SCENARIO IMPORT CANCELLED / ${document.id}`);
+      return;
+    }
     applyScenarioToSandbox(compileSelectedScenario(document));
-    scenarioInput.value = "legacy-sandbox";
+    selectUserScenario(document);
     log(`SCENARIO IMPORT / ${document.id} / SCHEMA ${document.schemaVersion} / ${document.forces.length} FORCE ENTRIES`);
   } catch (error) {
     log(`SCENARIO IMPORT REJECTED / ${error instanceof Error ? error.message : String(error)}`);
@@ -3428,7 +3551,8 @@ function handleScenarioGuidanceFocus(focus: GuidanceFocus) {
       viewMode = aircraft.side === "blue" ? 7 : 8;
       return;
     }
-    if (focus.targetId === "blue-cg-57") {
+    const fleetShip = fleetIntegration?.force.ships.get(focus.targetId);
+    if (fleetShip?.alive) {
       fleetLaunchCameraShipId = focus.targetId;
       fleetOverviewCamera = false;
       viewMode = 2;
@@ -3436,14 +3560,46 @@ function handleScenarioGuidanceFocus(focus: GuidanceFocus) {
   }
 }
 
+function refreshScenarioGuidanceUi() {
+  if (!activeGuidanceRuntime || !activeGuidanceUi || !activeScenarioRuntime) return;
+  for (const event of activeGuidanceRuntime.drainAuditEvents())
+    log(`SCENARIO GUIDANCE / ${event.action.toUpperCase()}${event.cueId ? ` / ${event.cueId}` : ""}${event.mode ? ` / ${event.mode.toUpperCase()}` : ""}`);
+  activeGuidanceUi.update(
+    activeGuidanceRuntime.snapshot(),
+    activeScenarioRuntime.snapshot().phase.toUpperCase(),
+    activeScenarioTaskLabel(),
+  );
+}
+
+function activeScenarioTaskLabel() {
+  const snapshot = activeScenarioRuntime?.snapshot();
+  if (!snapshot) return "OBSERVE JOINT OPERATIONS";
+  const current = snapshot.objectives.find(({ definition, state }) =>
+    definition.side === "blue" && !definition.optional && (state === "active" || state === "pending"),
+  ) ?? snapshot.objectives.find(({ definition, state }) =>
+    definition.side === "blue" && (state === "active" || state === "pending"),
+  );
+  if (current) return `TASK / ${current.definition.title}`;
+  const failed = snapshot.objectives.find(({ definition, state }) => definition.side === "blue" && state === "failed");
+  return failed ? `TASK FAILED / ${failed.definition.title}` : "TASKS COMPLETE";
+}
+
 function initializeActiveScenarioSystems() {
   activeGuidanceUi?.destroy();
   activeGuidanceUi = null;
   activeScenarioRuntime = activeScenarioDocument ? new ScenarioRuntime(activeScenarioDocument) : null;
+  dynamicScore.configure(activeScenarioDocument?.guidance.soundtrack?.id);
+  themeTrack.configure(activeScenarioDocument?.guidance.soundtrack?.theme?.file);
+  activeObjectiveRuntime = activeScenarioDocument ? new ScenarioObjectiveRuntime(activeScenarioDocument.objectives) : null;
   activeSpaceWeather = activeCompiledScenario?.timeline.spaceWeather
     ? new SpaceWeatherTimelineRuntime(activeCompiledScenario.timeline.spaceWeather)
     : null;
   activeSpaceWeatherSnapshot = activeSpaceWeather?.snapshotAt(0) ?? null;
+  airCombat.setPropagationZones(scenarioPropagationZones());
+  fleetIntegration?.setPropagationZones(scenarioPropagationZones());
+  fleetIntegration?.setLocalWeatherProvider(activeCompiledScenario
+    ? (position) => activeCompiledScenario!.weatherFronts.effectAt(position, elapsed)
+    : undefined);
   activeGuidanceRuntime = activeScenarioDocument
     ? new ScenarioGuidanceRuntime(activeScenarioDocument.guidance, ScenarioGuidanceUi.loadMode())
     : null;
@@ -3454,9 +3610,12 @@ function initializeActiveScenarioSystems() {
   }
   lastGuidanceWeatherPhase = "";
   lastGuidanceNetworkState = "";
+  lastScenarioCommsWindowOpen = false;
+  lastSpatialZoneSignatures.clear();
+  lastWeatherZoneSignatures.clear();
+  highQualityEnvironment.setWeatherFronts([]);
   scenarioBlueAirTrackObserved = false;
-  scenarioFlagshipRouteIndex = 0;
-  scenarioRedSurfaceRouteIndex = 0;
+  activeScenarioSession?.reset();
   scenarioEndHandled = false;
   scenarioLaunchCounts.clear();
   if (!activeScenarioDocument || !activeGuidanceRuntime) {
@@ -3464,16 +3623,49 @@ function initializeActiveScenarioSystems() {
     return;
   }
   activeGuidanceUi = new ScenarioGuidanceUi(activeScenarioDocument, {
-    onModeChange: (mode) => activeGuidanceRuntime?.setMode(mode),
+    scoreEnabled: dynamicScore.isEnabled(),
+    themePlaying: themeTrack.isPlaying(),
+    onThemeToggle: async () => {
+      const playing = await themeTrack.toggle();
+      dynamicScore.setPreviewMuted(playing);
+      log(`SCENARIO THEME / ${playing ? "PLAYING" : "PAUSED"} / ${activeScenarioDocument?.guidance.soundtrack?.theme?.title ?? "NONE"}`);
+      return playing;
+    },
+    onScoreToggle: (enabled) => {
+      void dynamicScore.setEnabled(enabled).catch((error) => log(`DYNAMIC SCORE ERROR / ${error instanceof Error ? error.message : String(error)}`));
+      log(`DYNAMIC SCORE / ${enabled ? "ENABLED" : "MUTED"} / ${activeScenarioDocument?.guidance.soundtrack?.title ?? "NONE"}`);
+    },
+    onModeChange: (mode) => {
+      activeGuidanceRuntime?.setMode(mode);
+      refreshScenarioGuidanceUi();
+    },
     onFocus: handleScenarioGuidanceFocus,
-    onDismissCue: () => activeGuidanceRuntime?.dismissCurrent(),
-    onBriefingClosed: () => { running = true; last = performance.now(); },
+    onDismissCue: () => {
+      activeGuidanceRuntime?.dismissCurrent();
+      refreshScenarioGuidanceUi();
+    },
+    onBriefingClosed: () => {
+      themeTrack.stop();
+      dynamicScore.setPreviewMuted(false);
+      running = true; last = performance.now();
+      void dynamicScore.resumeFromGesture().catch((error) => log(`DYNAMIC SCORE ERROR / ${error instanceof Error ? error.message : String(error)}`));
+    },
+    onRegenerateScenario: (seed) => {
+      if (!activeScenarioDocument) return;
+      const regenerated = structuredClone(activeScenarioDocument) as ScenarioDocument;
+      (regenerated.simulation as { seed:number }).seed = seed;
+      applyScenarioToSandbox(compileSelectedScenario(regenerated));
+      initializeActiveScenarioSystems();
+    },
     onModalLockChange: (locked) => {
       scenarioBriefingLocked = locked;
       activeGuidanceRuntime?.setPaused(locked || !running);
+      refreshScenarioGuidanceUi();
     },
   });
-  arcticCoastBackdrop.setEnabled(activeScenarioDocument.environment.coastBackdropId === "norwegian-barents-distant-coast");
+  applyScenarioEnvironment(activeScenarioDocument.environment, {
+    setArcticCoastEnabled: (enabled) => arcticCoastBackdrop.setEnabled(enabled),
+  });
   running = false;
 }
 
@@ -3485,7 +3677,7 @@ function scenarioTargetAlive(targetId: string) {
   if (targetId === fleetIntegration?.flagshipId) return hullIntegrity > 0;
   const fleetShip = fleetIntegration?.force.ships.get(targetId);
   if (fleetShip) return fleetShip.alive;
-  if (targetId === activeCompiledScenario?.surfacePlatformSpawns[0]?.id)
+  if (activeScenarioSession?.surfacePlatform(targetId))
     return Boolean(enemyPlatform && enemyPlatform.hullIntegrity > 0);
   const formation = airCombat.aircraft.filter((aircraft) => aircraft.formationId === targetId);
   return formation.length > 0 && formation.some((aircraft) => aircraft.alive);
@@ -3496,25 +3688,27 @@ function finalizeScenarioObjectives() {
   const snapshot = activeScenarioRuntime.snapshot();
   if (!snapshot.ended) return;
   scenarioEndHandled = true;
-  for (const objective of activeScenarioDocument.objectives) {
-    const alive = objective.targetIds.map(scenarioTargetAlive);
-    let state: "complete" | "failed";
-    if (objective.kind === "protect") state = alive.some(Boolean) ? "complete" : "failed";
-    else if (objective.kind === "survive") state = alive.some(Boolean) ? "complete" : "failed";
-    else if (objective.kind === "intercept")
-      state = !alive.some(Boolean) || (scenarioLaunchCounts.get("red") ?? 0) === 0 ? "complete" : "failed";
-    else if (objective.kind === "strike") state = (scenarioLaunchCounts.get(objective.side) ?? 0) > 0 ? "complete" : "failed";
-    else state = "complete";
-    activeScenarioRuntime.setObjective(objective.id, state);
-    observeScenarioGuidance({ type:"objective-state", objectiveId:objective.id, state });
-    log(`SCENARIO OBJECTIVE / ${objective.id} / ${state.toUpperCase()}`);
-  }
   finishMission(hullIntegrity > 0, "SCENARIO TIME COMPLETE / OBJECTIVES ASSESSED");
 }
 
 function updateActiveScenarioSystems() {
   if (!activeScenarioRuntime || !activeGuidanceRuntime || !activeScenarioDocument) return;
   activeScenarioRuntime.update(elapsed);
+  const objectiveTransitions = activeObjectiveRuntime?.evaluate({
+    time: elapsed,
+    ended: activeScenarioRuntime.snapshot().ended,
+    phase: activeScenarioRuntime.snapshot().phase,
+    entityAlive: scenarioTargetAlive,
+  }) ?? [];
+  for (const transition of objectiveTransitions) {
+    activeScenarioRuntime.setObjective(transition.objectiveId, transition.state);
+    if (transition.state !== "pending")
+      observeScenarioGuidance({ type:"objective-state", objectiveId:transition.objectiveId, state:transition.state });
+    log(`SCENARIO OBJECTIVE / ${transition.objectiveId} / ${transition.state.toUpperCase()} / ${transition.reason}`);
+    aarEvents.push({ time:elapsed, category:"system", text:`SCENARIO OBJECTIVE ${transition.state.toUpperCase()} / ${transition.objectiveId} / ${transition.reason}` });
+  }
+  const weatherFrontSnapshots = activeCompiledScenario?.weatherFronts.snapshotsAt(elapsed) ?? [];
+  highQualityEnvironment.setWeatherFronts(weatherFrontSnapshots);
   activeSpaceWeatherSnapshot = activeSpaceWeather?.snapshotAt(elapsed) ?? null;
   const weather = activeSpaceWeatherSnapshot;
   airCombat.setSpaceWeather(weather);
@@ -3537,32 +3731,86 @@ function updateActiveScenarioSystems() {
       lastGuidanceNetworkState = networkState;
       if (networkState !== "online") observeScenarioGuidance({ type:"network-state", side:"blue", state:networkState });
     }
+    const spatialStates: string[] = [];
+    const localWeatherStates: string[] = [];
+    const windowParticipants: string[] = [];
     for (const force of activeScenarioDocument.forces) {
       if (!force.lostCommsDoctrineId) continue;
+      const spatial = applySpatialWeather(weather, [scenarioForcePosition(force)], scenarioPropagationZones());
+      const localWeatherPosition = scenarioForcePosition(force);
+      const localWeather = activeCompiledScenario?.weatherFronts.effectAt(new THREE.Vector3(...localWeatherPosition), elapsed);
+      const localizedWeather = spatial.snapshot;
+      spatialStates.push(`${force.id}:${spatial.activeZoneIds.join(",") || "none"}:D${spatial.disturbanceWeight.toFixed(2)}:W${spatial.windowWeight.toFixed(2)}`);
+      if (localWeather?.zoneIds.length) localWeatherStates.push(`${force.id}:${localWeather.zoneIds.join(",")}:V${localWeather.visibilityKm.toFixed(1)}:R${localWeather.radarRangeFactor.toFixed(2)}:N${localWeather.measurementNoiseFactor.toFixed(2)}:T${localWeather.turbulence.toFixed(2)}`);
+      const weatherSignature = localWeather?.zoneIds.join(",") ?? "";
+      const previousWeatherSignature = lastWeatherZoneSignatures.get(force.id) ?? "";
+      if (weatherSignature !== previousWeatherSignature) {
+        const previous = previousWeatherSignature.split(",").filter(Boolean);
+        const current = weatherSignature.split(",").filter(Boolean);
+        const entered = current.filter((id) => !previous.includes(id));
+        const exited = previous.filter((id) => !current.includes(id));
+        if (entered.length) log(`LOCAL WEATHER / ${force.id} / ENTER / ${entered.join(",")} / VIS ${localWeather!.visibilityKm.toFixed(1)}KM / RADAR ${localWeather!.radarRangeFactor.toFixed(2)} / TURB ${localWeather!.turbulence.toFixed(2)}`);
+        if (exited.length) log(`LOCAL WEATHER / ${force.id} / EXIT / ${exited.join(",")}`);
+        lastWeatherZoneSignatures.set(force.id, weatherSignature);
+      }
+      if (spatial.windowWeight > 0) windowParticipants.push(`${force.id}@${spatial.windowWeight.toFixed(2)}`);
+      const signature = spatial.activeZoneIds.join(",");
+      const previousSignature = lastSpatialZoneSignatures.get(force.id) ?? "";
+      if (signature !== previousSignature) {
+        const entered = spatial.activeZoneIds.filter((id) => !previousSignature.split(",").includes(id));
+        const exited = previousSignature.split(",").filter((id) => id && !spatial.activeZoneIds.includes(id));
+        if (entered.length) log(`PROPAGATION ZONE / ${force.id} / ENTER / ${entered.join(",")}`);
+        if (exited.length) log(`PROPAGATION ZONE / ${force.id} / EXIT / ${exited.join(",")}`);
+        lastSpatialZoneSignatures.set(force.id, signature);
+      }
       const quality = force.side === "red"
-        ? weather.vhfUhfReliability * .72 + weather.hfAvailability * .28
-        : linkQuality;
+        ? localizedWeather.vhfUhfReliability * .72 + localizedWeather.hfAvailability * .28
+        : Math.min(localizedWeather.hfAvailability, localizedWeather.vhfUhfReliability);
       const transition = lostCommsRuntime.update(force.id, { time:elapsed, linkQuality:quality });
       if (!transition) continue;
       const doctrine = LOST_COMMS_DOCTRINES[transition.doctrineId];
       if (force.kind === "air-formation")
         airCombat.setFormationLostComms(force.id, transition.kind === "restored" ? null : doctrine.behavior, transition.time);
-      log(`LOST COMMS / ${force.id} / ${transition.kind.toUpperCase()} / ${transition.doctrineId}`);
+      else if (force.kind === "ship")
+        fleetIntegration?.setShipLostComms(force.id, transition.kind === "restored", transition.kind === "restored" ? undefined : doctrine.behavior, transition.time);
+      log(`LOST COMMS / ${force.id} / ${transition.kind.toUpperCase()} / ${transition.doctrineId} / ZONES ${spatial.activeZoneIds.join(",") || "NONE"}`);
       if (transition.kind === "entered") observeScenarioGuidance({ type:"platform-lost-comms", platformId:force.id });
     }
+    if (weather.communicationWindowOpen !== lastScenarioCommsWindowOpen) {
+      lastScenarioCommsWindowOpen = weather.communicationWindowOpen;
+      log(`COMMS WINDOW / ${weather.communicationWindowOpen ? "OPEN" : "CLOSED"} / STRENGTH ${weather.communicationWindowStrength.toFixed(2)} / LOCAL PARTICIPANTS ${windowParticipants.join(",") || "NONE"}`);
+    }
+    canvas.dataset.spaceWeatherSpatialStates = spatialStates.join("|");
+    canvas.dataset.localWeatherStates = localWeatherStates.join("|");
+    canvas.dataset.weatherFronts = weatherFrontSnapshots.map((front) => `${front.id}:${front.center.x.toFixed(1)},${front.center.z.toFixed(1)}:${front.intensity.toFixed(2)}`).join("|");
   }
-  const guidance = activeGuidanceRuntime.update(elapsed);
   activeGuidanceRuntime.setPaused(!running || scenarioBriefingLocked);
+  const guidance = activeGuidanceRuntime.update(elapsed);
   for (const event of activeGuidanceRuntime.drainAuditEvents())
     log(`SCENARIO GUIDANCE / ${event.action.toUpperCase()}${event.cueId ? ` / ${event.cueId}` : ""}${event.mode ? ` / ${event.mode.toUpperCase()}` : ""}`);
-  activeGuidanceUi?.update(guidance, activeScenarioRuntime.snapshot().phase.toUpperCase());
+  const activeTaskLabel = activeScenarioTaskLabel();
+  activeGuidanceUi?.update(guidance, activeScenarioRuntime.snapshot().phase.toUpperCase(), activeTaskLabel);
   canvas.dataset.scenarioId = activeScenarioDocument.id;
   canvas.dataset.scenarioSchemaVersion = String(activeScenarioDocument.schemaVersion);
   canvas.dataset.scenarioPhase = activeScenarioRuntime.snapshot().phase;
+  canvas.dataset.scenarioObjectives = activeScenarioRuntime.snapshot().objectives
+    .map((objective) => `${objective.definition.id}:${objective.state}`).join("|");
+  canvas.dataset.scenarioGuidanceTask = activeTaskLabel;
+  canvas.dataset.scenarioEnded = String(activeScenarioRuntime.snapshot().ended);
   canvas.dataset.spaceWeatherPhase = weather?.phase ?? "none";
   canvas.dataset.spaceWeatherIntensity = (weather?.intensity ?? 0).toFixed(3);
   canvas.dataset.spaceWeatherCommsWindow = String(weather?.communicationWindowOpen ?? false);
   canvas.dataset.lostCommsStates = lostCommsRuntime.all().map((state) => `${state.platformId}:${state.connected ? "connected" : "lost"}:${state.doctrineId}`).join("|");
+  const activeAirWeapons = airCombat.missiles.filter((missile) => missile.phase !== "destroyed").length;
+  const activeSurfaceWeapons = missiles.filter((missile) => missile.phase !== "destroyed" && elapsed >= missile.launchAt).length;
+  dynamicScore.update({
+    phase: weather?.phase ?? "none",
+    contactConfirmed: scenarioBlueAirTrackObserved,
+    combatIntensity: Math.min(1, (activeAirWeapons + activeSurfaceWeapons) / 7),
+    communicationWindowOpen: weather?.communicationWindowOpen ?? false,
+    paused: !running || scenarioBriefingLocked,
+  });
+  canvas.dataset.dynamicScore = dynamicScore.isEnabled() ? "enabled" : dynamicScore.isAvailable() ? "available" : "none";
   finalizeScenarioObjectives();
 }
 radarCanvas.addEventListener("pointerdown", (e) => {
@@ -3615,38 +3863,43 @@ radarCanvas.addEventListener("pointerdown", (e) => {
 );
 (sandbox.querySelector("#sbStart") as HTMLButtonElement).onclick = async () => {
   const validationTimeScale = Number(new URLSearchParams(location.search).get("validationTimeScale"));
-  if (Number.isFinite(validationTimeScale) && validationTimeScale >= 1 && validationTimeScale <= 8)
+  if (Number.isFinite(validationTimeScale) && validationTimeScale >= 1 && validationTimeScale <= 16)
     timeScale = validationTimeScale;
   if (webGpuUltraInput.checked && webGpuUltraStatus !== "active")
     await configureWebGpuUltra(true);
   highQualityEnvironmentEnabled = highQualityEnvironmentInput.checked;
+  activeLightingPreset = environmentPresetFor(activeScenarioDocument?.environment.timeOfDay);
   highQualityEnvironment.setEnabled(highQualityEnvironmentEnabled);
+  highQualityEnvironment.setLightingEnvironment(activeLightingPreset);
+  ocean.setLightingEnvironment(activeLightingPreset);
   grid.visible = !highQualityEnvironmentEnabled;
   cinematicAtmospherePass.enabled = highQualityEnvironmentEnabled;
   ocean.setHighQuality(highQualityEnvironmentEnabled);
   ssaoPass.enabled = !highQualityEnvironmentEnabled && innerWidth > 720;
   gtaoPass.enabled = highQualityEnvironmentEnabled;
   scene.environment = highQualityEnvironmentEnabled ? bouncedLightEnvironment : null;
-  scene.environmentIntensity = highQualityEnvironmentEnabled ? 0.28 : 1;
-  renderer.toneMappingExposure = 1.08;
+  scene.environmentIntensity = highQualityEnvironmentEnabled ? activeLightingPreset.indirectIntensity : 1;
+  renderer.toneMappingExposure = activeLightingPreset.exposure;
   bloomPass.strength = highQualityEnvironmentEnabled ? 0.48 : 0.42;
   bloomPass.radius = highQualityEnvironmentEnabled ? 0.42 : 0.38;
   bloomPass.threshold = highQualityEnvironmentEnabled ? 1.08 : 0.78;
-  ambientSky.intensity = highQualityEnvironmentEnabled ? 1.12 : 1.55;
-  ambientSky.color.setHex(highQualityEnvironmentEnabled ? 0x9dc9e8 : 0x9cc7dd);
-  ambientSky.groundColor.setHex(highQualityEnvironmentEnabled ? 0x17232a : 0x10212b);
-  sun.intensity = highQualityEnvironmentEnabled ? 3.45 : 2.5;
-  sun.color.setHex(highQualityEnvironmentEnabled ? 0xffd09a : 0xffe3ad);
-  sun.position.copy(AFTERNOON_SUN_DIRECTION).multiplyScalar(360);
-  atmosphericFill.intensity = highQualityEnvironmentEnabled ? 0.62 : 0;
+  ambientSky.intensity = highQualityEnvironmentEnabled ? activeLightingPreset.ambientIntensityHigh : activeLightingPreset.ambientIntensityLow;
+  ambientSky.color.setHex(activeLightingPreset.ambientSkyColor);
+  ambientSky.groundColor.setHex(activeLightingPreset.ambientGroundColor);
+  sun.intensity = highQualityEnvironmentEnabled ? activeLightingPreset.sunIntensityHigh : activeLightingPreset.sunIntensityLow;
+  sun.color.setHex(activeLightingPreset.sunColor);
+  sun.position.copy(activeLightingPreset.sunDirection).multiplyScalar(360);
+  atmosphericFill.color.setHex(activeLightingPreset.fillColor);
+  atmosphericFill.intensity = highQualityEnvironmentEnabled ? activeLightingPreset.fillIntensityHigh : 0;
+  nightSubjectFill.setNightFactor(highQualityEnvironmentEnabled ? activeLightingPreset.nightMix : 0);
   scene.fog = highQualityEnvironmentEnabled
-    ? new THREE.FogExp2(0x8298a4, 0.00072)
-    : new THREE.Fog(0x06111b, 180, 900);
+    ? new THREE.FogExp2(activeLightingPreset.fogColor, activeLightingPreset.fogDensity)
+    : new THREE.Fog(activeLightingPreset.backgroundColor, 180, 900);
   camera.far = activeScenarioDocument ? 6500 : 2000;
   if (activeScenarioDocument && !highQualityEnvironmentEnabled)
-    scene.fog = new THREE.Fog(0x06111b, 300, 5200);
+    scene.fog = new THREE.Fog(activeLightingPreset.backgroundColor, 300, 5200);
   camera.updateProjectionMatrix();
-  scene.background = highQualityEnvironmentEnabled ? null : new THREE.Color(0x06111b);
+  scene.background = highQualityEnvironmentEnabled ? null : new THREE.Color(activeLightingPreset.backgroundColor);
   auroraRuntime.activate(webGpuUltraStatus === "active");
   missiles.forEach((m) => {
     scene.remove(m.mesh, m.path);
@@ -3737,7 +3990,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }
   } else {
     const definition = getEnemyPlatformDefinition(platformSelection);
-    const heading = activeCompiledScenario?.surfacePlatformSpawns[0]?.heading ?? Math.atan2(
+    const heading = activeScenarioSession?.surfacePlatform()?.heading ?? Math.atan2(
       -(defender.position.z - cz),
       defender.position.x - cx,
     );
@@ -4016,7 +4269,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
     }, 0),
 );
 function classifyAarEvent(text: string): AarCategory {
-  if (/GCI COMMAND|AEW COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2|SPACE WEATHER|LOST COMMS|COMMS WINDOW/.test(text))
+  if (/GCI COMMAND|AEW COMMAND|TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|SOVIET C2|SPACE WEATHER|LOST COMMS|COMMS WINDOW|PROPAGATION ZONE/.test(text))
     return "network";
   if (/POINT DEFENSE FIRE/.test(text)) return "fire";
   if (
@@ -4067,8 +4320,62 @@ function captureAarSnapshot(force = false) {
   const shipVelocity = new THREE.Vector3(1, 0, 0)
     .applyAxisAngle(new THREE.Vector3(0, 1, 0), defender.rotation.y)
     .multiplyScalar(shipSpeedKnots * 0.005144);
+  const airLostComms = new Map(airCombat.lostCommsDiagnostics().map((entry) => [entry.formationId, entry]));
+  const decisionAudits: NonNullable<AarSnapshot["decisions"]> = [
+    ...airCombat.aircraft.map((aircraft) => {
+      const tracks = [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].sort((a,b)=>b.quality-a.quality);
+      const best = tracks[0];
+      const lost = airLostComms.get(aircraft.formationId);
+      return {
+        platformId: aircraft.id, side: aircraft.side, domain: "air" as const,
+        action: aircraft.state,
+        reason: aircraft.targetId
+          ? `${aircraft.tacticalState.mode}: target selected from ${best?.source ?? "mission-order"}`
+          : !best ? `${aircraft.tacticalState.mode}: no usable observed track`
+            : best.engagementQuality !== "weapon" ? `${aircraft.tacticalState.mode}: best observed track is cue-only and cannot authorize weapons`
+            : `${aircraft.tacticalState.mode}: weapon-quality track exists but no target satisfies current employment criteria`,
+        targetId: aircraft.targetId,
+        trackSource: best?.source ?? "none", trackQuality: best?.quality ?? 0,
+        localTrackCount: aircraft.tracks.size, networkTrackCount: aircraft.networkTracks.size,
+        commsState: lost ? "lost" as const : "connected" as const,
+        doctrine: lost?.behavior ?? "networked",
+        bestTrackId: best?.targetId,
+        trackClassification: best?.classification,
+        trackUncertainty: best?.uncertainty,
+        trackAge: best ? Math.max(0, elapsed - best.lastUpdate) : undefined,
+        weaponAuthority: best?.engagementQuality === "weapon",
+      };
+    }),
+    ...(fleetSample?.snapshot.members.map((member) => {
+      const assignment = fleetSample.snapshot.assignments.find((candidate) => candidate.shooterId === member.id && candidate.status !== "rejected");
+      const rejection = fleetSample.snapshot.assignments.find((candidate) => candidate.shooterId === member.id && candidate.status === "rejected");
+      const best = member.bestObservedTrack;
+      const commsState = member.commsConnected === false ? "lost" as const : "connected" as const;
+      return {
+        platformId: member.id, side: member.side, domain: "surface" as const,
+        action: assignment ? assignment.status : "weapons-hold",
+        reason: assignment
+          ? `AAW assignment backed by organic track ${assignment.localTrackId}`
+          : rejection ? `assignment rejected: ${rejection.rejectionReason ?? "unspecified"}`
+            : !best ? `${commsState === "lost" ? `lost-comms ${member.lostCommsDoctrine}; ` : ""}no observed track available`
+              : !best.weaponAuthority ? `${commsState === "lost" ? `lost-comms ${member.lostCommsDoctrine}; ` : ""}best ${best.source} track is cue-only or below organic fire-control quality`
+                : "weapon-quality organic track exists but engagement planner issued no assignment",
+        targetId: assignment?.targetId ?? null,
+        trackSource: best?.source ?? "none",
+        trackQuality: best?.quality ?? 0,
+        localTrackCount: member.localTracks, networkTrackCount: member.networkTracks,
+        commsState, doctrine: member.lostCommsDoctrine,
+        bestTrackId: best?.id,
+        trackClassification: best?.classification,
+        trackUncertainty: best?.uncertainty,
+        trackAge: best?.age,
+        weaponAuthority: best?.weaponAuthority ?? false,
+      };
+    }) ?? []),
+  ];
   const snapshot: AarSnapshot = {
     time: elapsed,
+    decisions: decisionAudits,
     ship: {
       ...kinematics(defender.position, shipVelocity),
       heading: defender.rotation.y,
@@ -4121,6 +4428,13 @@ function captureAarSnapshot(force = false) {
       mission: aircraft.mission,
       alive: aircraft.alive,
       structure: aircraft.subsystemHealth.get("structure") ?? 0,
+      targetId: aircraft.targetId,
+      localTracks: aircraft.tracks.size,
+      networkTracks: aircraft.networkTracks.size,
+      bestTrackSource: [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].sort((a,b)=>b.quality-a.quality)[0]?.source ?? "none",
+      bestTrackQuality: [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].reduce((best,track)=>Math.max(best,track.quality),0),
+      lostCommsDoctrine: airCombat.lostCommsDiagnostics().find((entry)=>entry.formationId===aircraft.formationId)?.behavior ?? "networked",
+      tacticalState: `${aircraft.tacticalState.mode}/${aircraft.tacticalState.threatPhase}/${aircraft.tacticalState.energyPriority}`,
     })),
     airWeapons: airCombat.missiles.map((missile) => ({
       id: missile.id,
@@ -4130,6 +4444,14 @@ function captureAarSnapshot(force = false) {
       phase: missile.phase,
       targetId: missile.targetId,
       shooterId: missile.shooterId,
+      seekerAcquired: missile.seekerAcquired,
+      midcourseLastUpdateAt: missile.midcourseLastUpdateAt,
+      midcourseTrackQuality: missile.midcourseTrackQuality,
+      midcourseUncertainty: missile.midcourseUncertainty,
+      midcourseLinkLostSeconds: missile.midcourseLinkLostAt === null ? 0 : Math.max(0, elapsed - missile.midcourseLinkLostAt),
+      inertialContinuation: missile.inertialContinuation,
+      autonomousSearchAuthorized: missile.autonomousSearchAuthorized,
+      midcourseSource: missile.midcourseSource,
     })),
     airDecoys: airCombat.decoys.map((decoy) => ({
       id: decoy.id,
@@ -4149,6 +4471,18 @@ function captureAarSnapshot(force = false) {
       commandedSpeed:command.commandedSpeed,radarActivationRange:command.radarActivationRange,
       expiresAt:command.expiresAt,
     })),
+    spaceWeather: activeSpaceWeatherSnapshot ? {
+      phase: activeSpaceWeatherSnapshot.phase,
+      intensity: activeSpaceWeatherSnapshot.intensity,
+      hfAvailability: activeSpaceWeatherSnapshot.hfAvailability,
+      vhfUhfReliability: activeSpaceWeatherSnapshot.vhfUhfReliability,
+      satelliteReliability: activeSpaceWeatherSnapshot.satelliteReliability,
+      gnssQuality: activeSpaceWeatherSnapshot.gnssQuality,
+      radarNoise: activeSpaceWeatherSnapshot.radarNoise,
+      magneticDisturbance: activeSpaceWeatherSnapshot.magneticDisturbance,
+      communicationWindowOpen: activeSpaceWeatherSnapshot.communicationWindowOpen,
+      communicationWindowStrength: activeSpaceWeatherSnapshot.communicationWindowStrength,
+    } : undefined,
   };
   if (
     force &&
@@ -4884,14 +5218,8 @@ function updateShipManeuver(dt: number) {
         shipManeuverMode = "patrol";
         shipCommandedSpeedKnots = activeShip.platform.patrolSpeedKnots;
         const flagshipId = fleetIntegration?.flagshipId;
-        const route = flagshipId ? activeCompiledScenario?.initialStates.get(flagshipId)?.route : undefined;
-        if (route?.points.length) {
-          let waypoint = route.points[Math.min(scenarioFlagshipRouteIndex, route.points.length - 1)];
-          if (defender.position.distanceTo(waypoint.position) < 18) {
-            if (scenarioFlagshipRouteIndex < route.points.length - 1) scenarioFlagshipRouteIndex++;
-            else if (route.loop) scenarioFlagshipRouteIndex = 0;
-            waypoint = route.points[scenarioFlagshipRouteIndex];
-          }
+        const waypoint = flagshipId ? activeScenarioSession?.waypointFor(flagshipId, defender.position, 18) : undefined;
+        if (waypoint) {
           const offset = waypoint.position.clone().sub(defender.position).setY(0);
           if (offset.lengthSq() > 1) shipDesiredHeading = Math.atan2(-offset.z, offset.x);
           if (waypoint.speed !== undefined) shipCommandedSpeedKnots = waypoint.speed;
@@ -5713,6 +6041,13 @@ setInterval(() => {
   radarCtx.globalAlpha = 1;
   radarCtx.fillStyle = "#78e1c8";
   radarCtx.fillRect(cx - 3, cy - 3, 6, 6);
+  const radarOwnerId = fleetLaunchCameraShipId ?? fleetIntegration?.flagshipId;
+  const radarOwner = radarOwnerId ? fleetIntegration?.force.ships.get(radarOwnerId) : undefined;
+  if (radarOwner) {
+    const frame = tacticalRadarFrameForShip(fleetIntegration!.force, radarOwner.id, elapsed, elapsed * 0.8);
+    if (frame) tacticalRadar.render(frame);
+    return;
+  }
   const surfaceTrack = surfacePicture.trackForTarget(1);
   if (enemyPlatform && surfaceTrack) {
     const platformX =
@@ -5818,6 +6153,8 @@ setInterval(() => {
 }, 100);
 setInterval(() => {
   if (!radarCtx) return;
+  const radarOwnerId = fleetLaunchCameraShipId ?? fleetIntegration?.flagshipId;
+  if (radarOwnerId && fleetIntegration?.force.ships.has(radarOwnerId)) return;
   const state = combatPicture.getSearchState(),
     cx = radarCanvas.width / 2,
     cy = radarCanvas.height / 2;
@@ -6761,6 +7098,8 @@ function updateCombat(dt: number) {
       .join("|");
     canvas.dataset.fleetNetworkTracks = [...fleetIntegration.force.ships.values()]
       .map((ship) => `${ship.id}:${ship.networkTracks.size}`).join("|");
+    canvas.dataset.fleetCommsDoctrine = [...fleetIntegration.force.shipComms.entries()]
+      .map(([id, state]) => `${id}:${state.connected ? "connected" : "autonomous"}:${state.doctrineBehavior ?? "networked"}`).join("|");
     canvas.dataset.fleetPictureTracks = String(fleetIntegration.force.picture.size);
     const fleetLink11 = fleetIntegration.networkDiagnostics();
     canvas.dataset.fleetLink11Enabled = String(link16Input.checked);
@@ -6916,6 +7255,7 @@ function updateCombat(dt: number) {
   if (
     running &&
     autoFire &&
+    !fleetModeEnabled &&
     elapsed > 2 &&
     elapsed >= nextSamLaunch &&
     active < maxSamChannels &&
@@ -8359,14 +8699,8 @@ function tick(now: number) {
       elapsed += 0.05;
       updateActiveScenarioSystems();
       if (enemyPlatform) {
-        const redSpawn = activeCompiledScenario?.surfacePlatformSpawns[0];
-        const redRoute = redSpawn?.routeId ? activeCompiledScenario?.routes.get(redSpawn.routeId) : undefined;
-        let redWaypoint = redRoute?.points[Math.min(scenarioRedSurfaceRouteIndex, Math.max(0, redRoute.points.length - 1))];
-        if (redWaypoint && enemyPlatform.model.position.distanceTo(redWaypoint.position) < 18) {
-          if (scenarioRedSurfaceRouteIndex < redRoute!.points.length - 1) scenarioRedSurfaceRouteIndex++;
-          else if (redRoute!.loop) scenarioRedSurfaceRouteIndex = 0;
-          redWaypoint = redRoute!.points[scenarioRedSurfaceRouteIndex];
-        }
+        const redSpawn = activeScenarioSession?.surfacePlatform();
+        const redWaypoint = redSpawn ? activeScenarioSession?.waypointFor(redSpawn.id, enemyPlatform.model.position, 18) : undefined;
         const defenderVelocity = new THREE.Vector3(1, 0, 0)
           .applyAxisAngle(new THREE.Vector3(0, 1, 0), defender.rotation.y)
           .multiplyScalar(shipSpeedKnots * 0.005144);
@@ -8436,6 +8770,12 @@ function tick(now: number) {
           if (event.kind === "launch" && event.side && event.platformId && event.launchId && event.weaponId && event.launcherId && event.targetTrackId)
           {
             scenarioLaunchCounts.set(event.side, (scenarioLaunchCounts.get(event.side) ?? 0) + 1);
+            const launchAircraft = airCombat.aircraft.find((aircraft) => aircraft.id === event.platformId);
+            activeObjectiveRuntime?.recordLaunch({
+              time:elapsed, side:event.side, platformId:event.platformId,
+              formationId:launchAircraft?.formationId, weaponId:event.weaponId,
+              targetTrackId:event.targetTrackId,
+            });
             observeScenarioGuidance({
               type:"weapon-launch",
               side:event.side,
@@ -8447,6 +8787,7 @@ function tick(now: number) {
               releaseSource:"air-hardpoint",
               physicalRelease:true,
             });
+            dynamicScore.accent(event.side);
           }
         }
       }
@@ -8716,6 +9057,9 @@ function tick(now: number) {
       `${state.id}:${state.assignedMission}:${state.order}:${state.phase}:${state.reason}:${state.updates}`,
     )
     .join("|");
+  canvas.dataset.advancedAirMissionDiagnostics = JSON.stringify(
+    air.missionPlanningStates,
+  );
   canvas.dataset.advancedAirPilotUpdates = String(air.pilotUpdates);
   canvas.dataset.advancedAirPilotStates = air.pilotStates
     .map((state) =>
@@ -8733,7 +9077,8 @@ function tick(now: number) {
   canvas.dataset.environmentCloudCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.cloudCount : 0);
   canvas.dataset.environmentFogVolumeCount = String(highQualityEnvironmentEnabled ? highQualityEnvironment.fogVolumeCount : 0);
   canvas.dataset.environmentSunIntensity = sun.intensity.toFixed(2);
-  canvas.dataset.environmentSunAltitudeDeg = AFTERNOON_SUN_ALTITUDE_DEG.toFixed(1);
+  canvas.dataset.environmentSunAltitudeDeg = activeLightingPreset.sunAltitudeDeg.toFixed(1);
+  canvas.dataset.environmentTimeOfDay = activeLightingPreset.id;
   canvas.dataset.environmentExposure = renderer.toneMappingExposure.toFixed(2);
   canvas.dataset.environmentShadowMode = renderer.shadowMap.type === THREE.PCFSoftShadowMap ? "PCF_SOFT" : "OTHER";
   canvas.dataset.environmentAoMode = gtaoPass.enabled ? "GTAO_DENOISED" : ssaoPass.enabled ? "SSAO" : "OFF";
@@ -8890,6 +9235,18 @@ function tick(now: number) {
   canvas.dataset.aarAirWeaponCount = String(latestAar?.airWeapons.length ?? 0);
   canvas.dataset.aarAirDecoyCount = String(latestAar?.airDecoys.length ?? 0);
   canvas.dataset.aarAewCommandCount = String(latestAar?.aewCommands?.length ?? 0);
+  canvas.dataset.aarDecisionAuditCount = String(latestAar?.decisions?.length ?? 0);
+  canvas.dataset.aarDecisionAudits = (latestAar?.decisions ?? [])
+    .map((decision) => `${decision.platformId}:${decision.commsState}:${decision.action}:${decision.trackSource}:${decision.targetId ?? "none"}:${decision.bestTrackId ?? "none"}:${decision.weaponAuthority ? "weapon" : "cue"}:${decision.reason.replace(/[|:]/g, "-")}`)
+    .join("|");
+  canvas.dataset.scenarioAarEvents = aarEvents
+    .filter((event) => /SPACE WEATHER|COMMS WINDOW|LOST COMMS|TRACK CONFLICT|SCENARIO OBJECTIVE|SCENARIO GUIDANCE/.test(event.text))
+    .map((event) => `${event.time.toFixed(1)}:${event.text}`)
+    .join("|");
+  canvas.dataset.fleetNetworkAarEvents = aarEvents
+    .filter((event) => /^FLEET LINK11 (POLL|TRANSMIT|DELIVER|DROP)/.test(event.text))
+    .map((event) => `${event.time.toFixed(1)}:${event.text}`)
+    .join("|");
   canvas.dataset.airMissionStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.mission}`)
     .join(",");
@@ -8934,108 +9291,13 @@ function tick(now: number) {
   canvas.dataset.link16ShipCues = String(
     airCombat.link16CuesFor("blue-surface-ship").length,
   );
-  const gciDiagnostics = airCombat.sovietGciDiagnostics(elapsed);
-  canvas.dataset.sovietCommandEra = sovietCommandEraInput.value;
-  canvas.dataset.sovietCommandEnabled = String(sovietCommandInput.checked);
-  canvas.dataset.gciOperational = String(gciDiagnostics.enabled);
-  canvas.dataset.gciTransmitted = String(gciDiagnostics.transmitted);
-  canvas.dataset.gciDelivered = String(gciDiagnostics.delivered);
-  canvas.dataset.gciDropped = String(gciDiagnostics.dropped);
-  canvas.dataset.gciActiveCommands = String(gciDiagnostics.activeCommands);
-  canvas.dataset.gciMeanDelay = gciDiagnostics.meanDelay.toFixed(3);
-  canvas.dataset.gciCommandStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
-    .map((aircraft) => {
-      const command = airCombat.gciCommandFor(aircraft.id, elapsed);
-      return `${aircraft.id}:${command ? `${command.controllerTrackId}:${command.commandMode}:${command.quality.toFixed(2)}:${command.commandedSpeed.toFixed(1)}:${command.radarActivationRange.toFixed(0)}:${aircraft.position.distanceTo(command.interceptPoint).toFixed(1)}` : "none"}`;
-    })
-    .join("|");
-  const sovietRadarStandby = new Set(airCombat.sovietRadarStandbyParticipants());
-  canvas.dataset.gciRadarStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
-    .map((aircraft) => {
-      const standby = sovietRadarStandby.has(aircraft.id);
-      return `${aircraft.id}:${standby ? "standby" : "search"}`;
-    })
-    .join("|");
-  canvas.dataset.gciAirLocalTracks = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
-    .map((aircraft) => `${aircraft.id}:${aircraft.tracks.size}`)
-    .join("|");
-  canvas.dataset.gciTrackStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "MIG-29A")
-    .flatMap((aircraft) => [...aircraft.tracks.values()].map((track) =>
-      `${aircraft.id}:${track.targetId}:${track.classification}:${aircraft.position.distanceTo(track.position).toFixed(1)}:${track.quality.toFixed(2)}:${(elapsed - track.lastUpdate).toFixed(1)}`))
-    .join("|");
-  canvas.dataset.gciEventLog = airCombat.events
-    .filter((event) => /GCI COMMAND|MiG-29A Fulcrum-A DETECT|MiG-29A Fulcrum-A LAUNCH/.test(event.text))
-    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
-    .join("|");
-  const maritimeTargeting = airCombat.sovietMaritimeTargetingDiagnostics(elapsed);
-  canvas.dataset.sovietMaritimeOperational = String(maritimeTargeting.enabled);
-  canvas.dataset.sovietMaritimeSource = maritimeTargeting.sourceAvailable;
-  canvas.dataset.sovietLegendaPassActive = String(maritimeTargeting.passActive);
-  canvas.dataset.sovietMaritimeTransmitted = String(maritimeTargeting.transmitted);
-  canvas.dataset.sovietMaritimeDelivered = String(maritimeTargeting.delivered);
-  canvas.dataset.sovietMaritimeDropped = String(maritimeTargeting.dropped);
-  canvas.dataset.sovietMaritimeActiveCues = String(maritimeTargeting.activeCues);
-  canvas.dataset.sovietMaritimeMeanDelay = maritimeTargeting.meanDelay.toFixed(3);
-  canvas.dataset.sovietMaritimeEmconObserved = airCombat.sovietRadarStandbyParticipants().join("|");
-  canvas.dataset.sovietMaritimeCueStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "TU-16K")
-    .map((aircraft) => {
-      const cue = airCombat.maritimeTargetAreaCueFor(aircraft.id, elapsed);
-      return `${aircraft.id}:${cue ? `${cue.source}:${cue.reportTrackId}:${cue.quality.toFixed(2)}:${cue.uncertaintyMajor.toFixed(1)}:${aircraft.position.distanceTo(cue.launchRegionCenter).toFixed(1)}` : "none"}`;
-    })
-    .join("|");
-  canvas.dataset.sovietMaritimeRadarStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "TU-16K")
-    .map((aircraft) => {
-      const cue = airCombat.maritimeTargetAreaCueFor(aircraft.id, elapsed);
-      const standby = aircraft.mission === "anti-ship" && !!cue && aircraft.tracks.size === 0 && aircraft.position.distanceTo(cue.launchRegionCenter) > 160;
-      return `${aircraft.id}:${standby ? "standby" : "search"}`;
-    })
-    .join("|");
-  canvas.dataset.sovietMaritimeEventLog = airCombat.events
-    .filter((event) => /TARGET AREA RECEIVED|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
-    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
-    .join("|");
-  const fleetCommand = airCombat.sovietFleetCommandDiagnostics(elapsed);
-  canvas.dataset.sovietFleetCommandOperational = String(fleetCommand.enabled);
-  canvas.dataset.sovietFleetCommandNode = `${fleetCommand.nodeId}:${fleetCommand.nodeLabel}`;
-  canvas.dataset.sovietFleetCommandNodeAlive = String(fleetCommand.nodeAlive);
-  canvas.dataset.sovietFleetCommandTransmitted = String(fleetCommand.transmitted);
-  canvas.dataset.sovietFleetCommandDelivered = String(fleetCommand.delivered);
-  canvas.dataset.sovietFleetCommandDropped = String(fleetCommand.dropped);
-  canvas.dataset.sovietFleetCommandActiveOrders = String(fleetCommand.activeOrders);
-  canvas.dataset.sovietFleetCommandMeanDelay = fleetCommand.meanDelay.toFixed(3);
-  canvas.dataset.sovietFleetCommandOrders = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "TU-16K" && aircraft.formationIndex === 0)
-    .map((aircraft) => {
-      const order = airCombat.sovietFleetOrderFor(aircraft.id, elapsed);
-      return `${aircraft.id}:${order ? `${order.id}:${order.sourceReportTrackId}:${order.attackWindowStart.toFixed(2)}:${order.attackWindowEnd.toFixed(2)}:${order.commandNodeId}` : "none"}`;
-    })
-    .join("|");
-  canvas.dataset.sovietFleetCommandEventLog = airCombat.events
-    .filter((event) => /TARGET AREA RECEIVED|FLEET STRIKE ORDER|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
-    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
-    .join("|");
-  const sovietSalvo = airCombat.sovietSalvoDiagnostics(elapsed);
-  canvas.dataset.sovietSalvoWavesPlanned = String(sovietSalvo.wavesPlanned);
-  canvas.dataset.sovietSalvoAssignments = String(sovietSalvo.assignments);
-  canvas.dataset.sovietSalvoActiveAssignments = String(sovietSalvo.activeAssignments);
-  canvas.dataset.sovietSalvoArrivalSpread = sovietSalvo.meanArrivalSpread.toFixed(3);
-  canvas.dataset.sovietSalvoPlanStates = airCombat.aircraft
-    .filter((aircraft) => aircraft.definition.id === "TU-16K")
-    .map((aircraft) => {
-      const plan = airCombat.sovietSalvoPlanFor(aircraft.id, elapsed);
-      return `${aircraft.id}:${plan ? `${plan.waveId}:${plan.sequence}/${plan.total}:${plan.releaseAt.toFixed(2)}:${plan.plannedArrivalAt.toFixed(2)}:${plan.sourceReportTrackId}` : "none"}`;
-    })
-    .join("|");
-  canvas.dataset.sovietSalvoEventLog = airCombat.events
-    .filter((event) => /TARGET AREA RECEIVED|FLEET STRIKE ORDER|SALVO ASSIGNMENT|Tu-16K Badger-G DETECT|Tu-16K Badger-G LAUNCH KSR-5/.test(event.text))
-    .map((event) => `${event.time.toFixed(2)}:${event.text}`)
-    .join("|");
+  writeSovietAirDiagnostics(
+    canvas.dataset,
+    airCombat,
+    elapsed,
+    sovietCommandEraInput.value,
+    sovietCommandInput.checked,
+  );
   const networkObservation = airCombat.tacticalNetworkObservation(elapsed);
   canvas.dataset.datalinkDecisionLog = networkObservation.decisions
     .map((decision) => `${decision.time.toFixed(2)}:${decision.network}:${decision.kind}:${decision.participantId}:${decision.trackId}`)
@@ -9088,6 +9350,12 @@ function tick(now: number) {
   canvas.dataset.airWeaponLaunchLog = airCombat.events
     .filter((event) => event.kind === "launch")
     .map((event) => event.text)
+    .join("|");
+  canvas.dataset.airWeaponLaunchAssignments = airCombat.events
+    .filter((event) => event.kind === "launch")
+    .map((event) =>
+      `${event.launchId ?? "unknown"}:${event.entityId ?? "unknown"}:` +
+      `${event.weaponId ?? "unknown"}:${event.targetTrackId ?? "unknown"}`)
     .join("|");
   canvas.dataset.airSeekerEventLog = airCombat.events
     .filter(
@@ -9279,6 +9547,7 @@ function tick(now: number) {
   canvas.dataset.simulationElapsed = elapsed.toFixed(3);
   updateShipWeaponVisuals(realDt);
   updateCamera();
+  nightSubjectFill.update(camera);
   if (webGpuUltraStatus === "active" && webGpuUltraResult?.updateFroxel && elapsed - lastFroxelUpdateAt >= 0.12) {
     lastFroxelUpdateAt = elapsed;
     const currentSamples = collectVolumetricLightSamples(scene, camera);
@@ -9327,7 +9596,7 @@ function tick(now: number) {
   // along the same afternoon direction used by clouds, ocean and shadows.
   const sunWorldPoint = camera.position
     .clone()
-    .addScaledVector(AFTERNOON_SUN_DIRECTION, camera.far * 0.72);
+    .addScaledVector(activeLightingPreset.sunDirection, camera.far * 0.72);
   const sunScreen = sunWorldPoint.project(camera);
   cinematicAtmospherePass.uniforms.sunPosition.value.set(
     sunScreen.x * 0.5 + 0.5,
@@ -9447,6 +9716,7 @@ addEventListener("keydown", (e) => {
   if (e.code === "Space" && !scenarioBriefingLocked) {
     running = !running;
     activeGuidanceRuntime?.setPaused(!running);
+    refreshScenarioGuidanceUi();
   }
   if (e.key.toLowerCase() === "r") location.reload();
 });

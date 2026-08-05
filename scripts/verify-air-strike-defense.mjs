@@ -25,6 +25,8 @@ try{
   await page.screenshot({path:"verification-air-missile-defense.png",fullPage:true});
   await start();
   await page.getByRole("button",{name:"AUTO FIRE: ON"}).click();
+  await page.getByRole("button",{name:"CIWS: AUTO"}).click();
+  await page.getByRole("button",{name:"SHIP ECM: AUTO"}).click();
   try {
     await page.waitForFunction(()=>Number(document.querySelector("#scene")?.dataset.airShipHits??0)>=1,null,{timeout:60_000});
   } catch (error) {

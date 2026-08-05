@@ -43,7 +43,7 @@ export class DatalinkAarRecorder {
       const route = activity.recipientId
         ? `${activity.senderId} -> ${activity.recipientId}`
         : activity.senderId;
-      const detail = [activity.trackId && `TRACK ${activity.trackId}`, activity.delay !== undefined && `DELAY ${activity.delay.toFixed(2)}s`]
+      const detail = [activity.trackId && `TRACK ${activity.trackId}`, activity.delay !== undefined && `DELAY ${activity.delay.toFixed(2)}s`, activity.reason && `REASON ${activity.reason.toUpperCase()}`]
         .filter(Boolean).join(" / ");
       events.push({
         time: activity.time,

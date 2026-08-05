@@ -1,4 +1,5 @@
 import type { PropagationChannel, PropagationContext, PropagationEffect, SpaceWeatherSnapshot } from "./types.js";
+import { applySpatialWeather } from "./spatial-effects.js";
 
 const clamp01 = (value:number) => Math.max(0,Math.min(1,value));
 function hash01(value:string) { let hash=2166136261; for(let i=0;i<value.length;i++) {
@@ -17,18 +18,28 @@ const CHANNELS: Record<PropagationChannel,ChannelProfile> = {
 
 /** Pure deterministic adapter; callers retain their own terminal/range/capacity rules. */
 export function evaluatePropagation(snapshot:SpaceWeatherSnapshot, context:PropagationContext):PropagationEffect {
+  const positions = [context.senderPosition, context.recipientPosition].filter((value): value is readonly [number,number,number] => Boolean(value));
+  const spatial = context.spatialZones?.length
+    ? applySpatialWeather(snapshot, positions, context.spatialZones)
+    : { snapshot: snapshot.communicationWindowOpen ? {
+        ...snapshot,
+        hfAvailability:Math.max(snapshot.hfAvailability,snapshot.communicationWindowStrength*.72),
+        vhfUhfReliability:Math.max(snapshot.vhfUhfReliability,snapshot.communicationWindowStrength),
+        satelliteReliability:Math.max(snapshot.satelliteReliability,snapshot.communicationWindowStrength*.64),
+      } : snapshot, activeZoneIds:[] as string[], disturbanceWeight:0, windowWeight:snapshot.communicationWindowOpen?1:0 };
+  snapshot=spatial.snapshot;
   const profile=CHANNELS[context.channel]; const range=clamp01(context.rangeRatio??0);
   const environmental=clamp01(profile.reliability(snapshot)*(1-snapshot.ionosphericScintillation*.22*profile.sensitivity));
   const rangePenalty=range*range*.18;
   const success=clamp01((context.baseSuccessProbability??1)*environmental-rangePenalty);
-  const sample=hash01(`${snapshot.presetId}:${Math.floor(snapshot.time*4)}:${context.channel}:${context.messageId}:${context.senderId}:${context.recipientId}`);
+  const sample=hash01(`${snapshot.scenarioSeed ?? 0}:${snapshot.presetId}:${Math.floor(snapshot.time*4)}:${context.channel}:${context.messageId}:${context.senderId}:${context.recipientId}`);
   const outOfRange=(context.rangeRatio??0)>1;
   const dropped=outOfRange||sample>success;
   const quality=clamp01((context.baseQuality??1)*(.35+.65*environmental)*(1-snapshot.magneticDisturbance*.12));
   const addedDelay=profile.delay*(1-environmental)*(1+snapshot.ionosphericScintillation*2.5)+range*profile.delay*.25;
-  const reason=outOfRange?"out-of-range":dropped?"space-weather-loss":environmental<.78?"degraded":"nominal";
+  const reason=outOfRange?"out-of-range":dropped?"space-weather-loss":spatial.windowWeight>0?"localized-window":spatial.disturbanceWeight>0?"localized-disturbance":environmental<.78?"degraded":"nominal";
   return { channel:context.channel, available:!dropped&&environmental>.01,
     qualityMultiplier:quality, delaySeconds:(context.baseDelaySeconds??0)+addedDelay,
     successProbability:success, dropped, clockErrorSeconds:profile.clock*snapshot.magneticDisturbance*(.5+sample),
-    uncertaintyMultiplier:1+(1-quality)*2.5+addedDelay*.08, reason };
+    uncertaintyMultiplier:1+(1-quality)*2.5+addedDelay*.08, reason, spatialZoneIds:spatial.activeZoneIds };
 }

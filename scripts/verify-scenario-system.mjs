@@ -20,7 +20,15 @@ for (const force of scenario.forces) {
   assert(Number.isFinite(force.headingDeg));
 }
 assert.equal(scenario.forces.filter((force) => force.kind === "ship").length, 3);
-assert.equal(scenario.forces.filter((force) => force.kind === "air-formation").reduce((sum, force) => sum + force.count, 0), 10);
+const airFormations = scenario.forces.filter((force) => force.kind === "air-formation");
+const aircraftCount = (side, platformId) => airFormations
+  .filter((force) => force.side === side && force.platformId === platformId)
+  .reduce((sum, force) => sum + force.count, 0);
+assert.equal(airFormations.reduce((sum, force) => sum + force.count, 0), 16);
+assert.equal(airFormations.filter((force) => force.side === "blue").reduce((sum, force) => sum + force.count, 0), 5);
+assert.equal(airFormations.filter((force) => force.side === "red").reduce((sum, force) => sum + force.count, 0), 11);
+assert.equal(aircraftCount("red", "TU-16K"), 6);
+assert.equal(aircraftCount("red", "MIG-29A"), 4);
 
 const routeIds = new Set(scenario.routes.map((route) => route.id));
 for (const force of scenario.forces) if (force.routeId) assert(routeIds.has(force.routeId), `unknown route: ${force.routeId}`);
@@ -43,4 +51,4 @@ normalized.guidance.cues.sort((a, b) => a.id.localeCompare(b.id));
 normalized.timeline.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
 assert.deepEqual(JSON.parse(JSON.stringify(normalized)), normalized, "scenario must remain pure JSON through round-trip");
 
-console.log(`scenario-system verification passed: ${scenario.forces.length} formations/entities, 10 aircraft, ${scenario.guidance.cues.length} guidance cues`);
+console.log(`scenario-system verification passed: ${scenario.forces.length} formations/entities, 16 aircraft (6 Tu-16K + 4 MiG-29A), ${scenario.guidance.cues.length} guidance cues`);

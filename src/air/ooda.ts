@@ -127,6 +127,7 @@ export function selectThrustMode(input: {
   weaponMaxRange: number;
   speedRatio: number;
   desiredSpeedRatio?: number | null;
+  formationRejoinError?: number | null;
   climbDemand: number;
 }): AirThrustMode {
   if (input.state === "disabled" || input.state === "crashed") return "idle";
@@ -145,6 +146,14 @@ export function selectThrustMode(input: {
     input.desiredSpeedRatio !== undefined &&
     input.speedRatio >= input.desiredSpeedRatio * 1.04;
   const energyDeficit = input.speedRatio < 0.68 || input.climbDemand > 0.18 || commandedSpeedDeficit;
+  const rejoinDemand = input.formationRejoinError !== null &&
+    input.formationRejoinError !== undefined && input.formationRejoinError > 8;
+  if (input.state === "formation" && rejoinDemand) {
+    if (canUseAfterburner && input.fuelRatio > 0.35 &&
+        input.formationRejoinError! > 90)
+      return "afterburner";
+    return "military";
+  }
   if (input.state === "engaging" && (outsideLaunchEnvelope || energyDeficit)) {
     if (canUseAfterburner && input.fuelRatio > 0.28) return "afterburner";
     return "military";

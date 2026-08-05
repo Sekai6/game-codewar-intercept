@@ -5,12 +5,15 @@ import type { DatalinkEra } from "../datalink/era.js";
 import { DATALINK_ERAS } from "../datalink/era.js";
 import { SOVIET_COMMAND_ERAS } from "../soviet-c2/era.js";
 import { SPACE_WEATHER_PRESETS } from "../space-weather/catalog.js";
-import type { SpaceWeatherKeyframe, SpaceWeatherPhase, SpaceWeatherPreset } from "../space-weather/types.js";
+import type { SpaceWeatherPhase, SpaceWeatherPreset } from "../space-weather/types.js";
+import { retimeSpaceWeatherKeyframes } from "../space-weather/timeline-runtime.js";
 import { LOST_COMMS_DOCTRINES } from "../lost-comms/doctrine-catalog.js";
 import type { NavalForceScenario } from "../fleet/types.js";
 import type { ShipDefinition } from "../ship-types.js";
 import { normalizeScenarioDocument } from "./normalizer.js";
 import type { ScenarioDocument, ScenarioShipDefinition } from "./types.js";
+import { WeatherFrontRuntime } from "../environment/weather-front-runtime.js";
+import { formationSlotForIndex } from "../air/formation.js";
 
 type BelligerentShip = ScenarioShipDefinition & { side: "blue" | "red" };
 
@@ -28,9 +31,25 @@ export interface CompiledScenario {
     lostCommsDoctrineId?: string;
   }[];
   airSpawns: readonly AirSpawn[];
+  threatWaves: readonly CompiledThreatWave[];
   routes: ReadonlyMap<string, CompiledScenarioRoute>;
   initialStates: ReadonlyMap<string, CompiledPlatformInitialState>;
   timeline: CompiledScenarioTimeline;
+  weatherFronts: WeatherFrontRuntime;
+}
+
+export interface CompiledThreatWave {
+  id: string;
+  threatId: string;
+  side: "blue" | "red";
+  source: "in-flight" | "surface-platform";
+  sourcePlatformId?: string;
+  count: number;
+  firstLaunchAt: number;
+  intervalSeconds: number;
+  origin: THREE.Vector3;
+  altitude: number;
+  spread: number;
 }
 
 export interface CompiledScenarioRoute {
@@ -78,7 +97,7 @@ export function trueHeadingToWorldVector(headingDeg: number): THREE.Vector3 {
 
 function compileNavalForces(document: ScenarioDocument): NavalForceScenario[] {
   const ships = document.forces.filter((force): force is BelligerentShip =>
-    force.kind === "ship" && force.side === "blue");
+    force.kind === "ship" && force.side !== "neutral");
   const grouped = new Map<string, BelligerentShip[]>();
   for (const ship of ships) {
     const key = `${ship.side}:${ship.forceId}`;
@@ -146,19 +165,29 @@ function compileInitialStates(document: ScenarioDocument, routes: ReadonlyMap<st
   }));
 }
 
-function phaseFrame(preset: SpaceWeatherPreset, phase: SpaceWeatherPhase, at: number): SpaceWeatherKeyframe {
-  const source = preset.keyframes.find((frame) => frame.phase === phase);
-  if (!source) throw new Error(`Preset ${preset.id} has no values for phase ${phase}`);
-  return { ...source, at };
-}
-
 function compileTimeline(document: ScenarioDocument): CompiledScenarioTimeline {
   const presetId = document.environment.spaceWeatherPresetId;
-  if (!presetId || !(presetId in SPACE_WEATHER_PRESETS)) throw new Error("Scenario timeline requires a valid space-weather preset");
+  if (!presetId) {
+    return {
+      events: document.timeline,
+      spaceWeather: {
+        id: "scenario-quiet",
+        scenarioSeed: document.simulation.seed,
+        label: "Quiet ionosphere",
+        durationSeconds: document.simulation.durationSeconds,
+        keyframes: [{ at: 0, phase: "quiet", intensity: 0, hfAvailability: 1, vhfUhfReliability: 1, satelliteReliability: 1, gnssQuality: 1, radarNoise: 0, ionosphericScintillation: 0, magneticDisturbance: 0 }],
+        communicationWindows: [],
+      },
+    };
+  }
+  if (!(presetId in SPACE_WEATHER_PRESETS)) throw new Error("Scenario timeline requires a valid space-weather preset");
   const base = SPACE_WEATHER_PRESETS[presetId as keyof typeof SPACE_WEATHER_PRESETS];
   const phaseEvents = document.timeline.filter((event) => event.type === "space-weather-phase");
   const windowEvents = document.timeline.filter((event) => event.type === "comms-window");
-  const keyframes = phaseEvents.map((event) => phaseFrame(base, event.value as SpaceWeatherPhase, event.at));
+  const keyframes = retimeSpaceWeatherKeyframes(base, phaseEvents.map((event) => ({
+    at: event.at,
+    phase: event.value as SpaceWeatherPhase,
+  })), document.simulation.durationSeconds);
   const communicationWindows = windowEvents.map((event) => ({
     start: event.at,
     end: event.at + (event.duration ?? 0),
@@ -168,6 +197,7 @@ function compileTimeline(document: ScenarioDocument): CompiledScenarioTimeline {
     events: document.timeline,
     spaceWeather: {
       ...base,
+      scenarioSeed: document.simulation.seed,
       durationSeconds: document.simulation.durationSeconds,
       keyframes,
       communicationWindows,
@@ -196,18 +226,40 @@ function compileAirSpawns(document: ScenarioDocument): AirSpawn[] {
     if (!definition) throw new Error(`Unknown air platform ${force.platformId} for ${force.id}`);
     const heading = trueHeadingToWorldVector(force.headingDeg);
     const route = force.routeId ? document.routes.find((candidate) => candidate.id === force.routeId) : undefined;
-    const launchZone = force.mission === "anti-ship"
-      ? document.zones.find((zone) => zone.kind === "launch-corridor" && (!zone.side || zone.side === side))
+    const deploymentZone = force.deployment
+      ? document.zones.find((zone) => zone.id === force.deployment!.zoneId)
       : undefined;
-    const right = new THREE.Vector3(-heading.z, 0, heading.x);
+    const basePosition = deploymentZone
+      ? seededDeploymentPosition(document.simulation.seed, force.deployment?.groupId ?? force.id, deploymentZone.center, deploymentZone.radius, force.deployment?.minRadiusFactor, force.deployment?.maxRadiusFactor)
+      : new THREE.Vector3(...force.position);
+    if(force.deployment?.offset)basePosition.add(new THREE.Vector3(...force.deployment.offset));
+    basePosition.y = force.altitude;
+    const configuredPosition = new THREE.Vector3(force.position[0], force.altitude, force.position[2]);
+    const deploymentOffset = basePosition.clone().sub(configuredPosition);
+    const scenarioRoute = route?.points.map((point, index) => {
+      const position = new THREE.Vector3(...point.position);
+      if (!deploymentZone || !route) return position;
+      const routeMode = force.deployment?.routeMode ?? (route.loop ? "translate" : "converge");
+      const weight = routeMode === "translate" ? 1 : 1 - index / Math.max(1, route.points.length - 1);
+      return position.addScaledVector(deploymentOffset, weight);
+    });
+    const launchZone = force.mission === "anti-ship"
+      ? force.launchZoneId
+        ? document.zones.find((zone) => zone.id === force.launchZoneId)
+        : document.zones.find((zone) => zone.kind === "launch-corridor" && (!zone.side || zone.side === side))
+      : undefined;
     return Array.from({ length: force.count }, (_, formationIndex) => {
-      const row = Math.floor(formationIndex / 2);
-      const lateralSide = formationIndex % 2 === 0 ? -1 : 1;
-      const spacing = force.count === 1 ? 0 : 12 + row * 5;
-      const position = new THREE.Vector3(force.position[0], force.altitude, force.position[2])
-        .addScaledVector(right, lateralSide * spacing)
-        .addScaledVector(heading, -row * 10);
-      position.y += formationIndex % 2 === 0 ? 0 : 2;
+      const leaderPosition = new THREE.Vector3(
+        basePosition.x,
+        basePosition.y,
+        basePosition.z,
+      );
+      const slot = formationSlotForIndex({
+        leader: leaderPosition,
+        leaderHeading: heading,
+        formationIndex,
+      });
+      const position = new THREE.Vector3(slot.x, slot.y, slot.z);
       return {
         definition,
         side,
@@ -218,15 +270,48 @@ function compileAirSpawns(document: ScenarioDocument): AirSpawn[] {
         leaderId: formationIndex === 0 ? undefined : `${force.id}-1`,
         mission: force.mission,
         protectedFormationId: force.protectedFormationId,
-        scenarioRoute: route?.points.map((point) => new THREE.Vector3(...point.position)),
+        scenarioRoute,
         scenarioRouteLoop: route?.loop ?? false,
         scenarioLaunchZone: launchZone
           ? { center:new THREE.Vector3(...launchZone.center), radius:launchZone.radius }
           : undefined,
         initialSpeed: force.speed,
+        initialRadarState: force.radarState,
+        initialEcmEnabled: force.ecmEnabled,
+        initialLoadout: force.loadout,
       };
     });
   });
+}
+
+function hashSeed(seed:number,value:string) {
+  let hash=(seed^0x9e3779b9)>>>0;
+  for(let index=0;index<value.length;index++){
+    hash^=value.charCodeAt(index);
+    hash=Math.imul(hash,0x85ebca6b)>>>0;
+    hash^=hash>>>13;
+  }
+  return hash>>>0;
+}
+
+function seededUnit(seed:number) {
+  let value=seed>>>0;
+  return ()=>{
+    value=(value+0x6d2b79f5)>>>0;
+    let mixed=value;
+    mixed=Math.imul(mixed^(mixed>>>15),mixed|1);
+    mixed^=mixed+Math.imul(mixed^(mixed>>>7),mixed|61);
+    return ((mixed^(mixed>>>14))>>>0)/4294967296;
+  };
+}
+
+function seededDeploymentPosition(seed:number,id:string,center:readonly [number,number,number],radius:number,minFactor=.25,maxFactor=.9) {
+  const random=seededUnit(hashSeed(seed,`deployment:${id}`));
+  const inner=Math.max(0,Math.min(1,minFactor));
+  const outer=Math.max(inner,Math.min(1,maxFactor));
+  const radialFactor=Math.sqrt(inner*inner+random()*(outer*outer-inner*inner));
+  const angle=random()*Math.PI*2;
+  return new THREE.Vector3(center[0]+Math.cos(angle)*radius*radialFactor,center[1],center[2]+Math.sin(angle)*radius*radialFactor);
 }
 
 export function compileScenario(input: unknown, options: ScenarioCompilerOptions = {}): CompiledScenario {
@@ -251,8 +336,10 @@ export function compileScenario(input: unknown, options: ScenarioCompilerOptions
     navalForces: compileNavalForces(document),
     surfacePlatformSpawns: compileSurfacePlatforms(document),
     airSpawns: compileAirSpawns(document),
+    threatWaves: (document.threatWaves ?? []).map((wave) => ({ ...wave, origin: new THREE.Vector3(...wave.origin) })),
     routes,
     initialStates: compileInitialStates(document, routes),
     timeline: compileTimeline(document),
+    weatherFronts: new WeatherFrontRuntime(document.zones, document.simulation.seed),
   };
 }

@@ -8,6 +8,7 @@ export type SpaceWeatherPhase =
   | "recovery";
 
 export type SpaceWeatherPresetId =
+  | "scenario-quiet"
   | "EXTREME_SPACE_WEATHER"
   | "TOTAL_BAND_DENIAL";
 
@@ -22,6 +23,7 @@ export type PropagationChannel =
 
 export interface SpaceWeatherSnapshot {
   presetId: SpaceWeatherPresetId;
+  scenarioSeed?: number;
   phase: SpaceWeatherPhase;
   time: number;
   intensity: number;
@@ -33,7 +35,15 @@ export interface SpaceWeatherSnapshot {
   ionosphericScintillation: number;
   magneticDisturbance: number;
   communicationWindowOpen: boolean;
+  communicationWindowStrength: number;
   nextTransitionAt: number | null;
+}
+
+export interface PropagationSpatialZone {
+  id: string;
+  kind: "magnetic-disturbance" | "comms-window";
+  center: readonly [number, number, number];
+  radius: number;
 }
 
 export interface SpaceWeatherKeyframe {
@@ -51,6 +61,7 @@ export interface SpaceWeatherKeyframe {
 
 export interface SpaceWeatherPreset {
   id: SpaceWeatherPresetId;
+  scenarioSeed?: number;
   label: string;
   durationSeconds: number;
   keyframes: readonly SpaceWeatherKeyframe[];
@@ -66,6 +77,9 @@ export interface PropagationContext {
   baseDelaySeconds?: number;
   baseSuccessProbability?: number;
   rangeRatio?: number;
+  senderPosition?: readonly [number, number, number];
+  recipientPosition?: readonly [number, number, number];
+  spatialZones?: readonly PropagationSpatialZone[];
 }
 
 export interface PropagationEffect {
@@ -77,5 +91,6 @@ export interface PropagationEffect {
   dropped: boolean;
   clockErrorSeconds: number;
   uncertaintyMultiplier: number;
-  reason: "nominal" | "degraded" | "space-weather-loss" | "out-of-range";
+  reason: "nominal" | "degraded" | "space-weather-loss" | "out-of-range" | "localized-disturbance" | "localized-window";
+  spatialZoneIds: readonly string[];
 }

@@ -61,9 +61,34 @@ export interface ScenarioAirFormationDefinition {
   altitude: number;
   mission: "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
   routeId?: string;
+  launchZoneId?: string;
   protectedFormationId?: string;
   lostCommsDoctrineId?: string;
   radarState?: "active" | "silent";
+  ecmEnabled?: boolean;
+  loadout?: Readonly<Record<string, number>>;
+  deployment?: {
+    zoneId: string;
+    groupId?: string;
+    offset?: ScenarioVec3;
+    minRadiusFactor?: number;
+    maxRadiusFactor?: number;
+    routeMode?: "translate" | "converge";
+  };
+}
+
+export interface ScenarioThreatWaveDefinition {
+  id: string;
+  threatId: string;
+  side: Exclude<ScenarioSide, "neutral">;
+  source: "in-flight" | "surface-platform";
+  sourcePlatformId?: string;
+  count: number;
+  firstLaunchAt: number;
+  intervalSeconds: number;
+  origin: ScenarioVec3;
+  altitude: number;
+  spread: number;
 }
 
 export type ScenarioForceDefinition = ScenarioShipDefinition | ScenarioAirFormationDefinition;
@@ -77,11 +102,24 @@ export interface ScenarioRouteDefinition {
 
 export interface ScenarioZoneDefinition {
   id: string;
-  kind: "rendezvous" | "launch-corridor" | "weather-front" | "magnetic-disturbance" | "comms-window" | "exclusion" | "threat-estimate";
+  kind: "rendezvous" | "launch-corridor" | "weather-front" | "magnetic-disturbance" | "comms-window" | "exclusion" | "threat-estimate" | "deployment-zone";
   center: ScenarioVec3;
   radius: number;
   side?: ScenarioSide;
   visibleInBriefing?: boolean;
+  motion?: {
+    velocity: ScenarioVec3;
+    oscillation?: { axis: ScenarioVec3; amplitude: number; periodSeconds: number };
+  };
+  weather?: {
+    intensity: number;
+    visibilityKm: number;
+    radarAttenuation: number;
+    measurementNoise: number;
+    turbulence: number;
+    cloudBase: number;
+    cloudTop: number;
+  };
 }
 
 export interface ScenarioTimelineEvent {
@@ -100,6 +138,12 @@ export interface ScenarioObjectiveDefinition {
   kind: "protect" | "intercept" | "survive" | "observe" | "strike";
   targetIds: readonly string[];
   optional?: boolean;
+  criteria?: {
+    requiredLaunchByFormationIds?: readonly string[];
+    forbiddenLaunchByFormationIds?: readonly string[];
+    requiredWeaponIds?: readonly string[];
+    requiredSpaceWeatherPhases?: readonly string[];
+  };
 }
 
 export type GuidanceTrigger =
@@ -131,12 +175,32 @@ export interface ScenarioGuidanceCue {
 }
 
 export interface ScenarioGuidanceDefinition {
+  soundtrack?: {
+    id: string;
+    title: string;
+    theme?: {
+      title: string;
+      file: string;
+      durationSeconds: number;
+    };
+  };
   briefing: {
     strategicBackground: readonly string[];
     blueMission: readonly string[];
     intelligenceEstimate: readonly string[];
     features: readonly string[];
     controls: readonly string[];
+    dossier?: {
+      title: string;
+      classification: string;
+      dateline: string;
+      lead: string;
+      sections: readonly {
+        heading: string;
+        kicker?: string;
+        paragraphs: readonly string[];
+      }[];
+    };
   };
   estimatedContactWindow?: readonly [number, number];
   cues: readonly ScenarioGuidanceCue[];
@@ -149,6 +213,7 @@ export interface ScenarioDocument {
   simulation: ScenarioSimulationConfig;
   environment: ScenarioEnvironmentConfig;
   forces: readonly ScenarioForceDefinition[];
+  threatWaves?: readonly ScenarioThreatWaveDefinition[];
   routes: readonly ScenarioRouteDefinition[];
   zones: readonly ScenarioZoneDefinition[];
   timeline: readonly ScenarioTimelineEvent[];

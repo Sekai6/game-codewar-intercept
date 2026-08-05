@@ -1,10 +1,11 @@
 import { Link11Network } from "../datalink/link11-network.js";
-import type { Link11Diagnostics, TacticalNetworkActivity } from "../datalink/types.js";
+import type { Link11Diagnostics, Link16TrackReport, TacticalNetworkActivity } from "../datalink/types.js";
 import type { ShipTrackEstimate } from "../ships/types.js";
 import { shipLink11Eligible } from "../datalink/era.js";
 import { buildForcePicture } from "./force-picture.js";
 import type { NavalForceRuntime } from "./types.js";
-import type { SpaceWeatherSnapshot } from "../space-weather/types.js";
+import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
+import { ConflictTrackFusionRuntime } from "../tracks/conflict-fusion.js";
 
 function opaqueTrackNumber(senderId: string, targetId: string) {
   let hash = 2166136261;
@@ -18,11 +19,18 @@ function opaqueTrackNumber(senderId: string, targetId: string) {
 export class FleetLink11Runtime {
   private readonly network = new Link11Network();
   private readonly published = new Map<string, number>();
+  private readonly deferred = new Map<string, {
+    senderId: string;
+    report: Omit<Link16TrackReport,"messageId"|"senderId"|"side"|"transmittedAt">;
+    queuedAt: number;
+  }>();
   private enabled = false;
+  private readonly fusion = new ConflictTrackFusionRuntime();
 
   setPropagationSnapshot(snapshot: SpaceWeatherSnapshot | null) {
     this.network.setPropagationSnapshot(snapshot);
   }
+  setPropagationZones(zones: readonly PropagationSpatialZone[]) { this.network.setPropagationZones(zones); }
 
   update(force: NavalForceRuntime, now: number, dataLinkEnabled: boolean) {
     const operational = shipLink11Eligible({ era: force.datalinkEra, enabled: dataLinkEnabled });
@@ -39,6 +47,7 @@ export class FleetLink11Runtime {
         hullFactor,
         (ship.subsystemHealth.get("fireControl") ?? 0) / 100,
       );
+      const connected = force.shipComms.get(ship.id)?.connected !== false;
       this.network.upsertParticipant({
         id: ship.id,
         side: ship.side,
@@ -46,16 +55,15 @@ export class FleetLink11Runtime {
         alive: ship.alive,
         terminalHealth,
         timeSyncQuality: 0.68,
-        transmitEnabled: ship.alive,
-        receiveEnabled: ship.alive,
+        transmitEnabled: ship.alive && connected,
+        receiveEnabled: ship.alive && connected,
         netControlCapable: ship.id === otc,
       });
       for (const track of ship.localTracks.values()) {
         const observationId = `${ship.id}:${opaqueTrackNumber(ship.id, track.targetId)}:${track.updatedAt.toFixed(3)}`;
         const publishKey = `${ship.id}:${observationId}`;
-        if (this.published.has(publishKey)) continue;
-        this.published.set(publishKey, now);
-        this.network.publishTrack(ship.id, {
+        if (this.published.has(publishKey) || this.deferred.has(publishKey)) continue;
+        const report = {
           trackId: opaqueTrackNumber(ship.id, track.targetId),
           originSensorId: `${ship.id}:organic-radar`,
           observationId,
@@ -67,11 +75,29 @@ export class FleetLink11Runtime {
           quality: track.quality,
           uncertainty: track.uncertainty,
           priority: track.classification === "missile" ? "emergency" : "routine",
-        }, now);
+        } as const;
+        if (connected && this.network.publishTrack(ship.id, report, now)) this.published.set(publishKey, now);
+        else {
+          this.deferred.set(publishKey, { senderId:ship.id, report, queuedAt:now });
+          const senderBacklog = [...this.deferred.entries()]
+            .filter(([, item]) => item.senderId === ship.id)
+            .sort((a, b) => a[1].queuedAt - b[1].queuedAt);
+          while (senderBacklog.length > 12) {
+            const [oldestKey] = senderBacklog.shift()!;
+            this.deferred.delete(oldestKey);
+          }
+        }
       }
+    }
+    for (const [key, item] of this.deferred) {
+      if (force.shipComms.get(item.senderId)?.connected === false) continue;
+      if (!this.network.publishTrack(item.senderId, item.report, now)) continue;
+      this.published.set(key, now);
+      this.deferred.delete(key);
     }
     this.network.update(now);
     for (const ship of force.ships.values()) {
+      if (force.shipComms.get(ship.id)?.connected === false) ship.networkTracks.clear();
       for (const delivery of this.network.drainInbox(ship.id)) {
         const report = delivery.report;
         const age = Math.max(0, now - report.observedAt);
@@ -93,17 +119,22 @@ export class FleetLink11Runtime {
     }
     for (const [key, publishedAt] of this.published)
       if (now - publishedAt > 30) this.published.delete(key);
-    buildForcePicture(force, now);
+    for (const [key, item] of this.deferred)
+      if (now - item.queuedAt > 900) this.deferred.delete(key);
+    buildForcePicture(force, now, this.fusion);
   }
 
   reset(force: NavalForceRuntime) {
     this.network.reset();
     this.published.clear();
+    this.deferred.clear();
     for (const ship of force.ships.values()) ship.networkTracks.clear();
     force.picture.clear();
+    this.fusion.reset();
   }
 
   diagnostics(): Readonly<Link11Diagnostics> { return this.network.diagnostics(); }
   isEnabled() { return this.enabled; }
   activities(now: number): readonly TacticalNetworkActivity[] { return this.network.recentActivities(now); }
+  drainFusionEvents(){return this.fusion.drainEvents();}
 }
