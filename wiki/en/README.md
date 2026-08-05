@@ -10,6 +10,7 @@ This Wiki documents the implemented 3D Cold War naval and air-intercept simulati
 - [Platforms](PLATFORMS/README.md)
 - [Weapons](WEAPONS/README.md)
 - [Scenarios](SCENARIOS/README.md)
+- [Music and atmosphere](MUSIC.md)
 - [Versioning](VERSIONING.md)
 
 ## Future roadmap
