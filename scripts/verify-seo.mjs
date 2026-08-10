@@ -12,7 +12,7 @@ const count = (pattern) => [...html.matchAll(pattern)].length;
 assert.equal(count(/<title>/gi), 1, "Exactly one title is required");
 assert.equal(count(/<meta\s+name="description"/gi), 1, "Exactly one meta description is required");
 assert.equal(count(/<link\s+rel="canonical"/gi), 1, "Exactly one canonical URL is required");
-assert.match(html, new RegExp(`<link\\s+rel="canonical"\\s+href="${siteUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*\/?>`, "i"));
+assert.match(html, new RegExp(`<link\\s+rel="canonical"\\s+href="${siteUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*/?>`, "i"));
 assert.doesNotMatch(html, /noindex/i);
 
 for (const property of ["og:type", "og:title", "og:description", "og:url", "og:image", "og:image:width", "og:image:height"]) {
@@ -27,7 +27,8 @@ assert.ok(jsonLdMatch, "Missing JSON-LD");
 const jsonLd = JSON.parse(jsonLdMatch[1]);
 assert.equal(jsonLd["@type"], "SoftwareApplication");
 assert.equal(jsonLd.url, siteUrl);
-assert.equal(jsonLd.softwareVersion, packageMetadata.version);
+assert.equal(jsonLd.softwareVersion, "__APP_VERSION__");
+assert.match(html, /releases\/tag\/v__APP_VERSION__/);
 
 assert.match(html, /<details class="project-info">/);
 assert.match(html, /数百项遥测字段/);

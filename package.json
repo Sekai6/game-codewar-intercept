@@ -5,6 +5,7 @@
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
+    "prebuild": "npm run verify:seo",
     "verify:weather-front": "npm run build:test-scenario --silent && node scripts/verify-weather-front.mjs",
     "verify:scenario-system": "tsc src/scenario-system/validator.ts src/scenario-system/import-export.ts --rootDir src --outDir dist-test-scenario --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-scenario-system.mjs && node scripts/verify-scenario-runtime.mjs",
     "verify:scenario-objectives": "tsc src/scenario-system/objective-runtime.ts --rootDir src --outDir dist-test-scenario --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-scenario-objectives.mjs",
