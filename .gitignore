@@ -6,6 +6,7 @@ KEYS/
 *.env
 *.png
 !readme-cg57-ultra-aurora.png
+!public/og-cover.png
 !verification-fleet-launch-cycle.png
 !wiki/assets/**/*.png
 

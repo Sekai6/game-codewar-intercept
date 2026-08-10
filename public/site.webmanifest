@@ -1,0 +1,10 @@
+{
+  "name": "NTU Intercept",
+  "short_name": "NTU Intercept",
+  "description": "3D Cold War naval and joint-air combat simulation",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#061116",
+  "theme_color": "#061116",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

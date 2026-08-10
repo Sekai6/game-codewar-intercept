@@ -27,6 +27,7 @@
     "verify:blackout-ultra-visual": "node scripts/verify-blackout-ultra-visual.mjs",
     "verify:blackout-quality-parity": "node scripts/verify-blackout-quality-mechanism-parity.mjs",
     "verify:docs": "node scripts/verify-doc-links.mjs",
+    "verify:seo": "node scripts/verify-seo.mjs",
     "verify:cg57": "node scripts/verify-cg57.mjs",
     "verify:surface-salvo": "node scripts/verify-surface-salvo.mjs",
     "verify:bilateral-launch": "node scripts/verify-bilateral-launch.mjs",
