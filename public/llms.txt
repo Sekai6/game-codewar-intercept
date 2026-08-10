@@ -1,0 +1,25 @@
+# NTU Intercept
+
+NTU Intercept is a free-to-access, browser-based 3D Cold War naval and joint-air combat simulation.
+
+Live demo: https://cwi.kisara.info/
+Source and README: https://github.com/Sekai6/game-coldwar-intercept
+Documentation wiki: https://github.com/Sekai6/game-coldwar-intercept/wiki
+V1.21 release: https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.21.0
+
+## What the project models
+
+- Probabilistic radar detection, radar horizon, measurement error, track quality, uncertainty and aging.
+- Era-aware tactical datalinks including Link 11, airborne early warning and platform-local tactical pictures.
+- Aircraft interception, anti-ship strikes, shipboard air defense and multi-stage missile guidance.
+- Electronic warfare, ECM, chaff, flares, seeker competition and burn-through behavior.
+- Physical shipboard launch ownership: engagement queue, fire-control authorization, ammunition, launcher animation and missile separation.
+- Detailed after-action review, telemetry and Tacview ACMI export for observation and data analysis.
+
+## V1.21 scenario
+
+“Full-Spectrum Blackout: Polar Night Disconnection” is a 15–18 minute Norwegian Sea scenario. Extreme space weather gradually degrades communications rather than deleting the tactical picture. Ships, AEW aircraft and fighters can hold conflicting information, execute lost-communications doctrine and progressively reconcile tracks during intermittent recovery windows.
+
+## Important scope note
+
+Real platform and weapon names establish historical context. Performance values are game-scaled and are not statements of real-world capability. The project is not intended for operational training or engineering use. It is licensed under PolyForm Noncommercial 1.0.0.

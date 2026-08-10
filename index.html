@@ -4,8 +4,48 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#061116">
-  <title>NTU Intercept Exercise</title>
-  <link rel="icon" href="data:,">
+  <title>NTU Intercept — 3D Cold War Naval &amp; Air Combat Simulation</title>
+  <meta name="description" content="Browser-based 3D Cold War naval and air combat simulation with radar tracks, Link 11, aircraft interception, anti-ship missiles, legal shipboard SAM launch chains, electronic warfare, Tacview export and AAR telemetry.">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <link rel="canonical" href="https://cwi.kisara.info/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NTU Intercept">
+  <meta property="og:title" content="NTU Intercept — 3D Cold War Naval &amp; Air Combat Simulation">
+  <meta property="og:description" content="Observe uncertain radar tracks, datalinks, electronic warfare, physical launchers, phased missile guidance and auditable AAR telemetry in a browser-based Cold War combat simulation.">
+  <meta property="og:url" content="https://cwi.kisara.info/">
+  <meta property="og:image" content="https://cwi.kisara.info/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="USS Lake Champlain in the NTU Intercept WebGPU Ultra aurora environment">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="NTU Intercept — 3D Cold War Combat Simulation">
+  <meta name="twitter:description" content="A browser-based, observable naval and joint-air combat simulation with sensors, datalinks, electronic warfare, physical launch chains and detailed AAR telemetry.">
+  <meta name="twitter:image" content="https://cwi.kisara.info/og-cover.png">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/site.webmanifest">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "NTU Intercept",
+    "alternateName": "Cold War Intercept",
+    "description": "A browser-based 3D Cold War naval and joint-air combat simulation with observable sensor uncertainty, datalinks, electronic warfare, physical shipboard launch chains, Tacview export and AAR telemetry.",
+    "url": "https://cwi.kisara.info/",
+    "codeRepository": "https://github.com/Sekai6/game-coldwar-intercept",
+    "downloadUrl": "https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v__APP_VERSION__",
+    "softwareVersion": "__APP_VERSION__",
+    "applicationCategory": "GameApplication",
+    "applicationSubCategory": "Simulation game",
+    "operatingSystem": "Web browser",
+    "browserRequirements": "Requires JavaScript and WebGL; WebGPU is optional for Ultra quality.",
+    "isAccessibleForFree": true,
+    "inLanguage": ["zh-CN", "en"],
+    "license": "https://github.com/Sekai6/game-coldwar-intercept/blob/main/LICENSE",
+    "image": "https://cwi.kisara.info/og-cover.png"
+  }
+  </script>
 </head>
 <body>
   <div id="app">
@@ -15,7 +55,7 @@
     <section class="hud">
       <header class="masthead">
         <div><div class="brand">FLEETEX 83-4 <span>//</span> NORTH ATLANTIC</div><div class="title">NTU INTERCEPT</div></div>
-        <div class="status"><span class="dot"></span><span id="phase">TRACKING</span><span class="sep">/</span><span id="clock">00:00</span><span class="sep">/</span><span class="version" id="appVersion">V1.21</span></div>
+        <div class="status"><span class="dot"></span><span id="phase">TRACKING</span><span class="sep">/</span><span id="clock">00:00</span><span class="sep">/</span><span class="version" id="appVersion">V__APP_VERSION__</span></div>
       </header>
       <aside class="threat-panel">
         <div class="panel-kicker">THREAT EVALUATION</div><div class="threat-name" id="threatName">TRACK 01 / PENDING ID</div>
@@ -41,6 +81,28 @@
       <div class="radar-status" id="radarStatus">LOCAL PICTURE / ORG 0 / NET 0</div>
     </div>
   </div>
+  <details class="project-info">
+    <summary>ABOUT / PROJECT INFO</summary>
+    <div>
+      <h1>NTU Intercept</h1>
+      <p>一款可在浏览器中运行的 3D 冷战海空联合交战模拟。它强调可观察、可复核的完整作战链：雷达测量与航迹误差、Link 11 数据链、电子战、舰载火控授权、实体发射器离架、分阶段导引，以及 AAR 与 Tacview 遥测。</p>
+      <p><strong>V1.21「全频带阻塞干扰：极夜断链」</strong>将极端空间天气、逐步失联、各平台不同态势和失联条令放进一个 15–18 分钟的挪威海联合想定。</p>
+      <ul>
+        <li>舰船、飞机和导弹均为独立可追踪实体</li>
+        <li>传感器概率探测、误差、地平线和航迹老化</li>
+        <li>Link 11、空中预警、ECM、箔条与热焰弹</li>
+        <li>合法舰载 SAM 交战队列、弹药与发射器闭环</li>
+        <li>数百项遥测字段、AAR 时间线与 Tacview ACMI 导出</li>
+      </ul>
+      <nav aria-label="Project resources">
+        <a href="https://github.com/Sekai6/game-coldwar-intercept">SOURCE &amp; README</a>
+        <a href="https://github.com/Sekai6/game-coldwar-intercept/wiki">WIKI</a>
+        <a href="https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v__APP_VERSION__">V__APP_VERSION__ RELEASE</a>
+        <a href="https://github.com/Sekai6/game-coldwar-intercept/blob/main/LICENSE">LICENSE</a>
+      </nav>
+      <small>真实名称用于历史语境；性能参数经过游戏化处理，不代表现实装备能力，也不用于训练或工程用途。</small>
+    </div>
+  </details>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
