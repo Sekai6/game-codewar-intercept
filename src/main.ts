@@ -138,6 +138,7 @@ import { importScenarioJson, exportScenarioJson } from "./scenario-system/import
 import type { GuidanceFocus, ScenarioDocument } from "./scenario-system/types";
 import { ScenarioSession } from "./scenario-system/session";
 import { ScenarioObjectiveRuntime } from "./scenario-system/objective-runtime";
+import { ScenarioCommandMessageRuntime } from "./scenario-system/command-message-runtime";
 import { applyScenarioEnvironment } from "./visual/scenario-environment";
 import { SpaceWeatherTimelineRuntime } from "./space-weather/timeline-runtime";
 import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "./space-weather/types";
@@ -2254,6 +2255,7 @@ for (const threat of initialSurfaceThreats())
 let running = true,
   elapsed = 0,
   simAccumulator = 0,
+  measuredSimulationRate = 1,
   last = performance.now(),
   ammo = initialLoadout.rim67,
   sm2Ammo = initialLoadout.sm2mr,
@@ -2319,7 +2321,10 @@ const lastWeatherZoneSignatures = new Map<string,string>();
 let scenarioBlueAirTrackObserved = false;
 let activeScenarioSession: ScenarioSession | null = null;
 let activeObjectiveRuntime: ScenarioObjectiveRuntime | null = null;
+let activeCommandMessageRuntime: ScenarioCommandMessageRuntime | null = null;
 let scenarioEndHandled = false;
+let nextScenarioSystemsUpdate = 0;
+const scenarioCommandAudit: string[] = [];
 const scenarioLaunchCounts = new Map<string, number>();
 
 function scenarioPropagationZones(): readonly PropagationSpatialZone[] {
@@ -2918,6 +2923,12 @@ const airScenarioContext = createAirScenarioContext(() => {
     blueRcs: activeShip.platform.radarRcs,
     blueAlive: hullIntegrity > 0,
     additionalTargets: fleetIntegration?.companionTargets() ?? [],
+    targetAliases: activeScenarioDocument
+      ? Object.fromEntries(activeScenarioDocument.forces.flatMap((force) =>
+          force.kind === "ship" && force.side === "blue" && force.formationRole === "command"
+            ? [[force.id, "blue-surface-ship"]]
+            : []))
+      : undefined,
     redShip,
     datalinkEra: datalinkEraInput.value as DatalinkEra,
     datalinkEnabled: link16Input.checked,
@@ -3591,6 +3602,9 @@ function initializeActiveScenarioSystems() {
   dynamicScore.configure(activeScenarioDocument?.guidance.soundtrack?.id);
   themeTrack.configure(activeScenarioDocument?.guidance.soundtrack?.theme?.file);
   activeObjectiveRuntime = activeScenarioDocument ? new ScenarioObjectiveRuntime(activeScenarioDocument.objectives) : null;
+  activeCommandMessageRuntime = activeScenarioDocument
+    ? new ScenarioCommandMessageRuntime(activeScenarioDocument.commandMessages ?? [])
+    : null;
   activeSpaceWeather = activeCompiledScenario?.timeline.spaceWeather
     ? new SpaceWeatherTimelineRuntime(activeCompiledScenario.timeline.spaceWeather)
     : null;
@@ -3617,6 +3631,8 @@ function initializeActiveScenarioSystems() {
   scenarioBlueAirTrackObserved = false;
   activeScenarioSession?.reset();
   scenarioEndHandled = false;
+  nextScenarioSystemsUpdate = 0;
+  scenarioCommandAudit.length = 0;
   scenarioLaunchCounts.clear();
   if (!activeScenarioDocument || !activeGuidanceRuntime) {
     auroraRuntime.setEnvironmentalState({ controlled:false,enabled:false,intensity:0,magneticDisturbance:0 });
@@ -3693,7 +3709,30 @@ function finalizeScenarioObjectives() {
 
 function updateActiveScenarioSystems() {
   if (!activeScenarioRuntime || !activeGuidanceRuntime || !activeScenarioDocument) return;
+  if (elapsed < nextScenarioSystemsUpdate && elapsed < activeScenarioDocument.simulation.durationSeconds) return;
+  nextScenarioSystemsUpdate = elapsed + .25;
   activeScenarioRuntime.update(elapsed);
+  const commandUpdates = activeCommandMessageRuntime?.update(elapsed, (message) => {
+    if (message.action === "reassess-defense") {
+      const changed = fleetIntegration?.reassessCommand(elapsed) ?? false;
+      return { outcome:"acted" as const, reason:changed ? "defense-sector-recalculated" : "defense-sector-confirmed" };
+    }
+    const recipient = message.recipientIds[0];
+    const result = airCombat.applyScenarioCommand(recipient, message.action, elapsed);
+    return result.acted
+      ? { outcome:"acted" as const, reason:result.reason }
+      : { outcome:result.reason === "insufficient-track-quality" ? "insufficient-quality" as const : "rejected" as const, reason:result.reason };
+  });
+  for (const message of commandUpdates?.queued ?? []) {
+    const text = `COMMAND MESSAGE QUEUED / ${message.id} / ${message.senderId} -> ${message.recipientIds.join(",")}`;
+    scenarioCommandAudit.push(`${elapsed.toFixed(1)}:${text}`);
+    log(text); aarEvents.push({ time:elapsed, category:"system", text });
+  }
+  for (const delivery of commandUpdates?.deliveries ?? []) {
+    const text = `COMMAND MESSAGE DELIVERED / ${delivery.definition.id} / ${delivery.outcome.toUpperCase()} / ${delivery.reason}`;
+    scenarioCommandAudit.push(`${elapsed.toFixed(1)}:${text}`);
+    log(text); aarEvents.push({ time:elapsed, category:"system", text });
+  }
   const objectiveTransitions = activeObjectiveRuntime?.evaluate({
     time: elapsed,
     ended: activeScenarioRuntime.snapshot().ended,
@@ -3704,8 +3743,8 @@ function updateActiveScenarioSystems() {
     activeScenarioRuntime.setObjective(transition.objectiveId, transition.state);
     if (transition.state !== "pending")
       observeScenarioGuidance({ type:"objective-state", objectiveId:transition.objectiveId, state:transition.state });
-    log(`SCENARIO OBJECTIVE / ${transition.objectiveId} / ${transition.state.toUpperCase()} / ${transition.reason}`);
-    aarEvents.push({ time:elapsed, category:"system", text:`SCENARIO OBJECTIVE ${transition.state.toUpperCase()} / ${transition.objectiveId} / ${transition.reason}` });
+    log(`SCENARIO OBJECTIVE / ${transition.objectiveId} / ${transition.state.toUpperCase()} / ${transition.assessment?.toUpperCase() ?? "UNSCORED"} / SCORE ${transition.score ?? 0} / ${transition.reason}`);
+    aarEvents.push({ time:elapsed, category:"system", text:`SCENARIO OBJECTIVE ${transition.state.toUpperCase()} / ${transition.objectiveId} / ${transition.assessment?.toUpperCase() ?? "UNSCORED"} / SCORE ${transition.score ?? 0} / ${transition.reason}` });
   }
   const weatherFrontSnapshots = activeCompiledScenario?.weatherFronts.snapshotsAt(elapsed) ?? [];
   highQualityEnvironment.setWeatherFronts(weatherFrontSnapshots);
@@ -3797,6 +3836,7 @@ function updateActiveScenarioSystems() {
     .map((objective) => `${objective.definition.id}:${objective.state}`).join("|");
   canvas.dataset.scenarioGuidanceTask = activeTaskLabel;
   canvas.dataset.scenarioEnded = String(activeScenarioRuntime.snapshot().ended);
+  canvas.dataset.scenarioCommandMessages = scenarioCommandAudit.join("|");
   canvas.dataset.spaceWeatherPhase = weather?.phase ?? "none";
   canvas.dataset.spaceWeatherIntensity = (weather?.intensity ?? 0).toFixed(3);
   canvas.dataset.spaceWeatherCommsWindow = String(weather?.communicationWindowOpen ?? false);
@@ -3863,7 +3903,7 @@ radarCanvas.addEventListener("pointerdown", (e) => {
 );
 (sandbox.querySelector("#sbStart") as HTMLButtonElement).onclick = async () => {
   const validationTimeScale = Number(new URLSearchParams(location.search).get("validationTimeScale"));
-  if (Number.isFinite(validationTimeScale) && validationTimeScale >= 1 && validationTimeScale <= 16)
+  if (Number.isFinite(validationTimeScale) && validationTimeScale >= 1 && validationTimeScale <= 32)
     timeScale = validationTimeScale;
   if (webGpuUltraInput.checked && webGpuUltraStatus !== "active")
     await configureWebGpuUltra(true);
@@ -8694,8 +8734,11 @@ function tick(now: number) {
   const realDt = Math.min((now - last) / 1000, 0.1);
   last = now;
   if (running) {
-    simAccumulator += realDt * timeScale;
-    while (simAccumulator >= 0.05 && running) {
+    const fixedStep = 0.05;
+    const maximumSubsteps = timeScale <= 4 ? 12 : timeScale <= 8 ? 18 : timeScale <= 16 ? 26 : 38;
+    simAccumulator = Math.min(simAccumulator + realDt * timeScale, fixedStep * maximumSubsteps);
+    let substeps = 0;
+    while (simAccumulator >= fixedStep && running && substeps < maximumSubsteps) {
       elapsed += 0.05;
       updateActiveScenarioSystems();
       if (enemyPlatform) {
@@ -8800,7 +8843,16 @@ function tick(now: number) {
       updatePlatformFirePlan();
       captureAarSnapshot();
       simAccumulator -= 0.05;
+      substeps++;
     }
+    const instantaneousRate = realDt > 0 ? substeps * fixedStep / realDt : measuredSimulationRate;
+    measuredSimulationRate += (instantaneousRate - measuredSimulationRate) * Math.min(1, realDt * 2);
+    const rateLimited = measuredSimulationRate < timeScale * .88;
+    canvas.dataset.requestedSimulationRate = timeScale.toFixed(0);
+    canvas.dataset.actualSimulationRate = measuredSimulationRate.toFixed(2);
+    canvas.dataset.simRateLimited = String(rateLimited);
+    if (rateLimited) canvas.dataset.simulationStatus = `SIM RATE LIMITED / ${timeScale}X REQUEST / ${measuredSimulationRate.toFixed(1)}X ACTUAL`;
+    else delete canvas.dataset.simulationStatus;
     const activeMissiles = missiles.filter(
         (m) =>
           m.phase !== "destroyed" &&

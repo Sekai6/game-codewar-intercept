@@ -22,6 +22,8 @@ export interface ObjectiveTransition {
   previous: ScenarioObjectiveState;
   state: ScenarioObjectiveState;
   reason: string;
+  assessment?: "complete-success" | "success" | "partial-success" | "partial-failure" | "failure";
+  score?: number;
 }
 
 export class ScenarioObjectiveRuntime {
@@ -53,8 +55,6 @@ export class ScenarioObjectiveRuntime {
       let reason = "";
       if ((objective.kind === "protect" || objective.kind === "survive") && !alive.some(Boolean)) {
         state="failed"; reason="all protected entities are no longer alive";
-      } else if (objective.kind === "intercept" && forbiddenLaunch) {
-        state="failed"; reason=`forbidden strike weapon ${forbiddenLaunch.weaponId} released by ${forbiddenLaunch.formationId ?? forbiddenLaunch.platformId}`;
       } else if (objective.kind === "intercept" && !alive.some(Boolean)) {
         state="complete"; reason="all designated raid formations neutralized before prohibited release";
       } else if (objective.kind === "strike" && relevantLaunches.length) {
@@ -64,13 +64,29 @@ export class ScenarioObjectiveRuntime {
       } else if (context.ended && (objective.kind === "protect" || objective.kind === "survive")) {
         state=alive.some(Boolean)?"complete":"failed"; reason=alive.some(Boolean)?"protected force survived to scenario end":"protected force did not survive";
       } else if (context.ended && objective.kind === "intercept") {
-        state=forbiddenLaunch?"failed":"complete"; reason=forbiddenLaunch?"prohibited strike release occurred":"no prohibited strike release occurred";
+        const raidLaunches = this.launches.filter((launch) =>
+          criteria?.forbiddenLaunchByFormationIds?.includes(launch.formationId ?? launch.platformId) &&
+          (!criteria.requiredWeaponIds?.length || criteria.requiredWeaponIds.includes(launch.weaponId))).length;
+        state = raidLaunches <= 4 ? "complete" : "failed";
+        reason = raidLaunches === 0 ? "main strike released no weapons" :
+          raidLaunches <= 2 ? `main strike limited to ${raidLaunches} weapons` :
+          raidLaunches <= 4 ? `main strike completed a ${raidLaunches}-weapon salvo; defensive result decides tactical quality` :
+          `main strike exceeded planned salvo control with ${raidLaunches} weapons`;
       } else if (context.ended && objective.kind === "strike") {
         state=relevantLaunches.length?"complete":"failed"; reason=relevantLaunches.length?"required strike release occurred":"required strike release did not occur";
       } else if (context.ended && objective.kind === "observe") {
         state="failed"; reason="required observation phases were not all reached";
       }
-      if (state !== previous) { this.states.set(objective.id,state); transitions.push({objectiveId:objective.id,previous,state,reason}); }
+      if (state !== previous) {
+        this.states.set(objective.id,state);
+        const launchCount = relevantLaunches.length || (objective.kind === "intercept"
+          ? this.launches.filter((launch) => criteria?.forbiddenLaunchByFormationIds?.includes(launch.formationId ?? launch.platformId)).length : 0);
+        const assessment = objective.kind === "intercept"
+          ? launchCount === 0 ? "complete-success" : launchCount <= 2 ? "success" : launchCount <= 4 ? "partial-success" : "failure"
+          : state === "complete" ? "success" : "failure";
+        const score = assessment === "complete-success" ? 100 : assessment === "success" ? 80 : assessment === "partial-success" ? 55 : 0;
+        transitions.push({objectiveId:objective.id,previous,state,reason,assessment,score});
+      }
     }
     return transitions;
   }

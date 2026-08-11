@@ -106,20 +106,19 @@ export class FleetSceneIntegration {
       });
       options.registerModel?.(ship.model);
       options.scene.add(ship.model);
-      if (options.resolveDefenseTarget && options.launchInterceptor && options.launchEffect) {
-        this.launchers.push(new ShipLauncherAdapter({
-          force: this.force,
-          ship,
-          resolveTarget: options.resolveDefenseTarget,
-          launch: (event) => {
-            this.launchObservability.record(event, this.currentTime);
-            return options.launchInterceptor!(event);
-          },
-          launchEffect: options.launchEffect,
-          log: options.log ?? (() => undefined),
-        }));
-      }
     }
+    if (options.resolveDefenseTarget && options.launchInterceptor && options.launchEffect)
+      for (const ship of this.force.ships.values()) this.launchers.push(new ShipLauncherAdapter({
+        force: this.force,
+        ship,
+        resolveTarget: options.resolveDefenseTarget,
+        launch: (event) => {
+          this.launchObservability.record(event, this.currentTime);
+          return options.launchInterceptor!(event);
+        },
+        launchEffect: options.launchEffect,
+        log: options.log ?? (() => undefined),
+      }));
     this.syncFlagship();
   }
 
@@ -227,6 +226,10 @@ export class FleetSceneIntegration {
     this.force.shipComms.set(shipId, { connected, doctrineBehavior, changedAt:now });
     if (!connected) this.force.ships.get(shipId)!.networkTracks.clear();
     return true;
+  }
+  reassessCommand(now: number) {
+    this.force.formationState.lastCommandReassessmentAt = -Infinity;
+    return reassessFleetCommand(this.force, now);
   }
 
   updateAirDefense(now: number, dt: number) {

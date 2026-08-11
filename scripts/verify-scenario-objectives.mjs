@@ -15,10 +15,13 @@ runtime.recordLaunch({time:10,side:"blue",platformId:"a6",formationId:"blue-stri
 assert.equal(evaluate(11).length,0,"unrelated Harpoon release must not satisfy or fail KSR-5 objectives");
 runtime.recordLaunch({time:20,side:"red",platformId:"tu16-1",formationId:"raid",weaponId:"KSR-5"});
 const launchTransitions=evaluate(21);
-assert.equal(launchTransitions.find(x=>x.objectiveId==="intercept")?.state,"failed");
+assert.equal(launchTransitions.find(x=>x.objectiveId==="intercept"),undefined,"intercept remains recoverable until final assessment");
 assert.equal(launchTransitions.find(x=>x.objectiveId==="strike")?.state,"complete");
 evaluate(300,"total-blackout"); evaluate(720,"intermittent");
 assert.equal(evaluate(960,"recovery").find(x=>x.objectiveId==="observe")?.state,"complete");
 alive.set("ship-a",false); alive.set("ship-b",false);
 assert.equal(evaluate(970,"recovery").find(x=>x.objectiveId==="protect")?.state,"failed");
+const finalIntercept=evaluate(1080,"recovery",true).find(x=>x.objectiveId==="intercept");
+assert.equal(finalIntercept?.state,"complete");
+assert.equal(finalIntercept?.assessment,"success");
 console.log(JSON.stringify({launchTransitions,states:Object.fromEntries(objectives.map(x=>[x.id,runtime.state(x.id)]))},null,2));

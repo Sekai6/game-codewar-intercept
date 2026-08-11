@@ -242,7 +242,7 @@ export interface AirPlatformInstance extends TargetableEntity {
   chaff: number;
   flares: number;
   state:
-    "formation" | "engaging" | "defending" | "egress" | "disabled" | "crashed";
+    "formation" | "engaging" | "defending" | "egress" | "departed-safe" | "disabled" | "crashed";
   targetId: string | null;
   engagements: Map<EngagementSourceId, EngagementRecord>;
   missileWarnings: Map<string, AirTrack>;
@@ -254,6 +254,10 @@ export interface AirPlatformInstance extends TargetableEntity {
   scenarioRouteLoop: boolean;
   scenarioRouteIndex: number;
   scenarioLaunchZone: { center: THREE.Vector3; radius: number } | null;
+  scenarioStrikeWaveId: string | null;
+  scenarioWeaponsHoldUntil: number;
+  scenarioExitZone: { center: THREE.Vector3; radius: number } | null;
+  departedAt: number | null;
 }
 
 export interface AirHardpointInstance {
@@ -329,6 +333,7 @@ export interface AirScenarioContext {
     turbulence: number;
   };
   targets?: readonly TargetableEntity[];
+  targetAliases?: Readonly<Record<string, string>>;
   countermeasures?: (targetId: string) => {
     ecmEnabled: boolean;
     ecmStrength: number;
@@ -386,6 +391,20 @@ export interface AirSpawn {
   scenarioRoute?: readonly THREE.Vector3[];
   scenarioRouteLoop?: boolean;
   scenarioLaunchZone?: { center: THREE.Vector3; radius: number };
+  scenarioStrikeWaveId?: string;
+  scenarioStrikeWave?: {
+    id: string;
+    side: CombatSide;
+    shooterFormationIds: readonly string[];
+    targetCandidates: readonly string[];
+    plannedLaunchWindow: readonly [number, number];
+    desiredImpactTime?: number;
+    minimumShooters: number;
+    maximumShooters: number;
+    maximumWeaponsPerTarget: number;
+  };
+  scenarioWeaponsHoldUntil?: number;
+  scenarioExitZone?: { center: THREE.Vector3; radius: number };
   initialSpeed?: number;
   initialRadarState?: "active" | "silent";
   initialEcmEnabled?: boolean;

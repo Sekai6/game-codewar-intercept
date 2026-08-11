@@ -62,10 +62,33 @@ export function chooseAirWeapon(input: {
   weaponCatalog: Readonly<Record<AirWeaponId, AirWeaponDefinition>>;
 }) {
   if (input.classification === "unknown") return undefined;
+  const targetId = input.track?.targetId;
+  if (input.classification === "aircraft" && targetId) {
+    const weaponsInFlight = input.missiles.filter((missile) =>
+      missile.alive && missile.targetId === targetId).length +
+      input.aircraft.hardpoints.filter((hardpoint) =>
+        (hardpoint.state === "reserved" || hardpoint.state === "releasing") &&
+        hardpoint.targetId === targetId).length;
+    if (weaponsInFlight >= 2) return undefined;
+  }
+  const isTomcat = input.aircraft.definition.id === "F-14A";
+  const bomberTarget = Boolean(targetId &&
+    (targetId.includes("TU-16") || targetId.includes("TU-126")));
+  const sparrowAvailable = (input.aircraft.ammo.get("AIM-7F") ?? 0) > 0;
+  const phoenixRemaining = input.aircraft.ammo.get("AIM-54A") ?? 0;
   return ([...input.aircraft.ammo] as [AirWeaponId, number][])
     .filter(([, count]) => count > 0)
     .map(([id]) => input.weaponCatalog[id])
     .filter((weapon) => {
+      if (isTomcat && input.classification === "aircraft") {
+        if (weapon.id === "AIM-54A") {
+          if (input.range < 350 && (sparrowAvailable || !bomberTarget)) return false;
+          if (input.range < 500 && !bomberTarget) return false;
+          if (phoenixRemaining <= 2 && !bomberTarget) return false;
+        }
+        if (weapon.id === "AIM-7F" && (input.range < 120 || input.range > 550)) return false;
+        if (weapon.id === "AIM-9L" && (input.range < 15 || input.range > 180)) return false;
+      }
       const rangeAllowed = input.advancedAi && input.track
         ? dynamicShotAllowed({
             zone: calculateDynamicLaunchZone({
@@ -87,13 +110,23 @@ export function chooseAirWeapon(input: {
     })
     .sort((left, right) => {
       if (input.advancedAi && input.classification === "aircraft" &&
-          input.range <= 70) {
+          input.range <= 350) {
         const leftCloseWeapon = left.guidance === "infrared" ? 2 :
           left.guidance === "semi-active-radar" ? 1 : 0;
         const rightCloseWeapon = right.guidance === "infrared" ? 2 :
           right.guidance === "semi-active-radar" ? 1 : 0;
         if (leftCloseWeapon !== rightCloseWeapon)
           return rightCloseWeapon - leftCloseWeapon;
+      }
+      if (isTomcat && input.classification === "aircraft") {
+        const rank = (weapon: AirWeaponDefinition) =>
+          input.range >= 500 && input.range <= 1500
+            ? (weapon.id === "AIM-54A" ? 3 : weapon.id === "AIM-7F" ? 2 : 1)
+            : input.range >= 120
+              ? (weapon.id === "AIM-7F" ? 3 : weapon.id === "AIM-9L" ? 2 : 1)
+              : (weapon.id === "AIM-9L" ? 3 : weapon.id === "AIM-7F" ? 2 : 1);
+        const difference = rank(right) - rank(left);
+        if (difference) return difference;
       }
       if (input.defensive) {
         const leftFireAndForget = left.guidance === "infrared" ? 1 : 0;
