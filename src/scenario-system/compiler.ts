@@ -248,6 +248,12 @@ function compileAirSpawns(document: ScenarioDocument): AirSpawn[] {
         ? document.zones.find((zone) => zone.id === force.launchZoneId)
         : document.zones.find((zone) => zone.kind === "launch-corridor" && (!zone.side || zone.side === side))
       : undefined;
+    const exitZone = force.exitZoneId
+      ? document.zones.find((zone) => zone.id === force.exitZoneId)
+      : undefined;
+    const strikeWave = force.strikeWaveId
+      ? document.strikeWaves?.find((wave) => wave.id === force.strikeWaveId)
+      : undefined;
     return Array.from({ length: force.count }, (_, formationIndex) => {
       const leaderPosition = new THREE.Vector3(
         basePosition.x,
@@ -274,6 +280,12 @@ function compileAirSpawns(document: ScenarioDocument): AirSpawn[] {
         scenarioRouteLoop: route?.loop ?? false,
         scenarioLaunchZone: launchZone
           ? { center:new THREE.Vector3(...launchZone.center), radius:launchZone.radius }
+          : undefined,
+        scenarioStrikeWaveId: force.strikeWaveId,
+        scenarioStrikeWave: strikeWave,
+        scenarioWeaponsHoldUntil: force.weaponsHoldUntil,
+        scenarioExitZone: exitZone
+          ? { center: new THREE.Vector3(...exitZone.center), radius: exitZone.radius }
           : undefined,
         initialSpeed: force.speed,
         initialRadarState: force.radarState,

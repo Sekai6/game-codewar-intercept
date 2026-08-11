@@ -91,6 +91,7 @@ export function planAirMission(input: {
   contacts: readonly MissionContactEstimate[];
   protectedAssetAlive: boolean;
   escortAvailable: boolean;
+  preplannedStrikeActive?: boolean;
 }): MissionPlan {
   const state = input.state;
   if (input.currentOrder === "return" || state.phase === "return") {
@@ -107,7 +108,9 @@ export function planAirMission(input: {
     Math.max(0.1, input.cruiseSpeed);
   const reserveSeconds = input.nominalFuel * 0.12 + homeTransitSeconds * 1.2 +
     homeTransitSeconds * Math.max(0, input.fuelLeakPerSecond);
-  const fuelCritical = input.fuelRemaining <= reserveSeconds;
+  const fuelCritical = input.preplannedStrikeActive
+    ? input.fuelRemaining <= input.nominalFuel * 0.08
+    : input.fuelRemaining <= reserveSeconds;
   const flightCritical = input.engineHealth < 0.42 ||
     input.flightControlHealth < 0.48;
   const missionSystemFailed =

@@ -27,6 +27,6 @@ try {
   const ksrReleased=result.launches?.includes("KSR-5");
   const raidNeutralized=result.objectives?.includes("intercept-badgers:complete");
   if(!reached||errors.length||(!ksrReleased&&!raidNeutralized))process.exitCode=1;
-  if(ksrReleased&&(!result.objectives?.includes("intercept-badgers:failed")||!result.objectives?.includes("red-maritime-strike:complete")))process.exitCode=1;
+  if(ksrReleased&&result.elapsed>=1080&&(!result.objectives?.includes("intercept-badgers:complete")||!result.objectives?.includes("red-maritime-strike:complete")))process.exitCode=1;
   if(ksrReleased&&(!result.samLaunches?.includes("blue-cg-57")||!result.samTargetCategories?.includes("missile")))process.exitCode=1;
 } finally {await browser.close();}

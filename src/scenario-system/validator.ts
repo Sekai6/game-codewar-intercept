@@ -161,6 +161,8 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
       else if (record(force.loadout)) for (const weaponId of Object.keys(force.loadout))
         if (!knownAirWeapons.has(weaponId as typeof SCENARIO_AIR_WEAPON_IDS[number])) fail(`${path}.loadout.${weaponId}`, `Unknown air loadout weapon ${weaponId}`);
       if (force.launchZoneId !== undefined && (!text(force.launchZoneId) || !referencedZoneIds.has(force.launchZoneId))) fail(`${path}.launchZoneId`, `Unknown launch zone ${String(force.launchZoneId)}`);
+      if (force.weaponsHoldUntil !== undefined && (!finite(force.weaponsHoldUntil) || Number(force.weaponsHoldUntil) < 0)) fail(`${path}.weaponsHoldUntil`, "weaponsHoldUntil must be non-negative");
+      if (force.exitZoneId !== undefined && (!text(force.exitZoneId) || !referencedZoneIds.has(force.exitZoneId))) fail(`${path}.exitZoneId`, `Unknown exit zone ${String(force.exitZoneId)}`);
       if (force.deployment !== undefined) {
         if (!record(force.deployment)) fail(`${path}.deployment`, "Deployment must be an object");
         else {
@@ -174,6 +176,47 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
         }
       }
     }
+  });
+
+  const strikeWaves = document.strikeWaves === undefined ? [] :
+    (Array.isArray(document.strikeWaves) ? document.strikeWaves : []);
+  if (document.strikeWaves !== undefined && !Array.isArray(document.strikeWaves))
+    fail("strikeWaves", "Strike waves must be an array");
+  const strikeWaveIds = new Set<string>();
+  strikeWaves.forEach((wave, index) => {
+    const path = `strikeWaves[${index}]`;
+    if (!record(wave)) return fail(path, "Strike wave must be an object");
+    if (!text(wave.id)) fail(`${path}.id`, "Strike wave id is required");
+    else if (strikeWaveIds.has(wave.id)) fail(`${path}.id`, `Duplicate strike wave ${wave.id}`);
+    else strikeWaveIds.add(wave.id);
+    if (wave.side !== "blue" && wave.side !== "red") fail(`${path}.side`, "Strike wave side must be blue or red");
+    if (!stringArray(wave.shooterFormationIds) || wave.shooterFormationIds.some((id) => !entityIds.has(id))) fail(`${path}.shooterFormationIds`, "Shooters must reference air formations");
+    if (!stringArray(wave.targetCandidates) || wave.targetCandidates.some((id) => !entityIds.has(id))) fail(`${path}.targetCandidates`, "Targets must reference scenario entities");
+    if (!Array.isArray(wave.plannedLaunchWindow) || wave.plannedLaunchWindow.length !== 2 || !wave.plannedLaunchWindow.every(finite) || Number(wave.plannedLaunchWindow[0]) > Number(wave.plannedLaunchWindow[1])) fail(`${path}.plannedLaunchWindow`, "Launch window must be an ordered time pair");
+    for (const key of ["minimumShooters", "maximumShooters", "maximumWeaponsPerTarget"])
+      if (!Number.isInteger(wave[key]) || Number(wave[key]) < 1) fail(`${path}.${key}`, `${key} must be a positive integer`);
+    if (finite(wave.minimumShooters) && finite(wave.maximumShooters) && Number(wave.minimumShooters) > Number(wave.maximumShooters)) fail(path, "minimumShooters must not exceed maximumShooters");
+  });
+  forces.forEach((force, index) => {
+    if (record(force) && force.strikeWaveId !== undefined && (!text(force.strikeWaveId) || !strikeWaveIds.has(force.strikeWaveId))) fail(`forces[${index}].strikeWaveId`, `Unknown strike wave ${String(force.strikeWaveId)}`);
+  });
+
+  const commandMessages = document.commandMessages === undefined ? [] :
+    (Array.isArray(document.commandMessages) ? document.commandMessages : []);
+  if (document.commandMessages !== undefined && !Array.isArray(document.commandMessages)) fail("commandMessages", "Command messages must be an array");
+  const commandIds = new Set<string>();
+  const commandPayloadTypes = new Set(["track-report", "mission-update", "sector-assignment", "status-report"]);
+  const commandActions = new Set(["reassess-defense", "reintercept", "continue-or-abort-strike"]);
+  commandMessages.forEach((message, index) => {
+    const path = `commandMessages[${index}]`;
+    if (!record(message)) return fail(path, "Command message must be an object");
+    if (!text(message.id)) fail(`${path}.id`, "Message id is required");
+    else if (commandIds.has(message.id)) fail(`${path}.id`, `Duplicate message ${message.id}`); else commandIds.add(message.id);
+    if (!text(message.senderId) || !entityIds.has(message.senderId)) fail(`${path}.senderId`, "Unknown sender");
+    if (!stringArray(message.recipientIds) || message.recipientIds.some((id) => !entityIds.has(id))) fail(`${path}.recipientIds`, "Unknown recipient");
+    if (!commandPayloadTypes.has(String(message.payloadType))) fail(`${path}.payloadType`, "Unknown command payload type");
+    if (!commandActions.has(String(message.action))) fail(`${path}.action`, "Unknown command action");
+    if (!finite(message.createdAt) || !finite(message.deliverAt) || !finite(message.expiresAt) || Number(message.createdAt) > Number(message.deliverAt) || Number(message.deliverAt) > Number(message.expiresAt)) fail(path, "Message times must satisfy createdAt <= deliverAt <= expiresAt");
   });
 
   const threatWaves = document.threatWaves === undefined ? [] : (Array.isArray(document.threatWaves) ? document.threatWaves : []);

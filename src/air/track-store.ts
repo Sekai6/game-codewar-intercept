@@ -26,6 +26,7 @@ export function advanceAirTracks(
 export function createAirMeasurement(input: {
   targetId: string;
   targetKind: "aircraft" | "ship" | "missile" | "decoy";
+  targetRole?: AirTrack["targetRole"];
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   quality: number;
@@ -49,6 +50,7 @@ export function createAirMeasurement(input: {
     uncertainty,
     lastUpdate: input.time,
     classification: classifyAirMeasurement(input.targetKind, input.quality),
+    targetRole: input.targetRole,
     source: "local-radar",
     engagementQuality: "weapon",
     originSensorId: "airborne-radar",

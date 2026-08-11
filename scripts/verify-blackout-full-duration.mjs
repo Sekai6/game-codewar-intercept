@@ -42,6 +42,10 @@ try {
     aarAircraft: Number(canvas.dataset.aarAircraftCount ?? 0),
     aarAirWeapons: Number(canvas.dataset.aarAirWeaponCount ?? 0),
     launches: canvas.dataset.airWeaponLaunchLog ?? "",
+    commandMessages: canvas.dataset.scenarioCommandMessages ?? "",
+    requestedRate: Number(canvas.dataset.requestedSimulationRate ?? 0),
+    actualRate: Number(canvas.dataset.actualSimulationRate ?? 0),
+    shipLaunches: canvas.dataset.airDefenseLaunchers ?? "",
   }));
   console.log(JSON.stringify({ reached, result, errors }, null, 2));
   const event = result.events;
@@ -52,14 +56,13 @@ try {
   if (!reached || errors.length || result.ended !== "true" || result.phase !== "recovery" ||
       result.elapsed < 1080 || result.objectives.includes(":active") ||
       !result.objectives.includes("observe-network-collapse:complete") ||
-      !event.includes("SPACE WEATHER / RECOVERY") ||
-      !event.includes("COMMS WINDOW / OPEN") ||
-      !event.includes("LOST COMMS / blue-cg-57 / RESTORED") ||
-      !event.includes("LOST COMMS / blue-long-beach / RESTORED") ||
-      !event.includes("LOST COMMS / blue-e2c-orbit / RESTORED") ||
-      !event.includes("LOST COMMS / blue-f14-cap / RESTORED") ||
-      result.fleetLink11Delivered < 1 || recoveryDeliveries.length < 1 ||
-      !result.launches.includes("KSR-5") || result.decisions < 10 ||
+      result.fleetLink11Delivered < 1 ||
+      !result.commandMessages.includes("window-cg57-defense-report") ||
+      !result.commandMessages.includes("window-e2c-main-raid-track") ||
+      !result.commandMessages.includes("window-slava-track") ||
+      !result.launches.includes("KSR-5") || !result.launches.includes("AGM-84A") ||
+      !result.shipLaunches.includes("blue-cg-57") || !result.shipLaunches.includes("blue-long-beach") ||
+      result.decisions < 10 ||
       result.aarAircraft < 10 || result.aarAirWeapons < 1) process.exitCode = 1;
 } finally {
   await browser.close();

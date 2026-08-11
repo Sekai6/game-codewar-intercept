@@ -93,6 +93,7 @@ import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
+import { StrikeWaveRuntime } from "./strike-wave-runtime.js";
 import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
 import type { SovietC2Observation } from "../soviet-c2/observability.js";
 import { aewOrbitDirection, updateAewModelAnimation } from "./aew/mission.js";
@@ -329,6 +330,12 @@ function instantiate(
     scenarioLaunchZone: spawn.scenarioLaunchZone
       ? { center:spawn.scenarioLaunchZone.center.clone(), radius:spawn.scenarioLaunchZone.radius }
       : null,
+    scenarioStrikeWaveId: spawn.scenarioStrikeWaveId ?? null,
+    scenarioWeaponsHoldUntil: spawn.scenarioWeaponsHoldUntil ?? 0,
+    scenarioExitZone: spawn.scenarioExitZone
+      ? { center: spawn.scenarioExitZone.center.clone(), radius: spawn.scenarioExitZone.radius }
+      : null,
+    departedAt: null,
   };
 }
 
@@ -375,6 +382,8 @@ export class AirCombatSystem {
   private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
   private readonly seenFleetOrders = new Set<string>();
   private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
+  private readonly strikeWaveRuntime = new StrikeWaveRuntime();
+  private readonly recordedStrikeWaveStates = new Map<string, string>();
   private readonly seenSalvoPlans = new Set<string>();
   private sovietCommandEra: AirScenarioContext["sovietCommandEra"] = "ntu-1980s";
   private sovietCommandEnabled = true;
@@ -450,6 +459,7 @@ export class AirCombatSystem {
     this.sovietFleetCommand.reset();
     this.seenFleetOrders.clear();
     this.sovietSalvoCoordinator.reset();
+    this.recordedStrikeWaveStates.clear();
     this.seenSalvoPlans.clear();
     this.externalLink16Published.clear();
     this.externalLink16Cues.clear();
@@ -477,6 +487,22 @@ export class AirCombatSystem {
       this.perceptionBindings.set(p.id, initialPerceptionBindings());
       this.group.add(p.model);
     }
+    const strikeDefinitions = new Map(spawns.flatMap((spawn) =>
+      spawn.scenarioStrikeWave
+        ? [[spawn.scenarioStrikeWave.id, spawn.scenarioStrikeWave] as const]
+        : []));
+    this.strikeWaveRuntime.configure([...strikeDefinitions.values()].map((wave) => ({
+      id: wave.id,
+      side: wave.side,
+      shooterIds: this.aircraft.filter((aircraft) =>
+        wave.shooterFormationIds.includes(aircraft.formationId)).map((aircraft) => aircraft.id),
+      targetCandidates: wave.targetCandidates,
+      plannedLaunchWindow: wave.plannedLaunchWindow,
+      desiredImpactTime: wave.desiredImpactTime,
+      minimumShooters: wave.minimumShooters,
+      maximumShooters: wave.maximumShooters,
+      maximumWeaponsPerTarget: wave.maximumWeaponsPerTarget,
+    })));
     for (const p of this.aircraft) {
       if (p.formationIndex > 0) {
         const leader = this.aircraft.find(
@@ -536,6 +562,37 @@ export class AirCombatSystem {
   lostCommsDiagnostics() {
     return [...this.lostCommsFormations].map(([formationId, state]) => ({ formationId, ...state }));
   }
+  applyScenarioCommand(formationId: string, action: "reintercept" | "continue-or-abort-strike", time: number) {
+    const members = this.aircraft.filter((aircraft) =>
+      aircraft.formationId === formationId && aircraft.alive && aircraft.state !== "departed-safe");
+    if (!members.length) return { acted: false, reason: "formation-not-in-theater" };
+    if (action === "reintercept") {
+      const hasContact = members.some((aircraft) =>
+        [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].some((track) =>
+          track.classification === "aircraft" && time - track.lastUpdate <= 24 && track.quality >= .12));
+      if (!hasContact) return { acted: false, reason: "insufficient-track-quality" };
+      for (const aircraft of members) {
+        aircraft.mission = "intercept";
+        aircraft.state = "formation";
+        aircraft.targetId = null;
+        aircraft.missionPlanningState = initialMissionPlannerState({ mission: "intercept", position: aircraft.position });
+      }
+      this.emit(time, "guidance", `${formationId} COMMAND MESSAGE ACCEPTED / REINTERCEPT`);
+      return { acted: true, reason: "fresh-air-track-accepted" };
+    }
+    if (action !== "continue-or-abort-strike")
+      return { acted: false, reason: "unsupported-air-command" };
+    const hasShipTrack = members.some((aircraft) =>
+      [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].some((track) =>
+        track.classification === "ship" && time - track.lastUpdate <= 30 && track.quality >= .18));
+    if (!hasShipTrack) {
+      for (const aircraft of members) if (aircraft.mission === "anti-ship") aircraft.mission = "egress";
+      return { acted: true, reason: "strike-aborted-no-valid-track" };
+    }
+    for (const aircraft of members) if (aircraft.mission === "egress") aircraft.mission = "anti-ship";
+    this.emit(time, "guidance", `${formationId} COMMAND MESSAGE ACCEPTED / CONTINUE STRIKE`);
+    return { acted: true, reason: "surface-track-accepted" };
+  }
   drainEvents() {
     const out = this.events.slice(this.lastEventIndex);
     this.lastEventIndex = this.events.length;
@@ -551,6 +608,38 @@ export class AirCombatSystem {
   update(time: number, dt: number, context: AirScenarioContext) {
     if (!this.enabled) return;
     this.currentTime = time;
+    this.externalTargets = context.targets ?? [
+      context.blueShip,
+      ...(context.redShip ? [context.redShip] : []),
+    ];
+    for (const wave of this.strikeWaveRuntime.snapshots()) {
+      const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
+      const runtimeTargetIds = wave.targetCandidates.map((id) => context.targetAliases?.[id] ?? id);
+      const targets = this.externalTargets.filter((target) =>
+        target.alive && runtimeTargetIds.includes(target.id));
+      const updated = this.strikeWaveRuntime.update(wave.id, time, members.map((aircraft) => ({
+        id: aircraft.id,
+        alive: aircraft.alive && aircraft.state !== "departed-safe",
+        weaponReady: [...aircraft.ammo.values()].some((count) => count > 0) &&
+          aircraft.hardpoints.some((hardpoint) => hardpoint.state === "ready"),
+        inLaunchZone: !aircraft.scenarioLaunchZone ||
+          aircraft.position.distanceTo(aircraft.scenarioLaunchZone.center) <= aircraft.scenarioLaunchZone.radius,
+        missionValid: aircraft.mission === "anti-ship",
+        estimatedTimeToImpact: (() => {
+          const speeds = aircraft.hardpoints.flatMap((hardpoint) =>
+            hardpoint.weaponId && AIR_WEAPONS[hardpoint.weaponId].targets.includes("ship")
+              ? [AIR_WEAPONS[hardpoint.weaponId].speed] : []);
+          return targets.length && speeds.length
+            ? Math.min(...targets.map((target) => aircraft.position.distanceTo(target.position))) /
+              (Math.max(...speeds) * .75)
+            : undefined;
+        })(),
+      })), targets.length > 0);
+      if (updated && this.recordedStrikeWaveStates.get(wave.id) !== updated.state) {
+        this.recordedStrikeWaveStates.set(wave.id, updated.state);
+        this.emit(time, "guidance", `STRIKE WAVE ${wave.id} / ${updated.state.toUpperCase()} / LAUNCHED ${updated.launchedShooters.length}/${updated.maximumShooters} / AUTHORIZED ${updated.authorizedShooters.join(",") || "NONE"}`);
+      }
+    }
     this.activeAdvancedAirAi = context.advancedAirAiEnabled ?? false;
     this.group.userData.context = context;
     const datalinkEra = context.datalinkEra ?? "link16-modernized",
@@ -700,6 +789,7 @@ export class AirCombatSystem {
               report.classification === "aircraft" || report.classification === "ship"
                 ? report.classification
                 : "unknown") as AirTrack["classification"],
+            targetRole: report.targetRole,
             source: "link16" as const,
             engagementQuality: "cue" as const,
             originSensorId: report.originSensorId,
@@ -721,6 +811,7 @@ export class AirCombatSystem {
             velocity:report.velocity.clone(),quality:clamp(report.quality*.68-age*.025,.03,.58),
             uncertainty:report.uncertainty+20+age*2.8,lastUpdate:report.observedAt,
             classification:(report.classification==="aircraft"||report.classification==="ship"?report.classification:"unknown") as AirTrack["classification"],
+            targetRole:report.targetRole,
             source:"link11",engagementQuality:"cue",originSensorId:report.originSensorId,
             observationId:report.observationId,senderId:report.senderId,receivedAt:delivery.receivedAt};
         });
@@ -1229,11 +1320,15 @@ export class AirCombatSystem {
   }
 
   private strikeCommandAllowsRelease(a: AirPlatformInstance, time: number) {
+    if (time < a.scenarioWeaponsHoldUntil) return false;
     if (a.scenarioLaunchZone && a.position.distanceTo(a.scenarioLaunchZone.center) > a.scenarioLaunchZone.radius)
       return false;
+    if (a.scenarioStrikeWaveId)
+      return this.strikeWaveRuntime.allows(a.scenarioStrikeWaveId, a.id);
     if (a.side !== "red" || a.mission !== "anti-ship") return true;
     const lostComms = this.lostCommsFormations.get(a.formationId);
-    if (lostComms?.behavior === "preplanned-raid") return true;
+    if (lostComms?.behavior === "preplanned-raid")
+      return Boolean(this.sovietSalvoCoordinator.planFor(a.id, time));
     if (!this.sovietFleetCommand.diagnostics(time).enabled) return true;
     const order = this.fleetOrderForAircraft(a, time);
     if (!order) return time >= 15;
@@ -1602,6 +1697,9 @@ export class AirCombatSystem {
           measurement = createAirMeasurement({
             targetId: target.id,
             targetKind: target.kind,
+            targetRole: target.kind === "aircraft"
+              ? (target as AirPlatformInstance).definition.tacticalRole
+              : undefined,
             position: target.position,
             velocity: target.velocity,
             quality: factors.quality,
@@ -1635,6 +1733,7 @@ export class AirCombatSystem {
           position: measurement.position,
           velocity: measurement.velocity,
           classification: measurement.classification,
+          targetRole: measurement.targetRole,
           quality: measurement.quality,
           uncertainty: measurement.uncertainty,
           priority: target.kind === "missile" ? "emergency" : "routine",
@@ -1831,6 +1930,8 @@ export class AirCombatSystem {
           aircraft.mission = "egress";
           aircraft.state = "egress";
         }
+        if (aircraft.scenarioStrikeWaveId)
+          this.strikeWaveRuntime.recordLaunch(aircraft.scenarioStrikeWaveId, aircraft.id);
         this.emit(
           time,
           "launch",
@@ -2086,6 +2187,22 @@ export class AirCombatSystem {
         trackId: selected.targetId,
       });
     }
+    if (a.scenarioStrikeWaveId && a.mission === "anti-ship") {
+      const wave = this.strikeWaveRuntime.snapshot(a.scenarioStrikeWaveId);
+      if (wave?.targetCandidates.length) {
+        const scenarioTargetId = wave.targetCandidates[a.formationIndex % wave.targetCandidates.length];
+        const preferredId = context.targetAliases?.[scenarioTargetId] ?? scenarioTargetId;
+        const preferredTrack = a.tracks.get(preferredId);
+        const assignedCount = this.missiles.filter((missile) =>
+          missile.alive && missile.definition.targets.includes("ship") &&
+          missile.targetId === preferredId).length +
+          this.aircraft.reduce((count, aircraft) => count + aircraft.hardpoints.filter((hardpoint) =>
+            (hardpoint.state === "reserved" || hardpoint.state === "releasing") &&
+            hardpoint.targetId === preferredId).length, 0);
+        if (preferredTrack && assignedCount < wave.maximumWeaponsPerTarget)
+          selected = preferredTrack;
+      }
+    }
     return selected;
   }
   private updateAircraft(
@@ -2094,6 +2211,7 @@ export class AirCombatSystem {
     dt: number,
     context: AirScenarioContext,
   ) {
+    if (a.state === "departed-safe") return;
     if (!a.alive) {
       if (a.state === "disabled") {
         const loss = stepAircraftLossOfControl({
@@ -2117,6 +2235,14 @@ export class AirCombatSystem {
         }
       }
       return;
+    }
+    if (a.targetId && !this.targetById(a.targetId, context)?.alive) {
+      a.targetId = null;
+      a.tacticalState.targetTrackNumber = null;
+      a.tacticalState.supportedWeaponId = null;
+      a.tacticalState.formationTrackNumber = null;
+      a.tacticalState.commandedBankLimitDeg = null;
+      a.tacticalState.commandedLoadFactor = null;
     }
     this.updateTracks(a, time, dt, context);
     if (context.advancedAirAiEnabled && time >= a.nextPilotUpdate) {
@@ -2225,8 +2351,12 @@ export class AirCombatSystem {
           0,
         ),
         hasAirborneWeapon,
-        hasEngaged: a.engagements.size > 0,
-        contactLostSeconds: time - (a.noContactSince ?? time),
+        hasEngaged: a.mission === "cap" && a.scenarioRouteLoop
+          ? false
+          : a.engagements.size > 0,
+        contactLostSeconds: a.mission === "cap" && a.scenarioRouteLoop
+          ? 0
+          : time - (a.noContactSince ?? time),
         contacts: [...a.pilotPerception.contacts.values()].map((contact) => ({
           position: contact.estimatedPosition,
           quality: contact.quality,
@@ -2234,6 +2364,8 @@ export class AirCombatSystem {
         })),
         protectedAssetAlive: !a.protectedId || Boolean(protectedAsset?.alive),
         escortAvailable,
+        preplannedStrikeActive: a.missionPlanningState.assignedMission === "anti-ship" &&
+          a.scenarioRoute.length > 0 && [...a.ammo.values()].some((count) => count > 0),
       });
       a.missionPlanningState = missionPlan.state;
       a.mission = missionPlan.order;
@@ -2266,7 +2398,25 @@ export class AirCombatSystem {
     }
     if (a.mission === "egress" || a.mission === "return") {
       a.state = "egress";
-      a.desiredDirection.set(a.side === "blue" ? -1 : 1, 0.04, 1).normalize();
+      if (a.scenarioExitZone) {
+        if (a.position.distanceTo(a.scenarioExitZone.center) <= a.scenarioExitZone.radius) {
+          a.state = "departed-safe";
+          a.departedAt = time;
+          a.targetId = null;
+          a.tracks.clear();
+          a.networkTracks.clear();
+          a.missileWarnings.clear();
+          a.engagements.clear();
+          a.model.visible = false;
+          this.emit(time, "maneuver", `${a.definition.name} DEPARTED SAFE / ${a.id}`, {
+            side: a.side, platformId: a.formationId, entityId: a.id,
+          });
+          return;
+        }
+        a.desiredDirection.copy(a.scenarioExitZone.center).sub(a.position).normalize();
+      } else {
+        a.desiredDirection.set(a.side === "blue" ? -1 : 1, 0.04, 1).normalize();
+      }
     }
     const incoming = this.incomingFor(a, time);
     if (!incoming && context.advancedAirAiEnabled &&

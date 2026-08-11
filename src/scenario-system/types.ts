@@ -62,6 +62,9 @@ export interface ScenarioAirFormationDefinition {
   mission: "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
   routeId?: string;
   launchZoneId?: string;
+  strikeWaveId?: string;
+  weaponsHoldUntil?: number;
+  exitZoneId?: string;
   protectedFormationId?: string;
   lostCommsDoctrineId?: string;
   radarState?: "active" | "silent";
@@ -75,6 +78,30 @@ export interface ScenarioAirFormationDefinition {
     maxRadiusFactor?: number;
     routeMode?: "translate" | "converge";
   };
+}
+
+export interface ScenarioStrikeWaveDefinition {
+  id: string;
+  side: Exclude<ScenarioSide, "neutral">;
+  shooterFormationIds: readonly string[];
+  targetCandidates: readonly string[];
+  plannedLaunchWindow: readonly [number, number];
+  desiredImpactTime?: number;
+  minimumShooters: number;
+  maximumShooters: number;
+  maximumWeaponsPerTarget: number;
+}
+
+export interface ScenarioCommandMessageDefinition {
+  id: string;
+  senderId: string;
+  recipientIds: readonly string[];
+  createdAt: number;
+  deliverAt: number;
+  expiresAt: number;
+  payloadType: "track-report" | "mission-update" | "sector-assignment" | "status-report";
+  sourceFormationId?: string;
+  action: "reassess-defense" | "reintercept" | "continue-or-abort-strike";
 }
 
 export interface ScenarioThreatWaveDefinition {
@@ -214,6 +241,8 @@ export interface ScenarioDocument {
   environment: ScenarioEnvironmentConfig;
   forces: readonly ScenarioForceDefinition[];
   threatWaves?: readonly ScenarioThreatWaveDefinition[];
+  strikeWaves?: readonly ScenarioStrikeWaveDefinition[];
+  commandMessages?: readonly ScenarioCommandMessageDefinition[];
   routes: readonly ScenarioRouteDefinition[];
   zones: readonly ScenarioZoneDefinition[];
   timeline: readonly ScenarioTimelineEvent[];
