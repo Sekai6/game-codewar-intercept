@@ -580,6 +580,8 @@ export class AirCombatSystem {
       this.emit(time, "guidance", `${formationId} COMMAND MESSAGE ACCEPTED / REINTERCEPT`);
       return { acted: true, reason: "fresh-air-track-accepted" };
     }
+    if (action !== "continue-or-abort-strike")
+      return { acted: false, reason: "unsupported-air-command" };
     const hasShipTrack = members.some((aircraft) =>
       [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].some((track) =>
         track.classification === "ship" && time - track.lastUpdate <= 30 && track.quality >= .18));
@@ -608,6 +610,7 @@ export class AirCombatSystem {
     this.currentTime = time;
     for (const wave of this.strikeWaveRuntime.snapshots()) {
       const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
+      const targets = this.externalTargets.filter((target) => wave.targetCandidates.includes(target.id));
       const updated = this.strikeWaveRuntime.update(wave.id, time, members.map((aircraft) => ({
         id: aircraft.id,
         alive: aircraft.alive && aircraft.state !== "departed-safe",
@@ -616,6 +619,15 @@ export class AirCombatSystem {
         inLaunchZone: !aircraft.scenarioLaunchZone ||
           aircraft.position.distanceTo(aircraft.scenarioLaunchZone.center) <= aircraft.scenarioLaunchZone.radius,
         missionValid: aircraft.mission === "anti-ship",
+        estimatedTimeToImpact: (() => {
+          const speeds = aircraft.hardpoints.flatMap((hardpoint) =>
+            hardpoint.weaponId && AIR_WEAPONS[hardpoint.weaponId].targets.includes("ship")
+              ? [AIR_WEAPONS[hardpoint.weaponId].speed] : []);
+          return targets.length && speeds.length
+            ? Math.min(...targets.map((target) => aircraft.position.distanceTo(target.position))) /
+              Math.max(...speeds)
+            : undefined;
+        })(),
       })));
       if (updated && this.recordedStrikeWaveStates.get(wave.id) !== updated.state) {
         this.recordedStrikeWaveStates.set(wave.id, updated.state);
