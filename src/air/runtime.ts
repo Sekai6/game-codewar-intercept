@@ -608,9 +608,15 @@ export class AirCombatSystem {
   update(time: number, dt: number, context: AirScenarioContext) {
     if (!this.enabled) return;
     this.currentTime = time;
+    this.externalTargets = context.targets ?? [
+      context.blueShip,
+      ...(context.redShip ? [context.redShip] : []),
+    ];
     for (const wave of this.strikeWaveRuntime.snapshots()) {
       const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
-      const targets = this.externalTargets.filter((target) => wave.targetCandidates.includes(target.id));
+      const runtimeTargetIds = wave.targetCandidates.map((id) => context.targetAliases?.[id] ?? id);
+      const targets = this.externalTargets.filter((target) =>
+        target.alive && runtimeTargetIds.includes(target.id));
       const updated = this.strikeWaveRuntime.update(wave.id, time, members.map((aircraft) => ({
         id: aircraft.id,
         alive: aircraft.alive && aircraft.state !== "departed-safe",
@@ -628,7 +634,7 @@ export class AirCombatSystem {
               (Math.max(...speeds) * .75)
             : undefined;
         })(),
-      })));
+      })), targets.length > 0);
       if (updated && this.recordedStrikeWaveStates.get(wave.id) !== updated.state) {
         this.recordedStrikeWaveStates.set(wave.id, updated.state);
         this.emit(time, "guidance", `STRIKE WAVE ${wave.id} / ${updated.state.toUpperCase()} / LAUNCHED ${updated.launchedShooters.length}/${updated.maximumShooters} / AUTHORIZED ${updated.authorizedShooters.join(",") || "NONE"}`);

@@ -45,16 +45,24 @@ export class StrikeWaveRuntime {
     });
   }
 
-  update(id: string, time: number, shooters: readonly StrikeWaveShooterStatus[]) {
+  update(id: string, time: number, shooters: readonly StrikeWaveShooterStatus[], hasValidTargets = true) {
     const wave = this.waves.get(id);
     if (!wave || wave.state === "aborted" || wave.state === "egressing") return this.snapshot(id);
+    if (!hasValidTargets) {
+      wave.state = "aborted";
+      wave.authorized = [];
+      return this.snapshot(id);
+    }
     const [start, end] = wave.definition.plannedLaunchWindow;
     const viable = shooters.filter((shooter) => shooter.alive && shooter.weaponReady && shooter.missionValid);
     const ready = viable.filter((shooter) =>
-      shooter.inLaunchZone && !wave.launched.has(shooter.id) &&
-      (wave.definition.desiredImpactTime === undefined ||
-        (shooter.estimatedTimeToImpact !== undefined &&
-          time + shooter.estimatedTimeToImpact <= wave.definition.desiredImpactTime)));
+      shooter.inLaunchZone && !wave.launched.has(shooter.id));
+    if (wave.definition.desiredImpactTime !== undefined) ready.sort((left, right) => {
+      const error = (shooter: StrikeWaveShooterStatus) => shooter.estimatedTimeToImpact === undefined
+        ? Number.POSITIVE_INFINITY
+        : Math.abs(time + shooter.estimatedTimeToImpact - wave.definition.desiredImpactTime!);
+      return error(left) - error(right);
+    });
     if (time > end && wave.launched.size === 0) {
       wave.state = "aborted";
       wave.authorized = [];
