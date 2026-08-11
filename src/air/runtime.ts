@@ -625,7 +625,7 @@ export class AirCombatSystem {
               ? [AIR_WEAPONS[hardpoint.weaponId].speed] : []);
           return targets.length && speeds.length
             ? Math.min(...targets.map((target) => aircraft.position.distanceTo(target.position))) /
-              Math.max(...speeds)
+              (Math.max(...speeds) * .75)
             : undefined;
         })(),
       })));

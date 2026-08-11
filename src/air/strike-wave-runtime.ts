@@ -53,8 +53,8 @@ export class StrikeWaveRuntime {
     const ready = viable.filter((shooter) =>
       shooter.inLaunchZone && !wave.launched.has(shooter.id) &&
       (wave.definition.desiredImpactTime === undefined ||
-        shooter.estimatedTimeToImpact === undefined ||
-        time + shooter.estimatedTimeToImpact <= wave.definition.desiredImpactTime));
+        (shooter.estimatedTimeToImpact !== undefined &&
+          time + shooter.estimatedTimeToImpact <= wave.definition.desiredImpactTime)));
     if (time > end && wave.launched.size === 0) {
       wave.state = "aborted";
       wave.authorized = [];
