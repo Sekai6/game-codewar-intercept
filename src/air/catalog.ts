@@ -95,4 +95,10 @@ export const AIR_PLATFORM_DEFINITIONS: readonly AirPlatformDefinition[] = [
   { id:"MIG-29A", name:"MiG-29A Fulcrum-A", nation:"Soviet Union", role:"Front-line fighter", mission:"intercept", radarCrossSection:5.2, infraredSignature:1.2, flight:{cruiseSpeed:5.3,maxSpeed:11.2,stallSpeed:2,acceleration:1.18,drag:0.018,maxLoadFactor:9,maxRollRateDeg:150,maxPitchRateDeg:34,fuelSeconds:720,aerodynamics:mig29Aerodynamics,thrust:mig29Thrust}, sensor:{name:"N019 Rubin",range:285,updateInterval:0.9,fieldOfViewDeg:110,precision:0.8}, ecm:{strength:0.46,burnThroughRange:30}, countermeasures:{chaff:30,flares:30,program:{chaffBurst:2,flareBurst:3,interval:0.16,cooldown:4.5,triggerTti:18}}, loadout:{...emptyLoadout(),"R-27R":4,"R-73":2}, fireControlChannels:{datalink:0,illumination:1}, hardpoints:fulcrumHardpoints, buildModel:createMig29Model, shipDefenseTemplate:"Kh-22" },
   ...AEW_PLATFORM_DEFINITIONS,
 ];
-export const AIR_PLATFORM_BY_ID = Object.fromEntries(AIR_PLATFORM_DEFINITIONS.map(d=>[d.id,d])) as Record<AirPlatformId,AirPlatformDefinition>;
+const AIR_PLATFORM_TACTICAL_ROLES: Record<AirPlatformId, NonNullable<AirPlatformDefinition["tacticalRole"]>> = {
+  "F-14A": "fighter", "TU-16K": "bomber", "A-6E": "attack",
+  "MIG-29A": "fighter", "E-2C": "aew", "TU-126": "aew",
+};
+export const AIR_PLATFORM_BY_ID = Object.fromEntries(AIR_PLATFORM_DEFINITIONS.map(d=>[
+  d.id, { ...d, tacticalRole: AIR_PLATFORM_TACTICAL_ROLES[d.id] },
+])) as Record<AirPlatformId,AirPlatformDefinition>;

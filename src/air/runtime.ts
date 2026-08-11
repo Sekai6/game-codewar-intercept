@@ -608,7 +608,7 @@ export class AirCombatSystem {
     this.currentTime = time;
     for (const wave of this.strikeWaveRuntime.snapshots()) {
       const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
-      this.strikeWaveRuntime.update(wave.id, time, members.map((aircraft) => ({
+      const updated = this.strikeWaveRuntime.update(wave.id, time, members.map((aircraft) => ({
         id: aircraft.id,
         alive: aircraft.alive && aircraft.state !== "departed-safe",
         weaponReady: [...aircraft.ammo.values()].some((count) => count > 0) &&
@@ -617,7 +617,6 @@ export class AirCombatSystem {
           aircraft.position.distanceTo(aircraft.scenarioLaunchZone.center) <= aircraft.scenarioLaunchZone.radius,
         missionValid: aircraft.mission === "anti-ship",
       })));
-      const updated = this.strikeWaveRuntime.snapshot(wave.id);
       if (updated && this.recordedStrikeWaveStates.get(wave.id) !== updated.state) {
         this.recordedStrikeWaveStates.set(wave.id, updated.state);
         this.emit(time, "guidance", `STRIKE WAVE ${wave.id} / ${updated.state.toUpperCase()} / LAUNCHED ${updated.launchedShooters.length}/${updated.maximumShooters} / AUTHORIZED ${updated.authorizedShooters.join(",") || "NONE"}`);
@@ -772,6 +771,7 @@ export class AirCombatSystem {
               report.classification === "aircraft" || report.classification === "ship"
                 ? report.classification
                 : "unknown") as AirTrack["classification"],
+            targetRole: report.targetRole,
             source: "link16" as const,
             engagementQuality: "cue" as const,
             originSensorId: report.originSensorId,
@@ -793,6 +793,7 @@ export class AirCombatSystem {
             velocity:report.velocity.clone(),quality:clamp(report.quality*.68-age*.025,.03,.58),
             uncertainty:report.uncertainty+20+age*2.8,lastUpdate:report.observedAt,
             classification:(report.classification==="aircraft"||report.classification==="ship"?report.classification:"unknown") as AirTrack["classification"],
+            targetRole:report.targetRole,
             source:"link11",engagementQuality:"cue",originSensorId:report.originSensorId,
             observationId:report.observationId,senderId:report.senderId,receivedAt:delivery.receivedAt};
         });
@@ -1678,6 +1679,9 @@ export class AirCombatSystem {
           measurement = createAirMeasurement({
             targetId: target.id,
             targetKind: target.kind,
+            targetRole: target.kind === "aircraft"
+              ? (target as AirPlatformInstance).definition.tacticalRole
+              : undefined,
             position: target.position,
             velocity: target.velocity,
             quality: factors.quality,
@@ -1711,6 +1715,7 @@ export class AirCombatSystem {
           position: measurement.position,
           velocity: measurement.velocity,
           classification: measurement.classification,
+          targetRole: measurement.targetRole,
           quality: measurement.quality,
           uncertainty: measurement.uncertainty,
           priority: target.kind === "missile" ? "emergency" : "routine",

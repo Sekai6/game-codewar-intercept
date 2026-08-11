@@ -205,6 +205,8 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
     (Array.isArray(document.commandMessages) ? document.commandMessages : []);
   if (document.commandMessages !== undefined && !Array.isArray(document.commandMessages)) fail("commandMessages", "Command messages must be an array");
   const commandIds = new Set<string>();
+  const commandPayloadTypes = new Set(["track-report", "mission-update", "sector-assignment", "status-report"]);
+  const commandActions = new Set(["reassess-defense", "reintercept", "continue-or-abort-strike"]);
   commandMessages.forEach((message, index) => {
     const path = `commandMessages[${index}]`;
     if (!record(message)) return fail(path, "Command message must be an object");
@@ -212,6 +214,8 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
     else if (commandIds.has(message.id)) fail(`${path}.id`, `Duplicate message ${message.id}`); else commandIds.add(message.id);
     if (!text(message.senderId) || !entityIds.has(message.senderId)) fail(`${path}.senderId`, "Unknown sender");
     if (!stringArray(message.recipientIds) || message.recipientIds.some((id) => !entityIds.has(id))) fail(`${path}.recipientIds`, "Unknown recipient");
+    if (!commandPayloadTypes.has(String(message.payloadType))) fail(`${path}.payloadType`, "Unknown command payload type");
+    if (!commandActions.has(String(message.action))) fail(`${path}.action`, "Unknown command action");
     if (!finite(message.createdAt) || !finite(message.deliverAt) || !finite(message.expiresAt) || Number(message.createdAt) > Number(message.deliverAt) || Number(message.deliverAt) > Number(message.expiresAt)) fail(path, "Message times must satisfy createdAt <= deliverAt <= expiresAt");
   });
 

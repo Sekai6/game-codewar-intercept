@@ -72,8 +72,8 @@ export function chooseAirWeapon(input: {
     if (weaponsInFlight >= 2) return undefined;
   }
   const isTomcat = input.aircraft.definition.id === "F-14A";
-  const bomberTarget = Boolean(targetId &&
-    (targetId.includes("TU-16") || targetId.includes("TU-126")));
+  const priorityLongRangeTarget = input.track?.targetRole === "bomber" ||
+    input.track?.targetRole === "aew";
   const sparrowAvailable = (input.aircraft.ammo.get("AIM-7F") ?? 0) > 0;
   const phoenixRemaining = input.aircraft.ammo.get("AIM-54A") ?? 0;
   return ([...input.aircraft.ammo] as [AirWeaponId, number][])
@@ -82,9 +82,9 @@ export function chooseAirWeapon(input: {
     .filter((weapon) => {
       if (isTomcat && input.classification === "aircraft") {
         if (weapon.id === "AIM-54A") {
-          if (input.range < 350 && (sparrowAvailable || !bomberTarget)) return false;
-          if (input.range < 500 && !bomberTarget) return false;
-          if (phoenixRemaining <= 2 && !bomberTarget) return false;
+          if (input.range < 350 && (sparrowAvailable || !priorityLongRangeTarget)) return false;
+          if (input.range < 500 && !priorityLongRangeTarget) return false;
+          if (phoenixRemaining <= 2 && !priorityLongRangeTarget) return false;
         }
         if (weapon.id === "AIM-7F" && (input.range < 120 || input.range > 550)) return false;
         if (weapon.id === "AIM-9L" && (input.range < 15 || input.range > 180)) return false;

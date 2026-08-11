@@ -46,26 +46,29 @@ export class StrikeWaveRuntime {
 
   update(id: string, time: number, shooters: readonly StrikeWaveShooterStatus[]) {
     const wave = this.waves.get(id);
-    if (!wave || wave.state === "aborted" || wave.state === "egressing") return;
-    const [start, end] = wave.definition.plannedLaunchWindow;
+    if (!wave || wave.state === "aborted" || wave.state === "egressing") return this.snapshot(id);
+    const [start, plannedEnd] = wave.definition.plannedLaunchWindow;
+    const end = wave.definition.desiredImpactTime === undefined
+      ? plannedEnd
+      : Math.min(plannedEnd, wave.definition.desiredImpactTime);
     const viable = shooters.filter((shooter) => shooter.alive && shooter.weaponReady && shooter.missionValid);
     const ready = viable.filter((shooter) => shooter.inLaunchZone && !wave.launched.has(shooter.id));
     if (time > end && wave.launched.size === 0) {
       wave.state = "aborted";
       wave.authorized = [];
-      return;
+      return this.snapshot(id);
     }
     if (wave.launched.size >= wave.definition.maximumShooters ||
         (time > end && wave.launched.size > 0)) {
       wave.state = "egressing";
       wave.authorized = [];
-      return;
+      return this.snapshot(id);
     }
     if (time < start) {
       wave.state = ready.length >= wave.definition.minimumShooters ? "holding" :
         viable.length >= wave.definition.minimumShooters ? "approaching" : "assembling";
       wave.authorized = [];
-      return;
+      return this.snapshot(id);
     }
     if (ready.length >= wave.definition.minimumShooters || wave.launched.size > 0) {
       wave.authorized = ready.slice(0, wave.definition.maximumShooters - wave.launched.size).map((x) => x.id);
@@ -74,6 +77,7 @@ export class StrikeWaveRuntime {
       wave.state = "holding";
       wave.authorized = [];
     }
+    return this.snapshot(id);
   }
 
   allows(id: string, shooterId: string) {

@@ -20,6 +20,7 @@ export interface Link16TrackReport {
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   classification: TacticalTrackClassification;
+  targetRole?: "fighter" | "bomber" | "attack" | "aew";
   quality: number;
   uncertainty: number;
   priority: "routine" | "threat" | "emergency";

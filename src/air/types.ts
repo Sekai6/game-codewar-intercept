@@ -126,6 +126,7 @@ export interface AirPlatformDefinition {
   name: string;
   nation: string;
   role: string;
+  tacticalRole?: "fighter" | "bomber" | "attack" | "aew";
   mission: AirMissionOrder;
   radarCrossSection: number;
   infraredSignature: number;
@@ -196,6 +197,7 @@ export interface AirTrack {
   uncertainty: number;
   lastUpdate: number;
   classification: "unknown" | "aircraft" | "ship";
+  targetRole?: AirPlatformDefinition["tacticalRole"];
   source?: "local-radar" | "link11" | "link16";
   engagementQuality?: "cue" | "weapon";
   originSensorId?: string;
