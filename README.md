@@ -6,7 +6,7 @@
 
 **冷战海空联合交战与导弹拦截 3D 沙盘。** 从雷达探测、航迹质量、数据链和火控授权，到实体发射器、分阶段制导、电子战、毁伤与 AAR，整条交战链都可以观察和复核。
 
-> 文档数据戳：v1.21.0 开发分支 · 2026-08-05<br>
+> 文档数据戳：v1.21.1 正式版 · 2026-08-12<br>
 > 本页同时覆盖 v1.20 稳定版与 v1.21 预发布场景；预发布机制、画面和单位数据仍可能调整。
 
 ## 在线演示
@@ -15,7 +15,7 @@
 
 无需安装。推荐使用桌面版 Edge 或 Chrome；首次加载及着色器编译可能需要数秒。性能有限时使用 High 画质，WebGPU Ultra、计算云和 FFT 海洋属于实验性高负载功能。
 
-[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [V1.20 Release](https://github.com/Sekai6/game-coldwar-intercept/releases/tag/v1.20.0) · [变更清单](CHANGELOG.md)
+[English](README_EN.md) · [中文 Wiki](wiki/README.md) · [English Wiki](wiki/en/README.md) · [Latest Release](https://github.com/Sekai6/game-coldwar-intercept/releases/latest) · [变更清单](CHANGELOG.md)
 
 ![USS Lake Champlain CG-57 Ultra aurora combat validation](readme-cg57-ultra-aurora.png)
 
@@ -148,7 +148,7 @@ scripts/           逻辑、浏览器、截图和回归验证
 
 ## 项目状态
 
-当前版本线为 `v1.20.0`，网页 HUD 显示 `V1.20`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本线为 `v1.21.1`，网页 HUD 显示 `V1.21.1`。发布功能、边界和验证证据见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 
