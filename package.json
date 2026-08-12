@@ -1,7 +1,7 @@
 {
   "name": "codewar-intercept",
   "private": true,
-  "version": "1.21.0",
+  "version": "1.21.1",
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
