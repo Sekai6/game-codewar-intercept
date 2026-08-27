@@ -12,14 +12,21 @@ export class CecRuntime {
   reset(){this.network.reset();this.fusion.reset();this.measurements.length=0;this.pending.length=0;}
   register(participant: CecParticipant) { return this.network.register(participant); }
   ingest(measurement: CecMeasurement, now: number) {
-    if (!this.network.roster.some((p) => p.id === measurement.sourcePlatformId)) return 0;
+    const source = this.network.roster.find((p) => p.id === measurement.sourcePlatformId);
+    if (!source || !source.transmitEnabled) return 0;
     this.measurements.push(measurement);
+    // The source platform's measurement is fused locally exactly once. The
+    // network queue represents delivery/observability to peers; CecRuntime
+    // owns one shared composite picture, so delivered copies must not be
+    // re-ingested as additional independent measurements.
     this.pending.push(measurement);
     return this.network.enqueue(measurement.sourcePlatformId, measurement, now);
   }
   update(now: number): CecCompositeTrack[] {
     const result = this.network.deliver(now);
-    for (const message of result.delivered) this.pending.push(message.measurement);
+    // Do not re-ingest delivered measurements here. A delivered packet is the
+    // same observation, not a new sensor observation; re-ingesting it would
+    // double-count contributors and artificially shrink covariance.
     const tracks = this.fusion.ingest(this.pending.splice(0), now);
     this.fusion.tick(now);
     return tracks;
