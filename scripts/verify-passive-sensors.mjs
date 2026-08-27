@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import * as THREE from "three";
+import { observePassive, fusePassiveTracks } from "../dist-test/sensors/passive-runtime.js";
+const observer={id:"f14",side:"blue",kind:"aircraft",position:new THREE.Vector3(),velocity:new THREE.Vector3(),radarCrossSection:8,infraredSignature:1,alive:true};
+const target={id:"badger",side:"red",kind:"aircraft",position:new THREE.Vector3(0,0,-220),velocity:new THREE.Vector3(),radarCrossSection:28,infraredSignature:1.35,alive:true};
+const irst={id:"irst",kind:"irst",range:520,fieldOfViewDeg:60,updateInterval:1,bearingPrecisionDeg:2,rangeEstimateError:.3,minimumSignal:.01,detects:["aircraft"]};
+const esm={id:"esm",kind:"esm",range:520,fieldOfViewDeg:360,updateInterval:1,bearingPrecisionDeg:4,rangeEstimateError:.5,minimumSignal:.01,detects:["aircraft"]};
+const ir=observePassive({sensor:irst,observer,target,time:0,noise:[.5,.5,.5]});
+assert.ok(ir && ir.passiveOnly && ir.source === "irst");
+const silent=observePassive({sensor:esm,observer,target,time:0,noise:[.5,.5,.5],emission:{radarEmitting:false,communicationEmitting:false,jammerEmitting:false,emissionStrength:0}});
+assert.equal(silent,undefined);
+const es=observePassive({sensor:esm,observer,target,time:0,noise:[.5,.5,.5],emission:{radarEmitting:true,communicationEmitting:true,jammerEmitting:false,emissionStrength:1}});
+assert.ok(es && es.source === "esm");
+const fused=fusePassiveTracks(ir,es); assert.ok(fused && fused.source === "passive-fusion");
+assert.ok(fused.uncertainty < ir.uncertainty); assert.equal(fused.passiveOnly,true);
+console.log(JSON.stringify({irst:ir,esm:es,fused},{replacer:(k,v)=>v?.isVector3?v.toArray():v},2));

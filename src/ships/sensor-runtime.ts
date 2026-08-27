@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { CombatPicture } from "../sim.js";
 import type { TargetableEntity } from "../combat-entity.js";
 import type { ShipCombatantInstance, ShipTrackEstimate } from "./types.js";
+import { observePassive, fusePassiveTracks, type PassiveObservation } from "../sensors/passive-runtime.js";
 
 export interface ShipSensorObservation {
   entity: TargetableEntity;
@@ -25,7 +26,33 @@ export class ShipSensorRuntime {
     }
     if (!ship.alive) {
       ship.localTracks.clear();
+      ship.passiveTracks.clear();
       return;
+    }
+    if (now >= ship.nextPassiveScan) {
+      const suite = ship.definition.passiveSensors;
+      const nextPassive = new Map<string, { irst?: PassiveObservation; esm?: PassiveObservation }>();
+      for (const { entity } of observations) {
+        if (!entity.alive || entity.side === ship.side || entity.id === ship.id) continue;
+        const slot = nextPassive.get(entity.id) ?? {};
+        // Deterministic per-scenario noise: passive tracks must be replayable in AAR/Tacview.
+        const seed = Math.floor(now * 10) + ship.id.length * 97 + entity.id.length * 193;
+        const unit = (n: number) => {
+          const x = Math.sin(seed + n * 17.17) * 43758.5453;
+          return x - Math.floor(x);
+        };
+        const noise = [unit(1), unit(2), unit(3)] as const;
+        if (suite?.irst) slot.irst = observePassive({ sensor: suite.irst, observer: ship, target: entity, emission: entity.emissionState, time: now, noise });
+        if (suite?.esm) slot.esm = observePassive({ sensor: suite.esm, observer: ship, target: entity, emission: entity.emissionState, time: now, noise });
+        nextPassive.set(entity.id, slot);
+      }
+      ship.passiveTracks.clear();
+      for (const [id, pair] of nextPassive) {
+        const fused = fusePassiveTracks(pair.irst, pair.esm);
+        if (fused) ship.passiveTracks.set(id, fused);
+      }
+      const interval = Math.min(suite?.irst?.updateInterval ?? Infinity, suite?.esm?.updateInterval ?? Infinity);
+      ship.nextPassiveScan = now + (Number.isFinite(interval) ? interval : 9999);
     }
     const primary = ship.definition.sensors.find((sensor) => sensor.threeDimensional);
     const secondary = ship.definition.sensors.find((sensor) => !sensor.threeDimensional);
@@ -68,6 +95,13 @@ export class ShipSensorRuntime {
       });
     }
     ship.localTracks = next;
+    for (const [targetId, passive] of ship.passiveTracks) {
+      if (now - passive.lastUpdate > 12) { ship.passiveTracks.delete(targetId); continue; }
+      if (!next.has(targetId)) next.set(targetId, {
+        targetId, position: passive.position.clone(), velocity: passive.velocity.clone(), quality: passive.quality * 0.8,
+        uncertainty: passive.uncertainty, classification: passive.classification, source: passive.source === "esm" ? "esm" : "passive-fusion", updatedAt: passive.lastUpdate, weaponQuality: false, passive,
+      });
+    }
   }
 
   reset() {

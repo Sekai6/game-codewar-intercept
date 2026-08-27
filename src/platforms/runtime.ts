@@ -10,9 +10,22 @@ import type {
   PlatformWeaponHardpoint,
 } from "./types";
 import { assessPlatformIncomingTracks } from "./defense";
+import { observePassive } from "../sensors/passive-runtime";
+import type { CombatEntity } from "../combat-entity";
 
 function modelSlots(model: THREE.Group) {
   return model.userData.platformSlots as EnemyPlatformModelSlots | undefined;
+}
+
+/** Unified radiation state for legacy surface platforms and passive ESM consumers. */
+export function getEnemyPlatformEmissionState(platform: EnemyPlatformInstance) {
+  const active = !platform.destroyed && platform.emconMode === "active";
+  return {
+    radarEmitting: active && (platform.subsystemHealth.get("air-search") ?? 100) > 5,
+    communicationEmitting: !platform.destroyed && platform.emconMode !== "passive-only",
+    jammerEmitting: !platform.destroyed && (platform.subsystemHealth.get("electronic-warfare") ?? 100) > 5,
+    emissionStrength: active ? 0.72 : platform.emconMode === "emcon" ? 0.12 : 0.04,
+  } as const;
 }
 
 function validateModelSlots(
@@ -123,6 +136,12 @@ export function instantiateEnemyPlatform(
   model.updateMatrixWorld(true);
   const instance: EnemyPlatformInstance = {
     definition,
+    emissionState: {
+      radarEmitting: definition.sensorSlots.some((sensor) => sensor.role !== "electronic-support"),
+      communicationEmitting: true,
+      jammerEmitting: false,
+      emissionStrength: 0.72,
+    },
     model,
     slots,
     hardpointState: new Map(
@@ -183,6 +202,11 @@ export function instantiateEnemyPlatform(
       source: "none",
     },
     destroyed: false,
+    emconMode: definition.defaultEmconMode ?? "active",
+    passiveTracks: new Map(),
+    nextPassiveScan: new Map(
+      Object.entries(definition.passiveSensors ?? {}).filter((entry): entry is [string, NonNullable<typeof entry[1]>] => !!entry[1]).map(([id]) => [id, 0]),
+    ),
   };
   return instance;
 }
@@ -409,7 +433,7 @@ export function updateEnemyPlatform(
   const damageEvents = updatePlatformCasualties(platform, elapsed);
   const previousManeuverMode = platform.maneuverMode;
   const sensorHealth =
-    platform.destroyed || !sensorsEnabled
+    platform.destroyed || !sensorsEnabled || platform.emconMode === "passive-only"
       ? 0
       : platform.definition.sensorSlots.reduce(
           (sum, sensor) =>
@@ -554,7 +578,7 @@ export function updateEnemyPlatform(
       Math.pow(Math.max(0.05, targetRadarCrossSection / 10), 0.25);
     const ratio = range / Math.max(1, effectiveRange);
     const health =
-      platform.destroyed || !sensorsEnabled
+      platform.destroyed || !sensorsEnabled || platform.emconMode !== "active"
         ? 0
         : (platform.subsystemHealth.get(definition.id) ?? 100) / 100;
     const horizon = radarHorizonWorldUnits(
@@ -594,9 +618,66 @@ export function updateEnemyPlatform(
     } else state.quality *= 0.78;
   }
   const track = platform.targetTrack;
+  // Legacy surface platforms use the same passive sensor runtime as air entities.
+  // The target is represented as an observation-only CombatEntity; no weapon path
+  // is touched here, so passive cues cannot bypass fire-control/VLS validation.
+  const passiveSuite = platform.definition.passiveSensors;
+  if (!platform.destroyed && passiveSuite) {
+    const observer: CombatEntity = {
+      id: platform.definition.id,
+      side: "red",
+      kind: "ship",
+      position: platform.model.position,
+      velocity: platform.velocity,
+      radarCrossSection: platform.definition.radarCrossSection,
+      infraredSignature: 0.45,
+      alive: true,
+      emissionState: getEnemyPlatformEmissionState(platform),
+    };
+    const target: CombatEntity = {
+      id: "blue-surface-ship",
+      side: "blue",
+      kind: "ship",
+      position: targetPosition,
+      velocity: targetVelocity,
+      radarCrossSection: targetRadarCrossSection,
+      infraredSignature: 0.7,
+      alive: true,
+      emissionState: {
+        radarEmitting: targetEmitting,
+        communicationEmitting: sensorsEnabled,
+        jammerEmitting: false,
+        emissionStrength: targetEmitting ? 0.7 : 0.12,
+      },
+    };
+    for (const [key, sensor] of Object.entries(passiveSuite)) {
+      if (!sensor) continue;
+      const next = platform.nextPassiveScan.get(key) ?? 0;
+      if (elapsed < next) continue;
+      platform.nextPassiveScan.set(key, elapsed + sensor.updateInterval);
+      const noise = [
+        (Math.sin(elapsed * 7.13 + key.length * 3.1) + 1) / 2,
+        (Math.sin(elapsed * 5.17 + platform.model.position.x * 0.01) + 1) / 2,
+        0.5,
+      ] as const;
+      const observation = observePassive({ sensor, observer, target, emission: target.emissionState, time: elapsed, noise });
+      if (observation) platform.passiveTracks.set(`${target.id}:${key}`, observation);
+      else platform.passiveTracks.delete(`${target.id}:${key}`);
+    }
+    const passive = [...platform.passiveTracks.values()].sort((a, b) => b.quality - a.quality)[0];
+    if (passive && (!track.valid || track.source !== "radar" || track.quality < passive.quality)) {
+      track.position.copy(passive.position);
+      track.velocity.copy(passive.velocity);
+      track.quality = passive.quality;
+      track.uncertainty = passive.uncertainty;
+      track.lastUpdate = passive.lastUpdate;
+      track.valid = true;
+      track.source = "esm";
+    }
+  }
   const esmHealth =
       (platform.subsystemHealth.get("electronic-support") ?? 100) / 100,
-    radarTrack = sensorDetected && detectedQuality > 0.08,
+    radarTrack = platform.emconMode === "active" && sensorDetected && detectedQuality > 0.08,
     directTrackHoldover = Math.max(
       0,
       ...platform.definition.weaponSlots.map(

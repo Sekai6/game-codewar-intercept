@@ -12,6 +12,8 @@ export interface CombatEntity {
   radarCrossSection: number;
   infraredSignature: number;
   alive: boolean;
+  /** Unified radiation state consumed by ESM; omitted means non-emitting. */
+  emissionState?: import("./sensors/passive-types.js").EmissionState;
 }
 
 export interface TargetableEntity extends CombatEntity {

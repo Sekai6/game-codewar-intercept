@@ -221,6 +221,21 @@ export class FleetSceneIntegration {
   }
   setPropagationZones(zones: readonly PropagationSpatialZone[]) { this.link11.setPropagationZones(zones); }
   setLocalWeatherProvider(provider: typeof this.localWeatherAt) { this.localWeatherAt = provider; }
+  setShipEmconMode(shipId: string, mode: import("../sensors/passive-types.js").EmconMode, now = this.currentTime) {
+    const ship = this.force.ships.get(shipId);
+    if (!ship) return false;
+    ship.emconMode = mode;
+    const active = mode === "active";
+    ship.emissionState = {
+      ...ship.emissionState,
+      jammerEmitting: ship.emissionState?.jammerEmitting ?? false,
+      radarEmitting: active,
+      communicationEmitting: mode !== "passive-only",
+      emissionStrength: active ? 0.75 : mode === "emcon" ? 0.18 : 0.05,
+    };
+    this.options.log?.(`${ship.definition.name} EMCON / ${mode.toUpperCase()} / T=${now.toFixed(1)}s`);
+    return true;
+  }
   setShipLostComms(shipId: string, connected: boolean, doctrineBehavior: string | undefined, now: number) {
     if (!this.force.ships.has(shipId)) return false;
     this.force.shipComms.set(shipId, { connected, doctrineBehavior, changedAt:now });

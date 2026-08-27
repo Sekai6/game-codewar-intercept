@@ -1,8 +1,11 @@
 import type { NavalForceRuntime } from "../fleet/types";
 import type { TacticalRadarFrame, TacticalRadarSource } from "./tactical-radar";
 
-function radarSource(source: "local-radar" | "link11" | "link16"): TacticalRadarSource {
-  return source === "local-radar" ? "organic" : source;
+function radarSource(source: string): TacticalRadarSource {
+  if (source === "local-radar") return "organic";
+  if (source === "esm") return "esm" as TacticalRadarSource;
+  if (source === "passive-fusion") return "passive-fusion" as TacticalRadarSource;
+  return source as TacticalRadarSource;
 }
 
 export function tacticalRadarFrameForShip(
@@ -49,3 +52,4 @@ export function tacticalRadarFrameForShip(
       })),
   };
 }
+
