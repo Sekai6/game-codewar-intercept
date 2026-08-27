@@ -79,6 +79,8 @@
     "verify:air-damage-geometry": "tsc src/air/damage.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-damage-geometry.mjs",
     "verify:air-resources": "tsc src/air/launch-management.ts src/air/countermeasure-program.ts --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-air-resources.mjs",
     "verify:passive-sensors": "tsc src/sensors/passive-types.ts src/sensors/passive-runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-passive-sensors.mjs",
+    "verify:cec-runtime": "tsc src/cec/runtime.ts src/cec/measurement-runtime.ts src/cec/fusion-runtime.ts src/cec/network-runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-cec-runtime.mjs",
+    "verify:cec-engagement": "node scripts/verify-cec-engagement.mjs",
     "verify:strike-wave": "tsc src/air/strike-wave-runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-strike-wave-runtime.mjs",
     "verify:command-messages": "tsc src/scenario-system/command-message-runtime.ts --rootDir src --outDir dist-test --module ESNext --moduleResolution bundler --target ES2022 --skipLibCheck && node scripts/verify-command-message-runtime.mjs",
     "verify:air-scenarios": "node scripts/verify-air-scenarios.mjs",
