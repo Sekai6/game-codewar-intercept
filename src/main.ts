@@ -9405,11 +9405,13 @@ function tick(now: number) {
   const cecFleet = fleetIntegration?.cecDiagnostics();
   const cecRoster = cecRuntime.network.roster.map((participant) => participant.id);
   const cecAirTracks = (airCombat.group.userData.cecTracks as readonly { id:string; targetId:string; contributors?:readonly string[]; quality?:number; engagementQuality?:string; fusionAge?:number }[] | undefined) ?? [];
+  const cecTracks = [...(cecFleet?.tracks ?? []), ...cecAirTracks].filter((track, index, all) => all.findIndex((candidate) => candidate.id === track.id) === index);
   canvas.dataset.cecState = cecFleet?.enabled || cecRoster.length || cecAirTracks.length ? "ACTIVE" : "OFF";
   canvas.dataset.cecParticipants = (cecFleet?.roster?.length ? cecFleet.roster : cecRoster).join("|");
-  canvas.dataset.cecTrackIds = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => track.id).join("|");
-  canvas.dataset.cecTrackContributors = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => `${track.id}:${(track.contributors ?? []).join("+")}`).join("|");
-  canvas.dataset.cecTrackAges = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => { const view = track as { id:string; age?:number; fusionAge?:number }; return `${view.id}:${(view.age ?? view.fusionAge ?? 0).toFixed(2)}`; }).join("|");
+  canvas.dataset.cecTrackIds = cecTracks.map((track) => track.id).join("|");
+  canvas.dataset.cecTrackContributors = cecTracks.map((track) => `${track.id}:${(track.contributors ?? []).join("+")}`).join("|");
+  canvas.dataset.cecTrackAges = cecTracks.map((track) => { const view = track as { id:string; age?:number; fusionAge?:number }; return `${view.id}:${(view.age ?? view.fusionAge ?? 0).toFixed(2)}`; }).join("|");
+  canvas.dataset.cecEnabled = String(Boolean(airCombat.group.userData.cecEnabled));
   canvas.dataset.cecMeasurementCount = String((airCombat.group.userData.cecMeasurementCount as number | undefined) ?? cecRuntime.measurements.length);
   canvas.dataset.cecPendingMessages = String((airCombat.group.userData.cecPendingMessages as number | undefined) ?? cecRuntime.network.pending);
   canvas.dataset.cecAirState = String(airCombat.group.userData.cecState ?? "unknown");
