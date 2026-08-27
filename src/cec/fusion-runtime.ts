@@ -9,7 +9,16 @@ export class CecFusionRuntime {
   constructor(private readonly options:FusionOptions={}) {}
   reset(){this.tracks.clear();this.conflicts.length=0;}
   ingest(measurements:readonly CecMeasurement[], now:number):CecCompositeTrack[] {
-    const grouped=new Map<string,CecMeasurement[]>(); for(const m of measurements){if(now-m.observedAt<0 || now-m.observedAt>(this.options.maxAge??15))continue; const a=grouped.get(m.targetId)??[];a.push(m);grouped.set(m.targetId,a);}
+    const grouped=new Map<string,CecMeasurement[]>();
+    const seen=new Set<string>();
+    for(const m of measurements){
+      // A transport retry or replay must not be treated as an independent
+      // sensor observation. Measurement IDs are immutable event identities.
+      if(seen.has(m.id)) continue;
+      seen.add(m.id);
+      if(now-m.observedAt<0 || now-m.observedAt>(this.options.maxAge??15))continue;
+      const a=grouped.get(m.targetId)??[];a.push(m);grouped.set(m.targetId,a);
+    }
     for(const [targetId,ms] of grouped){ ms.sort((a,b)=>b.quality-a.quality); const anchor=ms[0]; const accepted:string[]=[anchor.id], rejected:string[]=[]; let pos=anchor.position.clone(), vel=anchor.velocity.clone(), cov=anchor.covariance, total=Math.max(.01,anchor.quality);
       for(const m of ms.slice(1)){const d=pos.distanceTo(m.position); if(d>(this.options.gateDistance??180)){rejected.push(m.id);continue;} const w=Math.max(.01,m.quality*m.timeSyncQuality); pos.lerp(m.position,w/(total+w)); vel.lerp(m.velocity,w/(total+w)); cov=covarianceFuse(cov,m.covariance,total,w);total+=w;accepted.push(m.id);}
       if(rejected.length)this.conflicts.push({targetId,accepted,rejected,residual:anchor.position.distanceTo(ms.find(m=>m.id===rejected[0])!.position),time:now});
