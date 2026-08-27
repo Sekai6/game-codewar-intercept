@@ -2435,6 +2435,13 @@ function rebuildFleetIntegration() {
   canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
   canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
+  if (datalinkEraInput.value === "cec-enabled") {
+    cecRuntime.network.config.enabled = true;
+    for (const ship of fleetIntegration.force.ships.values()) cecRuntime.register({
+      id: ship.id, side: "blue", position: ship.position, cecCapable: ship.id === fleetIntegration!.flagshipId || ship.definition.id === "CG-57",
+      alive: ship.alive, receiveEnabled: ship.alive, transmitEnabled: ship.alive, timeSyncQuality: 1,
+    });
+  }
   canvas.dataset.cecState = cecRuntime.network.roster.length ? "ACTIVE" : "OFF";
   canvas.dataset.cecParticipants = cecRuntime.network.roster.map((participant) => participant.id).join("|");
   fleetIntegration.setElectronicWarfareEnabled(shipEcmEnabled);
