@@ -9387,9 +9387,10 @@ function tick(now: number) {
     DATALINK_ERAS[datalinkEraInput.value as DatalinkEra].cecAvailable,
   );
   const cecFleet = fleetIntegration?.cecDiagnostics();
+  const cecRoster = cecRuntime.network.roster.map((participant) => participant.id);
   const cecAirTracks = (airCombat.group.userData.cecTracks as readonly { id:string; targetId:string; contributors?:readonly string[]; quality?:number; engagementQuality?:string; fusionAge?:number }[] | undefined) ?? [];
-  canvas.dataset.cecState = cecFleet?.enabled || cecAirTracks.length ? "ACTIVE" : "OFF";
-  canvas.dataset.cecParticipants = (cecFleet?.roster ?? []).join("|");
+  canvas.dataset.cecState = cecFleet?.enabled || cecRoster.length || cecAirTracks.length ? "ACTIVE" : "OFF";
+  canvas.dataset.cecParticipants = (cecFleet?.roster?.length ? cecFleet.roster : cecRoster).join("|");
   canvas.dataset.cecTrackIds = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => track.id).join("|");
   canvas.dataset.cecTrackContributors = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => `${track.id}:${(track.contributors ?? []).join("+")}`).join("|");
   canvas.dataset.cecTrackAges = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => { const view = track as { id:string; age?:number; fusionAge?:number }; return `${view.id}:${(view.age ?? view.fusionAge ?? 0).toFixed(2)}`; }).join("|");
