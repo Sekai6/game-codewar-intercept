@@ -3164,6 +3164,28 @@ export class AirCombatSystem {
   ) {
     if (missile.phase !== "midcourse" || time < missile.nextDatalink) return;
     missile.nextDatalink = time + missile.definition.datalinkInterval;
+    // CEC is an optional measurement-level midcourse source. It is only
+    // available to weapons explicitly modelled for it (currently AIM-54A),
+    // and never replaces seeker capture or the launch/fire-control path.
+    if (this.cecEnabled && missile.definition.id === "AIM-54A") {
+      const cecTrack = this.cec.fusion.tracks.get(target.id);
+      const cecAge = cecTrack ? Math.max(0, time - cecTrack.lastMeasurementAt) : Infinity;
+      if (cecTrack && cecTrack.engagementQuality === "weapon" && cecTrack.weaponSupport.allowed && cecAge <= 8) {
+        missile.commandPoint
+          .copy(cecTrack.position)
+          .addScaledVector(cecTrack.velocity, missile.definition.datalinkInterval);
+        missile.midcourseLastUpdateAt = time;
+        missile.midcourseTrackQuality = cecTrack.quality;
+        missile.midcourseUncertainty = Math.sqrt(Math.max(0, cecTrack.covariance.positionVariance));
+        missile.midcourseLinkLostAt = null;
+        missile.inertialContinuation = false;
+        missile.midcourseSource = "network-cue";
+        this.emit(time, "guidance", `${missile.definition.name} CEC MIDCOURSE UPDATE / ${missile.id} / TRACK ${cecTrack.id} / Q ${Math.round(cecTrack.quality * 100)}% / AGE ${cecAge.toFixed(1)}S`, {
+          entityId: missile.id, weaponId: missile.definition.id, platformId: missile.shooterId, targetTrackId: cecTrack.id,
+        });
+        return;
+      }
+    }
     const track = shooter?.tracks.get(target.id);
     const fresh = track && time - track.lastUpdate <= Math.max(2.5, (shooter?.definition.sensor.updateInterval ?? 1) * 2.4) && track.quality >= .08;
     if (fresh) {
