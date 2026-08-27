@@ -462,7 +462,7 @@ export class AirCombatSystem {
     this.nextFormationTacticsUpdate = 0;
     this.link16.reset();
     this.link11.reset();
-    this.cec.reset();
+    if (!this.sharedCec) this.cec.reset();
     this.cecEnabled = false;
     this.cecConfigurationKey = null;
     this.aewCommandNetwork.reset();
