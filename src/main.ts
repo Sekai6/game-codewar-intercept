@@ -2434,6 +2434,9 @@ function rebuildFleetIntegration() {
   canvas.dataset.fleetId = fleetIntegration.force.id;
   canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
+  canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
+  canvas.dataset.cecState = cecRuntime.network.roster.length ? "ACTIVE" : "OFF";
+  canvas.dataset.cecParticipants = cecRuntime.network.roster.map((participant) => participant.id).join("|");
   fleetIntegration.setElectronicWarfareEnabled(shipEcmEnabled);
   fleetIntegration.setCountermeasuresEnabled(srbocEnabled);
   fleetIntegration.setCiwsEnabled(ciwsEnabled);
