@@ -75,13 +75,13 @@ export function chooseAirWeapon(input: {
   const priorityLongRangeTarget = input.track?.targetRole === "bomber" ||
     input.track?.targetRole === "aew";
   const sparrowAvailable = (input.aircraft.ammo.get("AIM-7F") ?? 0) > 0;
-  const phoenixRemaining = input.aircraft.ammo.get("AIM-54A") ?? 0;
+  const phoenixRemaining = (input.aircraft.ammo.get("AIM-54A") ?? 0) + (input.aircraft.ammo.get("AIM-54X-CEC") ?? 0);
   return ([...input.aircraft.ammo] as [AirWeaponId, number][])
     .filter(([, count]) => count > 0)
     .map(([id]) => input.weaponCatalog[id])
     .filter((weapon) => {
       if (isTomcat && input.classification === "aircraft") {
-        if (weapon.id === "AIM-54A") {
+        if (weapon.id === "AIM-54A" || weapon.id === "AIM-54X-CEC") {
           if (input.range < 350 && (sparrowAvailable || !priorityLongRangeTarget)) return false;
           if (input.range < 500 && !priorityLongRangeTarget) return false;
           if (phoenixRemaining <= 2 && !priorityLongRangeTarget) return false;
@@ -121,7 +121,7 @@ export function chooseAirWeapon(input: {
       if (isTomcat && input.classification === "aircraft") {
         const rank = (weapon: AirWeaponDefinition) =>
           input.range >= 500 && input.range <= 1500
-            ? (weapon.id === "AIM-54A" ? 3 : weapon.id === "AIM-7F" ? 2 : 1)
+            ? ((weapon.id === "AIM-54A" || weapon.id === "AIM-54X-CEC") ? 3 : weapon.id === "AIM-7F" ? 2 : 1)
             : input.range >= 120
               ? (weapon.id === "AIM-7F" ? 3 : weapon.id === "AIM-9L" ? 2 : 1)
               : (weapon.id === "AIM-9L" ? 3 : weapon.id === "AIM-7F" ? 2 : 1);

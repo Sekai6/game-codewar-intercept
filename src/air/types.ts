@@ -51,7 +51,7 @@ export type AirPlatformId =
   | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A"
   | "E-2C" | "TU-126";
 export type AirWeaponId =
-  | "AIM-54A" | "AIM-7F" | "AIM-9L"
+  | "AIM-54A" | "AIM-54X-CEC" | "AIM-7F" | "AIM-9L"
   | "R-27R" | "R-73"
   | "KSR-5" | "AGM-84A";
 export type AirSubsystem =
@@ -73,6 +73,9 @@ export interface AirWeaponDefinition {
   name: string;
   targets: readonly ("aircraft" | "ship")[];
   guidance: AirGuidance;
+  /** Historical Phoenix guidance remains launch-platform bound. */
+  midcourseSupport?: "launch-platform-only" | "cec-network-native";
+  cecMidcourseUpdates?: boolean;
   minRange: number;
   maxRange: number;
   speed: number;

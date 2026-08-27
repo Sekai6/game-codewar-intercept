@@ -3173,10 +3173,9 @@ export class AirCombatSystem {
   ) {
     if (missile.phase !== "midcourse" || time < missile.nextDatalink) return;
     missile.nextDatalink = time + missile.definition.datalinkInterval;
-    // CEC is an optional measurement-level midcourse source. It is only
-    // available to weapons explicitly modelled for it (currently AIM-54A),
-    // and never replaces seeker capture or the launch/fire-control path.
-    if (this.cecEnabled && missile.definition.id === "AIM-54A") {
+    // CEC midcourse is restricted to explicitly modelled CEC-native weapons.
+    // Historical AIM-54A/C remain launch-platform/AWG-9 guided weapons.
+    if (this.cecEnabled && missile.definition.cecMidcourseUpdates === true && missile.definition.midcourseSupport === "cec-network-native") {
       const cecTrack = this.cec.fusion.tracks.get(target.id);
       const cecAge = cecTrack ? Math.max(0, time - cecTrack.lastMeasurementAt) : Infinity;
       if (cecTrack && cecTrack.engagementQuality === "weapon" && cecTrack.weaponSupport.allowed && cecAge <= 8) {
