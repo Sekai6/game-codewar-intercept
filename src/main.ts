@@ -3450,6 +3450,16 @@ function previewImportedScenario(scenario: ScenarioDocument): Promise<boolean> {
 }
 
 function applyScenarioToSandbox(compiled: CompiledScenario | null) {
+  // Keep an explicit operator selection of CEC as a runtime override. The
+  // built-in scenario document remains immutable and still supplies the
+  // default era when no override is selected.
+  if (compiled && datalinkEraInput?.value === "cec-enabled" && compiled.document.simulation.datalinkEra !== "cec-enabled") {
+    compiled = {
+      ...compiled,
+      document: { ...compiled.document, simulation: { ...compiled.document.simulation, datalinkEra: "cec-enabled" } },
+      navalForces: compiled.navalForces.map((force) => ({ ...force, datalinkEra: "cec-enabled" })),
+    };
+  }
   activeCompiledScenario = compiled;
   activeScenarioSession = compiled ? new ScenarioSession(compiled) : null;
   activeScenarioDocument = compiled?.document ?? null;
