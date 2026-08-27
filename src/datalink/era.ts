@@ -42,10 +42,10 @@ export const DATALINK_ERAS: Readonly<Record<DatalinkEra, DatalinkEraDefinition>>
   },
   "cec-enabled": {
     id: "cec-enabled", label: "CEC ENABLED / FUTURE",
-    description: "Measurement-level cooperative engagement is not implemented",
+    description: "Measurement-level Cooperative Engagement Capability for Long Beach, CG-57 and E-2C",
     link11Available: false, link16Available: true, shipLink11: false,
     aircraftLink16: true, shipLink16: true,
-    cecAvailable: false, selectable: false, rank: 3,
+    cecAvailable: true, selectable: true, rank: 3,
   },
 };
 

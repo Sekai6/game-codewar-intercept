@@ -13,10 +13,16 @@ This Wiki documents the implemented 3D Cold War naval and air-intercept simulati
 - [Music and atmosphere](MUSIC.md)
 - [Versioning](VERSIONING.md)
 
-## Future roadmap
+## Implemented capability map
 
-**Passive sensing / emission-control chain**: add IRST, passive electromagnetic detection, emitter tracks and EMCON states to fleet and air-asset platforms. This is not implemented in the current runtime; planned scope covers silent search, emission exposure, passive-track quality, active/passive sensor switching and engagement-authority effects.
+**Passive sensing / emission-control chain**: implemented through IRST, ESM, passive tracks and platform-level ACTIVE/EMCON/PASSIVE_ONLY states. See [Passive sensors and EMCON](MECHANICS/PASSIVE_SENSORS_EMCON.md).
 
-**CEC (Cooperative Engagement Capability)**: extend ordinary track sharing into cross-platform sensor fusion, remote fire-control solutions, engagement authorization and coordinated mid-course missile updates. CEC is not the same as the current data-link track exchange and is not implemented.
+**CEC (Cooperative Engagement Capability)**: implemented as a separate measurement-fusion layer. Only the explicit `cec-enabled` era registers Long Beach, CG-57 and E-2C. See [CEC](MECHANICS/CEC.md).
 
-**Anti-radiation operations and missiles**: model emitter identities, passive direction finding, shutdown/evasion, decoy emitters and a dedicated anti-radiation missile seeker state machine. This depends on passive tracks and EMCON; no anti-radiation missile entity exists yet.
+**Anti-radiation operations and missiles**: roadmap item; passive emitter tracks and EMCON are available, but dedicated anti-radiation weapons are not yet implemented.
+
+## Newly documented systems
+
+- [Scenario platform](SCENARIOS/SCENARIO_PLATFORM.md) — JSON schema, validation, compilation and legacy adapters.
+- [Telemetry and Tacview](MECHANICS/TELEMETRY_PIPELINE.md) — shared event model for HUD, AAR, analytics and ACMI.
+- [AIM-54X CEC](WEAPONS/AIM54X_CEC.md) — future-only network-native Phoenix variant.

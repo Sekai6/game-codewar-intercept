@@ -13,6 +13,8 @@ export function observePassive(input: { sensor: PassiveSensorDefinition; observe
   if (!sensor.detects.includes(target.kind)) return undefined;
   const offset = target.position.clone().sub(observer.position), range = offset.length();
   if (range > sensor.range) return undefined;
+  const hasEmission = input.emission?.radarEmitting || input.emission?.communicationEmitting || input.emission?.jammerEmitting;
+  if (sensor.kind === "esm" && !hasEmission) return undefined;
   const signal = sensor.kind === "irst"
     ? target.infraredSignature / Math.max(1, (range / 100) ** 1.35)
     : (input.emission?.emissionStrength ?? 0) / Math.max(1, (range / 100) ** 1.15);

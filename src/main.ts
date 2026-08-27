@@ -106,6 +106,7 @@ import {
 } from "./platforms/defense";
 import { recordPlatformPointDefenseShot } from "./platforms/visual-defense";
 import { AirCombatSystem } from "./air/runtime";
+import { CecRuntime } from "./cec/runtime";
 import { writeSovietAirDiagnostics } from "./air/observability-diagnostics";
 import { createShipInterceptorModel } from "./models/ship-interceptors";
 import {
@@ -345,7 +346,11 @@ let clusteredUpdateCount = 0;
 let clusteredLightCount = 0;
 let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
-const airCombat = new AirCombatSystem(scene);
+// One scenario-level CEC bus is shared by airborne and surface participants.
+// Individual systems still enforce their own sensor, fire-control and
+// launcher rules; sharing the bus only shares measurements and delivery state.
+const cecRuntime = new CecRuntime({ enabled: false, maxParticipants: 3, maxRange: 2500, baseDelay: 0.12, reliability: 0.98 }, 0xCEC);
+const airCombat = new AirCombatSystem(scene, cecRuntime);
 // Declared before the observer is constructed because its initial snapshot is sampled immediately.
 let fleetIntegration: FleetSceneIntegration | null = null;
 const datalinkAarRecorder = new DatalinkAarRecorder();
@@ -2372,6 +2377,7 @@ function rebuildFleetIntegration() {
   fleetIntegration = new FleetSceneIntegration({
     scene,
     scenario,
+    cecRuntime,
     definitions: SHIP_DEFINITIONS,
     flagshipModel: defender,
     registerModel: registerShipAssetLod,
@@ -2428,6 +2434,17 @@ function rebuildFleetIntegration() {
   canvas.dataset.fleetId = fleetIntegration.force.id;
   canvas.dataset.fleetFormation = fleetFormation;
   canvas.dataset.fleetShips = [...fleetIntegration.force.ships.keys()].join("|");
+  canvas.dataset.fleetShipCount = String(fleetIntegration.force.ships.size);
+  if (datalinkEraInput.value === "cec-enabled") {
+    cecRuntime.reset();
+    cecRuntime.network.config.enabled = true;
+    for (const ship of fleetIntegration.force.ships.values()) cecRuntime.register({
+      id: ship.id, side: "blue", position: ship.position, cecCapable: ship.id === fleetIntegration!.flagshipId || /cg-57/i.test(ship.id) || /cg-57/i.test(ship.definition.id),
+      alive: ship.alive, receiveEnabled: ship.alive, transmitEnabled: ship.alive, timeSyncQuality: 1,
+    });
+  }
+  canvas.dataset.cecState = cecRuntime.network.roster.length ? "ACTIVE" : "OFF";
+  canvas.dataset.cecParticipants = cecRuntime.network.roster.map((participant) => participant.id).join("|");
   fleetIntegration.setElectronicWarfareEnabled(shipEcmEnabled);
   fleetIntegration.setCountermeasuresEnabled(srbocEnabled);
   fleetIntegration.setCiwsEnabled(ciwsEnabled);
@@ -2551,7 +2568,7 @@ document.body.appendChild(airStatusPanel);
 // radar, passive sensors and AAR retain one authoritative state transition.
 const emconPanel = document.createElement("section");
 emconPanel.className = "emcon-panel";
-emconPanel.style.cssText = "position:fixed;right:24px;bottom:120px;z-index:12;background:#071923e8;border:1px solid #38666b;color:#d5edf0;padding:10px 12px;font:11px Arial;letter-spacing:1px;min-width:220px";
+emconPanel.style.cssText = "position:fixed;right:24px;top:92px;z-index:12;background:#071923e8;border:1px solid #38666b;color:#d5edf0;padding:10px 12px;font:11px Arial;letter-spacing:1px;min-width:220px";
 emconPanel.innerHTML = '<header style="display:flex;justify-content:space-between;gap:12px"><b>EMISSION CONTROL</b><span data-emcon-state>--</span></header><select data-emcon-platform style="width:100%;margin-top:7px;background:#0a252d;color:#d5edf0;border:1px solid #315f63;padding:5px"></select><div data-emcon-modes style="display:flex;gap:4px;margin-top:7px"><button data-mode="active">ACTIVE</button><button data-mode="emcon">EMCON</button><button data-mode="passive-only">PASSIVE ONLY</button></div><small data-emcon-detail style="display:block;margin-top:6px;color:#8fb8bb">Radar and passive suite status</small>';
 document.body.appendChild(emconPanel);
 const emconPlatform = emconPanel.querySelector("[data-emcon-platform]") as HTMLSelectElement;
@@ -2696,6 +2713,7 @@ datalinkEraInput.addEventListener("change", () => {
   const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
   link16Input.checked = (era.link11Available || era.link16Available) && era.selectable;
   updateDatalinkEraControls();
+  if (activeCompiledScenario) applyScenarioToSandbox(activeCompiledScenario);
 });
 updateDatalinkEraControls();
 link16Input.checked = true;
@@ -3444,6 +3462,16 @@ function previewImportedScenario(scenario: ScenarioDocument): Promise<boolean> {
 }
 
 function applyScenarioToSandbox(compiled: CompiledScenario | null) {
+  // Keep an explicit operator selection of CEC as a runtime override. The
+  // built-in scenario document remains immutable and still supplies the
+  // default era when no override is selected.
+  if (compiled && datalinkEraInput?.value === "cec-enabled" && compiled.document.simulation.datalinkEra !== "cec-enabled") {
+    compiled = {
+      ...compiled,
+      document: { ...compiled.document, simulation: { ...compiled.document.simulation, datalinkEra: "cec-enabled" } },
+      navalForces: compiled.navalForces.map((force) => ({ ...force, datalinkEra: "cec-enabled" })),
+    };
+  }
   activeCompiledScenario = compiled;
   activeScenarioSession = compiled ? new ScenarioSession(compiled) : null;
   activeScenarioDocument = compiled?.document ?? null;
@@ -4138,6 +4166,11 @@ radarCanvas.addEventListener("pointerdown", (e) => {
         new URLSearchParams(location.search).get("bfmValidation") === "1",
       ),
     );
+    if (datalinkEraInput.value === "cec-enabled") {
+      cecRuntime.network.config.enabled = true;
+      for (const aircraft of airCombat.aircraft.filter((candidate) => candidate.definition.id === "E-2C" && candidate.side === "blue"))
+        cecRuntime.register({ id: aircraft.id, side: "blue", position: aircraft.position, cecCapable: true, alive: aircraft.alive, receiveEnabled: aircraft.alive, transmitEnabled: aircraft.alive, timeSyncQuality: aircraft.definition.datalink?.timeSyncQuality ?? .7 });
+    }
     airCombat.countermeasuresEnabled =
       new URLSearchParams(location.search).get("airCountermeasures") !== "off";
     log(`AIR OPERATIONS / ${(activeScenarioDocument?.metadata.title ?? AIR_SCENARIO_PRESETS[presetId].description).toUpperCase()}`);
@@ -9370,6 +9403,19 @@ function tick(now: number) {
   canvas.dataset.cecAvailable = String(
     DATALINK_ERAS[datalinkEraInput.value as DatalinkEra].cecAvailable,
   );
+  const cecFleet = fleetIntegration?.cecDiagnostics();
+  const cecRoster = cecRuntime.network.roster.map((participant) => participant.id);
+  const cecAirTracks = (airCombat.group.userData.cecTracks as readonly { id:string; targetId:string; contributors?:readonly string[]; quality?:number; engagementQuality?:string; fusionAge?:number }[] | undefined) ?? [];
+  const cecTracks = [...(cecFleet?.tracks ?? []), ...cecAirTracks].filter((track, index, all) => all.findIndex((candidate) => candidate.id === track.id) === index);
+  canvas.dataset.cecState = cecFleet?.enabled || cecRoster.length || cecAirTracks.length ? "ACTIVE" : "OFF";
+  canvas.dataset.cecParticipants = (cecFleet?.roster?.length ? cecFleet.roster : cecRoster).join("|");
+  canvas.dataset.cecTrackIds = cecTracks.map((track) => track.id).join("|");
+  canvas.dataset.cecTrackContributors = cecTracks.map((track) => `${track.id}:${(track.contributors ?? []).join("+")}`).join("|");
+  canvas.dataset.cecTrackAges = cecTracks.map((track) => { const view = track as { id:string; age?:number; fusionAge?:number }; return `${view.id}:${(view.age ?? view.fusionAge ?? 0).toFixed(2)}`; }).join("|");
+  canvas.dataset.cecEnabled = String(Boolean(airCombat.group.userData.cecEnabled));
+  canvas.dataset.cecMeasurementCount = String((airCombat.group.userData.cecMeasurementCount as number | undefined) ?? cecRuntime.measurements.length);
+  canvas.dataset.cecPendingMessages = String((airCombat.group.userData.cecPendingMessages as number | undefined) ?? cecRuntime.network.pending);
+  canvas.dataset.cecAirState = String(airCombat.group.userData.cecState ?? "unknown");
   canvas.dataset.link16Participants = airCombat.link16Participants().join("|");
   canvas.dataset.link16TrackStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.networkTracks.size}`)
