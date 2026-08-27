@@ -79,6 +79,7 @@ export class FleetSceneIntegration {
   private localWeatherAt?: (position: THREE.Vector3) => { radarRangeFactor:number; detectionProbabilityFactor:number; measurementNoiseFactor:number };
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
+    if (options.cecRuntime) options.cecRuntime.network.config.enabled = options.scenario.datalinkEra === "cec-enabled";
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
     this.cec = options.cecRuntime ?? new CecRuntime({
       enabled: options.scenario.datalinkEra === "cec-enabled",
