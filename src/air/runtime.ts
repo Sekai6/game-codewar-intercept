@@ -1733,7 +1733,7 @@ export class AirCombatSystem {
     if (!a.alive) return;
     a.emissionState = {
       radarEmitting: a.radarActive && a.emconMode === "active",
-      communicationEmitting: a.emconMode !== "passive-only",
+      communicationEmitting: a.emconMode === "active",
       jammerEmitting: a.ecmActive,
       emissionStrength: (a.radarActive && a.emconMode === "active" ? 0.8 : 0.08) + (a.ecmActive ? 0.45 : 0),
     };
