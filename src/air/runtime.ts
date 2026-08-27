@@ -821,12 +821,16 @@ export class AirCombatSystem {
       const composite = this.cec.update(time);
       this.group.userData.cecTracks = composite;
       this.group.userData.cecState = this.cec.network.roster.length ? "active" : "standby";
+      this.group.userData.cecMeasurementCount = this.cec.measurements.length;
+      this.group.userData.cecPendingMessages = this.cec.network.pending;
       for (const track of composite)
         if (track.lastMeasurementAt === time)
           this.emit(time, "guidance", `CEC COMPOSITE TRACK READY / ${track.targetId} / ${track.contributors.join("+")} / ${track.engagementQuality.toUpperCase()}`, { targetTrackId: track.id, entityId: track.targetId });
     } else {
       this.group.userData.cecTracks = [];
       this.group.userData.cecState = "off";
+      this.group.userData.cecMeasurementCount = 0;
+      this.group.userData.cecPendingMessages = 0;
     }
     for (const [key,publishedAt] of this.externalLink11Published)
       if(time-publishedAt>30)this.externalLink11Published.delete(key);
