@@ -2438,7 +2438,7 @@ function rebuildFleetIntegration() {
   if (datalinkEraInput.value === "cec-enabled") {
     cecRuntime.network.config.enabled = true;
     for (const ship of fleetIntegration.force.ships.values()) cecRuntime.register({
-      id: ship.id, side: "blue", position: ship.position, cecCapable: ship.id === fleetIntegration!.flagshipId || ship.definition.id === "CG-57",
+      id: ship.id, side: "blue", position: ship.position, cecCapable: ship.id === fleetIntegration!.flagshipId || /cg-57/i.test(ship.id) || /cg-57/i.test(ship.definition.id),
       alive: ship.alive, receiveEnabled: ship.alive, transmitEnabled: ship.alive, timeSyncQuality: 1,
     });
   }

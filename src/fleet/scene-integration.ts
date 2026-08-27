@@ -103,7 +103,7 @@ export class FleetSceneIntegration {
     if (options.scenario.datalinkEra === "cec-enabled") {
       for (const ship of this.force.ships.values()) this.cec.register({
         id: ship.id, side: ship.side === "blue" ? "blue" : "red", position: ship.position,
-        cecCapable: ship.id === this.flagshipId || ship.definition.id === "CG-57", alive: ship.alive,
+        cecCapable: ship.id === this.flagshipId || /cg-57/i.test(ship.id) || /cg-57/i.test(ship.definition.id), alive: ship.alive,
         receiveEnabled: true, transmitEnabled: true, timeSyncQuality: 1,
       });
     }
@@ -433,7 +433,7 @@ export class FleetSceneIntegration {
     this.cec.reset();
     if (this.scenarioCecEnabled()) for (const ship of this.force.ships.values()) this.cec.register({
       id: ship.id, side: ship.side === "blue" ? "blue" : "red", position: ship.position,
-      cecCapable: ship.id === this.flagshipId || ship.definition.id === "CG-57", alive: ship.alive,
+      cecCapable: ship.id === this.flagshipId || /cg-57/i.test(ship.id) || /cg-57/i.test(ship.definition.id), alive: ship.alive,
       receiveEnabled: true, transmitEnabled: true, timeSyncQuality: 1,
     });
     this.link11.reset(this.force);
