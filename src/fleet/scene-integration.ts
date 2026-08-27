@@ -214,7 +214,27 @@ export class FleetSceneIntegration {
       const tracks = enabled ? this.cec.update(now) : [];
       for (const ship of this.force.ships.values()) {
         ship.cecTracks.clear();
-        if (enabled) for (const track of tracks) ship.cecTracks.set(track.targetId, track);
+        if (enabled) for (const track of tracks) {
+          ship.cecTracks.set(track.targetId, track);
+          // Promote the shared measurement picture into the ship's local
+          // engagement view. The coordinator still performs local fire
+          // control, channel, magazine and launcher checks before assignment.
+          const existing = ship.localTracks.get(track.targetId);
+          const cecEstimate: ShipTrackEstimate = {
+            targetId: track.targetId,
+            position: track.position.clone(),
+            velocity: track.velocity.clone(),
+            quality: track.quality,
+            uncertainty: Math.sqrt(Math.max(0, track.covariance.positionVariance)),
+            classification: "aircraft",
+            source: "passive-fusion",
+            updatedAt: track.lastMeasurementAt,
+            weaponQuality: track.engagementQuality === "weapon" && track.weaponSupport.allowed,
+            contributors: [...track.contributors],
+          };
+          if (!existing || existing.source !== "local-radar" || existing.updatedAt < cecEstimate.updatedAt)
+            ship.localTracks.set(track.targetId, cecEstimate);
+        }
       }
     }
   }
