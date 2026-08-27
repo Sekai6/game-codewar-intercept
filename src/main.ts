@@ -9412,6 +9412,7 @@ function tick(now: number) {
   canvas.dataset.cecTrackAges = [...(cecFleet?.tracks ?? []), ...cecAirTracks].map((track) => { const view = track as { id:string; age?:number; fusionAge?:number }; return `${view.id}:${(view.age ?? view.fusionAge ?? 0).toFixed(2)}`; }).join("|");
   canvas.dataset.cecMeasurementCount = String((airCombat.group.userData.cecMeasurementCount as number | undefined) ?? cecRuntime.measurements.length);
   canvas.dataset.cecPendingMessages = String((airCombat.group.userData.cecPendingMessages as number | undefined) ?? cecRuntime.network.pending);
+  canvas.dataset.cecAirState = String(airCombat.group.userData.cecState ?? "unknown");
   canvas.dataset.link16Participants = airCombat.link16Participants().join("|");
   canvas.dataset.link16TrackStates = airCombat.aircraft
     .map((aircraft) => `${aircraft.id}:${aircraft.networkTracks.size}`)
