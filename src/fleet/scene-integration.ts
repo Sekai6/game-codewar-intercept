@@ -22,6 +22,9 @@ import { FleetLaunchObservability } from "./launch-observability.js";
 import type { NavalForceRuntime, NavalForceScenario } from "./types.js";
 import type { PropagationSpatialZone, SpaceWeatherSnapshot } from "../space-weather/types.js";
 import type { TrackFusionEvent } from "../tracks/conflict-fusion.js";
+import { CecRuntime } from "../cec/runtime.js";
+import { createCecMeasurement } from "../cec/measurement-runtime.js";
+import type { CecCompositeTrack } from "../cec/types.js";
 
 export interface LegacyFlagshipSnapshot {
   position: THREE.Vector3;
@@ -58,6 +61,7 @@ export class FleetSceneIntegration {
   private readonly companions: ShipCombatantInstance[];
   private readonly sensors = new ShipSensorRuntime();
   private readonly link11 = new FleetLink11Runtime();
+  private readonly cec: CecRuntime;
   private readonly airDefense = new FleetAirDefenseCoordinator();
   private readonly surfaceWarfare = new FleetSurfaceWarfareCoordinator();
   private readonly launchers: ShipLauncherAdapter[] = [];
@@ -75,6 +79,13 @@ export class FleetSceneIntegration {
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
+    this.cec = new CecRuntime({
+      enabled: options.scenario.datalinkEra === "cec-enabled",
+      maxParticipants: 3,
+      maxRange: 2500,
+      baseDelay: 0.12,
+      reliability: 0.98,
+    }, 0xCEC);
     const scenarioOtc = options.scenario.ships.find((entry) => entry.commandRoles.includes("otc"));
     if (!scenarioOtc) throw new Error(`Fleet ${options.scenario.id} has no OTC model owner`);
     this.force = createNavalForceRuntime(
@@ -87,6 +98,13 @@ export class FleetSceneIntegration {
     const flagship = this.force.ships.get(this.flagshipId)!;
     flagship.applyDamage = options.applyFlagshipDamage;
     this.companions = [...this.force.ships.values()].filter((ship) => ship.id !== this.flagshipId);
+    if (options.scenario.datalinkEra === "cec-enabled") {
+      for (const ship of this.force.ships.values()) this.cec.register({
+        id: ship.id, side: ship.side === "blue" ? "blue" : "red", position: ship.position,
+        cecCapable: ship.id === this.flagshipId || ship.definition.id === "CG-57", alive: ship.alive,
+        receiveEnabled: true, transmitEnabled: true, timeSyncQuality: 1,
+      });
+    }
     for (const entry of options.scenario.ships) if (entry.scenarioRoute?.length) {
       this.scenarioRoutes.set(entry.instanceId, {
         points:entry.scenarioRoute.map((point) => new THREE.Vector3(...point)),
@@ -184,12 +202,48 @@ export class FleetSceneIntegration {
 
   updateSensors(now: number, dt: number, observations: readonly ShipSensorObservation[]) {
     for (const ship of this.force.ships.values()) this.sensors.update(ship, now, dt, observations, this.localWeatherAt);
+    if (this.scenarioCecEnabled()) this.collectCecMeasurements(now);
   }
 
   updateNetwork(now: number, enabled: boolean) {
     this.link11.update(this.force, now, enabled);
     for(const event of this.link11.drainFusionEvents())this.recordFusionAarEvent(event,now);
+    if (this.scenarioCecEnabled()) {
+      const tracks = enabled ? this.cec.update(now) : [];
+      for (const ship of this.force.ships.values()) {
+        ship.cecTracks.clear();
+        if (enabled) for (const track of tracks) ship.cecTracks.set(track.targetId, track);
+      }
+    }
   }
+
+  private scenarioCecEnabled() { return this.options.scenario.datalinkEra === "cec-enabled"; }
+
+  private collectCecMeasurements(now: number) {
+    for (const ship of this.force.ships.values()) {
+      const participant = this.cec.network.roster.find((p) => p.id === ship.id);
+      if (!participant?.transmitEnabled || !ship.alive) continue;
+      for (const track of ship.localTracks.values()) {
+        if (track.source !== "local-radar" || !track.weaponQuality) continue;
+        const measurement = createCecMeasurement({
+          sourcePlatformId: ship.id,
+          sourceSensorId: "ship-primary-radar",
+          targetId: track.targetId,
+          position: track.position,
+          velocity: track.velocity,
+          classification: track.classification,
+          observedAt: track.updatedAt,
+          sourceMode: "ship-radar",
+          quality: track.quality,
+          timeSyncQuality: participant.timeSyncQuality,
+        });
+        this.cec.ingest(measurement, now);
+      }
+    }
+  }
+
+  cecTracks(): readonly CecCompositeTrack[] { return [...this.cec.fusion.tracks.values()]; }
+  cecDiagnostics() { return { enabled: this.scenarioCecEnabled(), roster: this.cec.network.roster.map((p) => p.id), tracks: this.cecTracks().map((t) => ({ id:t.id, targetId:t.targetId, contributors:t.contributors, quality:t.quality, engagementQuality:t.engagementQuality, age:t.fusionAge })) }; }
 
   private recordFusionAarEvent(event:TrackFusionEvent,now:number) {
     const format=(kind:string)=>`TRACK CONFLICT ${kind} / ${event.trackId} / SEP ${event.separation.toFixed(1)} / CONFIRM ${event.confirmations} / ${event.contributors.join("|")}`;
@@ -360,6 +414,7 @@ export class FleetSceneIntegration {
       ship.alive = true;
       ship.localTracks.clear();
       ship.networkTracks.clear();
+      ship.cecTracks.clear();
       ship.engagements.clear();
       ship.magazines.rounds.set("RIM-67", entry.loadout?.["RIM-67"] ?? ship.definition.ammo.rim67);
       ship.magazines.rounds.set("SM-2MR", entry.loadout?.["SM-2MR"] ?? ship.definition.ammo.sm2mr);
@@ -373,6 +428,12 @@ export class FleetSceneIntegration {
     this.force.formationState.stations.clear();
     this.force.formationState.lastCommandReassessmentAt = Number.NEGATIVE_INFINITY;
     this.sensors.reset();
+    this.cec.reset();
+    if (this.scenarioCecEnabled()) for (const ship of this.force.ships.values()) this.cec.register({
+      id: ship.id, side: ship.side === "blue" ? "blue" : "red", position: ship.position,
+      cecCapable: ship.id === this.flagshipId || ship.definition.id === "CG-57", alive: ship.alive,
+      receiveEnabled: true, transmitEnabled: true, timeSyncQuality: 1,
+    });
     this.link11.reset(this.force);
     this.fusionAarStates.clear();
     this.airDefense.reset(this.force);

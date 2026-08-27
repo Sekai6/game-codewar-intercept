@@ -9,6 +9,7 @@ export class CecRuntime {
   readonly measurements: CecMeasurement[] = [];
   private readonly pending: CecMeasurement[] = [];
   constructor(config: CecNetworkConfig, seed = 1) { this.network = new CecNetworkRuntime(config, seed); }
+  reset(){this.network.reset();this.fusion.reset();this.measurements.length=0;this.pending.length=0;}
   register(participant: CecParticipant) { return this.network.register(participant); }
   ingest(measurement: CecMeasurement, now: number) {
     if (!this.network.roster.some((p) => p.id === measurement.sourcePlatformId)) return 0;

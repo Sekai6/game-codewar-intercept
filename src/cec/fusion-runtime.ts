@@ -7,6 +7,7 @@ export interface FusionConflict { targetId:string; accepted:string[]; rejected:s
 export class CecFusionRuntime {
   readonly tracks=new Map<string,CecCompositeTrack>(); readonly conflicts:FusionConflict[]=[];
   constructor(private readonly options:FusionOptions={}) {}
+  reset(){this.tracks.clear();this.conflicts.length=0;}
   ingest(measurements:readonly CecMeasurement[], now:number):CecCompositeTrack[] {
     const grouped=new Map<string,CecMeasurement[]>(); for(const m of measurements){if(now-m.observedAt<0 || now-m.observedAt>(this.options.maxAge??15))continue; const a=grouped.get(m.targetId)??[];a.push(m);grouped.set(m.targetId,a);}
     for(const [targetId,ms] of grouped){ ms.sort((a,b)=>b.quality-a.quality); const anchor=ms[0]; const accepted:string[]=[anchor.id], rejected:string[]=[]; let pos=anchor.position.clone(), vel=anchor.velocity.clone(), cov=anchor.covariance, total=Math.max(.01,anchor.quality);

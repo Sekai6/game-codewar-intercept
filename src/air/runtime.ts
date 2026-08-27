@@ -87,6 +87,8 @@ import {
 import { opposingSides } from "../defense/allegiance.js";
 import { Link16Network } from "../datalink/link16-network.js";
 import { Link11Network } from "../datalink/link11-network.js";
+import { CecRuntime } from "../cec/runtime.js";
+import { createCecMeasurement } from "../cec/measurement-runtime.js";
 import type { TacticalNetworkDecisionView, TacticalNetworkObservation, TacticalNetworkTrackView } from "../datalink/observability.js";
 import type { Link16TrackReport } from "../datalink/types.js";
 import { aircraftLink16Eligible, shipLink11Eligible, shipLink16Eligible } from "../datalink/era.js";
@@ -364,6 +366,10 @@ export class AirCombatSystem {
   private standardDamageApplications = 0;
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
+  /** Optional measurement-level CEC layer; it never creates or launches weapons. */
+  private readonly cec = new CecRuntime({ enabled: false, maxParticipants: 3 });
+  private cecEnabled = false;
+  private cecConfigurationKey: string | null = null;
   setSpaceWeather(snapshot: SpaceWeatherSnapshot | null) {
     this.link11.setPropagationSnapshot(snapshot);
     this.link16.setPropagationSnapshot(snapshot);
@@ -453,6 +459,9 @@ export class AirCombatSystem {
     this.nextFormationTacticsUpdate = 0;
     this.link16.reset();
     this.link11.reset();
+    this.cec.reset();
+    this.cecEnabled = false;
+    this.cecConfigurationKey = null;
     this.aewCommandNetwork.reset();
     this.seenAewCommands.clear();
     this.sovietGci.reset();
@@ -616,6 +625,8 @@ export class AirCombatSystem {
     this.lastEventIndex = this.events.length;
     return out;
   }
+  /** Composite tracks produced by CEC measurements for the host combat loop. */
+  cecTracks() { return [...this.cec.fusion.tracks.values()]; }
   private entities(context: AirScenarioContext) {
     this.externalTargets = context.targets ?? [
       context.blueShip,
@@ -685,6 +696,17 @@ export class AirCombatSystem {
       for (const aircraft of this.aircraft) aircraft.networkTracks.clear();
       this.datalinkConfigurationKey = datalinkConfigurationKey;
     }
+    // CEC is an explicit era capability. Register only the three blue nodes
+    // that expose measurement-level cooperation; all other platforms remain
+    // on the ordinary Link 11/16 cue path.
+    const cecEnabled = datalinkEra === "cec-enabled" && datalinkEnabled;
+    const cecKey = `${cecEnabled}:${context.targets?.length ?? 0}`;
+    if (this.cecConfigurationKey !== cecKey) {
+      this.cec.reset();
+      this.cec.network.config.enabled = cecEnabled;
+      this.cecEnabled = cecEnabled;
+      this.cecConfigurationKey = cecKey;
+    }
     this.activeLink16ParticipantIds.clear();
     this.activeLink11ParticipantIds.clear();
     const tacticalParticipants = context.tacticalNetworkParticipants ??
@@ -709,6 +731,18 @@ export class AirCombatSystem {
       }
     }
     for (const participant of tacticalParticipants) {
+      if (this.cecEnabled && participant.entity.side === "blue") {
+        this.cec.register({
+          id: participant.entity.id,
+          side: "blue",
+          position: participant.entity.position,
+          cecCapable: /long-beach|cg-57|e-2c/i.test(participant.entity.id),
+          alive: participant.entity.alive,
+          receiveEnabled: participant.entity.alive,
+          transmitEnabled: participant.entity.alive,
+          timeSyncQuality: participant.timeSyncQuality,
+        });
+      }
       if (shipLink11Eligible({ era: datalinkEra, enabled: datalinkEnabled })) {
         this.activeLink11ParticipantIds.add(participant.entity.id);
         this.link11.upsertParticipant({
@@ -779,6 +813,17 @@ export class AirCombatSystem {
           this.link16.publishTrack(participant.entity.id,report,time);
         }
       }
+    }
+    if (this.cecEnabled) {
+      const composite = this.cec.update(time);
+      this.group.userData.cecTracks = composite;
+      this.group.userData.cecState = this.cec.network.roster.length ? "active" : "standby";
+      for (const track of composite)
+        if (track.lastMeasurementAt === time)
+          this.emit(time, "guidance", `CEC COMPOSITE TRACK READY / ${track.targetId} / ${track.contributors.join("+")} / ${track.engagementQuality.toUpperCase()}`, { targetTrackId: track.id, entityId: track.targetId });
+    } else {
+      this.group.userData.cecTracks = [];
+      this.group.userData.cecState = "off";
     }
     for (const [key,publishedAt] of this.externalLink11Published)
       if(time-publishedAt>30)this.externalLink11Published.delete(key);
@@ -874,6 +919,11 @@ export class AirCombatSystem {
       this.emit(time,"guidance",`${participant?.definition.name??command.participantId} AEW COMMAND RECEIVED / ${command.controllerTrackId} / ${command.mode.toUpperCase()} / Q ${Math.round(command.quality*100)}% / CUE ONLY / NO WEAPON AUTHORITY`);
     }
     for (const aircraft of this.aircraft) {
+      if (this.cecEnabled && aircraft.side === "blue" && aircraft.definition.id === "E-2C") {
+        this.cec.register({ id: aircraft.id, side: "blue", position: aircraft.position,
+          cecCapable: true, alive: aircraft.alive, receiveEnabled: aircraft.alive,
+          transmitEnabled: aircraft.alive, timeSyncQuality: aircraft.definition.datalink?.timeSyncQuality ?? .7 });
+      }
       const command = this.sovietGci.commandFor(aircraft.id, time);
       if (!command || this.seenGciCommands.has(command.id)) continue;
       this.seenGciCommands.add(command.id);
@@ -1772,6 +1822,30 @@ export class AirCombatSystem {
             time,
             noise: [roll(key + 2), roll(key + 3), roll(key + 4)],
           });
+        // Feed only an already-successful local radar measurement into CEC.
+        // The CEC layer transports/fuses this report; it never sees target
+        // truth and never launches a weapon.
+        if (this.cecEnabled && a.side === "blue" && a.definition.id === "E-2C" && a.alive) {
+          const cecMeasurement = createCecMeasurement({
+            sourcePlatformId: a.id,
+            sourceSensorId: a.definition.sensor.name,
+            targetId: target.id,
+            position: measurement.position,
+            velocity: measurement.velocity,
+            classification: measurement.classification,
+            observedAt: time,
+            sourceMode: "airborne-radar",
+            quality: measurement.quality,
+            timeSyncQuality: a.definition.datalink?.timeSyncQuality ?? .7,
+            covariance: {
+              positionVariance: measurement.uncertainty * measurement.uncertainty,
+              velocityVariance: Math.max(1, measurement.uncertainty * .2) ** 2,
+              crossCorrelation: 0,
+            },
+          });
+          this.cec.ingest(cecMeasurement, time);
+          this.emit(time, "guidance", `CEC MEASUREMENT / ${a.definition.name} / ${target.id} / TQ ${Math.round(cecMeasurement.quality * 100)}%`, { platformId: a.id, entityId: target.id });
+        }
         const cue = [...a.networkTracks.values()].find((candidate) =>
           candidate.classification === measurement.classification &&
           candidate.position.distanceTo(measurement.position) <=
