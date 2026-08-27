@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { Vector3 } from "three";
+import { CecRuntime } from "../dist-test/cec/runtime.js";
+import { createCecMeasurement } from "../dist-test/cec/measurement-runtime.js";
+const cec = new CecRuntime({ enabled: true, maxParticipants: 3, maxRange: 3000, reliability: 1 }, 42);
+for (const id of ["long-beach", "cg57", "e2c"]) assert.equal(cec.register({ id, side: "blue", position: new Vector3(), alive: true, cecCapable: true, timeSyncQuality: 1, transmitEnabled: true, receiveEnabled: true }), true);
+assert.equal(cec.register({ id: "slava", side: "red", position: new Vector3(), alive: true, cecCapable: true, timeSyncQuality: 1, transmitEnabled: true, receiveEnabled: true }), false);
+const m = createCecMeasurement({ sourcePlatformId: "e2c", sourceSensorId: "AN/APS-145", targetId: "tu16", position: new Vector3(500, 80, 0), velocity: new Vector3(-2, 0, 0), classification: "aircraft", observedAt: 1, sourceMode: "airborne-radar", quality: .9 });
+cec.ingest(m, 1); const tracks = cec.update(2); assert.equal(tracks.length, 1); assert.equal(tracks[0].targetId, "tu16"); assert.equal(tracks[0].contributors[0], "e2c");
+// A retransmitted packet with the same immutable measurement id must not
+// create a second statistical contribution or duplicate contributor.
+const duplicate = new CecRuntime({ enabled: true, maxParticipants: 3, maxRange: 3000, reliability: 1 }, 42);
+for (const id of ["long-beach", "cg57", "e2c"]) duplicate.register({ id, side: "blue", position: new Vector3(), alive: true, cecCapable: true, timeSyncQuality: 1, transmitEnabled: true, receiveEnabled: true });
+duplicate.ingest(m, 1); duplicate.ingest(m, 1); const deduped = duplicate.update(2)[0];
+assert.deepEqual(deduped.contributors, ["e2c"]);
+assert.equal(deduped.covariance.position, tracks[0].covariance.position);
+console.log("CEC runtime verification passed");

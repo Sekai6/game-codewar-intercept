@@ -4,6 +4,7 @@ import type { EngagementRecord } from "../defense/engagement.js";
 import type { ShipDefinition, ShipManeuverMode, ShipWeapon, SubsystemId } from "../ship-types.js";
 import type { EmconMode } from "../sensors/passive-types.js";
 import type { PassiveObservation } from "../sensors/passive-runtime.js";
+import type { CecCompositeTrack } from "../cec/types.js";
 
 export interface ShipTrackEstimate {
   targetId: string;
@@ -80,4 +81,5 @@ export interface ShipCombatantInstance extends TargetableEntity {
   emconMode: EmconMode;
   passiveTracks: Map<string, PassiveObservation>;
   nextPassiveScan: number;
+  cecTracks: Map<string, CecCompositeTrack>;
 }

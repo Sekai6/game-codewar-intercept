@@ -92,6 +92,7 @@ export function createShipCombatant(input: CreateShipCombatantInput): ShipCombat
     emconMode: input.definition.defaultEmconMode ?? "active",
     passiveTracks: new Map(),
     nextPassiveScan: 0,
+    cecTracks: new Map(),
     applyDamage: (damage) => {
       instance.hullIntegrity = Math.max(0, instance.hullIntegrity - damage);
       if (instance.hullIntegrity <= 0) {

@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { Vector3 } from "three";
+import { evaluateCecFireControl, assignCecShooters } from "../src/cec/engagement-support.ts";
+import { applyCecMidcourseUpdate } from "../src/cec/missile-datalink.ts";
+const track={id:"cec-1",targetId:"tu16-1",contributors:["e2c"],position:new Vector3(100,10,0),velocity:new Vector3(-2,0,0),altitude:10,covariance:{positionVariance:12,velocityVariance:4},quality:.92,lastMeasurementAt:100,fusionAge:0,engagementQuality:"weapon",weaponSupport:{allowed:true,supportingPlatforms:["e2c"],requiredLocalChecks:[]}};
+const shooter={id:"cg57",side:"blue",position:new Vector3(),alive:true,fireControlChannels:1,availableInterceptors:2,localFireControlConfirmed:true};
+const decision=evaluateCecFireControl(track,shooter,{now:101,maxTrackAge:8,maxPositionVariance:20,maxVelocityVariance:10,minimumQuality:.7,maxRange:200});
+assert.equal(decision.allowed,true); assert(decision.support);
+assert.equal(evaluateCecFireControl(track,{...shooter,localFireControlConfirmed:false},{now:101,maxTrackAge:8,maxPositionVariance:20,maxVelocityVariance:10,minimumQuality:.7,maxRange:200}).reason,"LOCAL_FIRE_CONTROL_REQUIRED");
+assert.equal(assignCecShooters([track],[shooter,{...shooter,id:"long-beach",position:new Vector3(-120,0,0)}],101)[0].primaryShooterId,"cg57");
+const state={missileId:"sm2",supportsCec:true,lastUpdateAt:0,updateCount:0,maxTrackAge:8}; assert.equal(applyCecMidcourseUpdate(state,track,102).accepted,true); assert.equal(state.updateCount,1); assert.equal(applyCecMidcourseUpdate({...state,supportsCec:false},track,102).reason,"WEAPON_CEC_UNSUPPORTED");
+console.log("CEC engagement verification passed");

@@ -290,7 +290,11 @@ function compileAirSpawns(document: ScenarioDocument): AirSpawn[] {
         initialSpeed: force.speed,
         initialRadarState: force.radarState,
         initialEcmEnabled: force.ecmEnabled,
-        initialLoadout: force.loadout,
+        // The hypothetical CEC-native Phoenix is only issued in the explicit
+        // future CEC era; historical AIM-54A remains platform-guided.
+        initialLoadout: force.platformId === "F-14A" && document.simulation.datalinkEra === "cec-enabled"
+          ? { ...(force.loadout ?? {}), "AIM-54X-CEC": Math.ceil((force.loadout?.["AIM-54A"] ?? 0) / 2), "AIM-54A": Math.floor((force.loadout?.["AIM-54A"] ?? 0) / 2) }
+          : force.loadout,
       };
     });
   });
