@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { TargetableEntity } from "../combat-entity.js";
 import type { DefenseTarget, Interceptor } from "../combat-types.js";
 import type { ShipDefinition, ShipWeapon, SubsystemId } from "../ship-types.js";
-import type { ShipCombatantInstance } from "../ships/types.js";
+import type { ShipCombatantInstance, ShipTrackEstimate } from "../ships/types.js";
 import { ShipSensorRuntime, type ShipSensorObservation } from "../ships/sensor-runtime.js";
 import { reassessFleetCommand } from "./command-runtime.js";
 import { FleetAirDefenseCoordinator } from "./air-defense-coordinator.js";
