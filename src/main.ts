@@ -106,6 +106,7 @@ import {
 } from "./platforms/defense";
 import { recordPlatformPointDefenseShot } from "./platforms/visual-defense";
 import { AirCombatSystem } from "./air/runtime";
+import { CecRuntime } from "./cec/runtime";
 import { writeSovietAirDiagnostics } from "./air/observability-diagnostics";
 import { createShipInterceptorModel } from "./models/ship-interceptors";
 import {
@@ -345,7 +346,11 @@ let clusteredUpdateCount = 0;
 let clusteredLightCount = 0;
 let clusteredOccupiedCount = 0;
 let retainedFroxelLights: Array<{ sample: FroxelLightInput; expiresAt: number }> = [];
-const airCombat = new AirCombatSystem(scene);
+// One scenario-level CEC bus is shared by airborne and surface participants.
+// Individual systems still enforce their own sensor, fire-control and
+// launcher rules; sharing the bus only shares measurements and delivery state.
+const cecRuntime = new CecRuntime({ enabled: false, maxParticipants: 3, maxRange: 2500, baseDelay: 0.12, reliability: 0.98 }, 0xCEC);
+const airCombat = new AirCombatSystem(scene, cecRuntime);
 // Declared before the observer is constructed because its initial snapshot is sampled immediately.
 let fleetIntegration: FleetSceneIntegration | null = null;
 const datalinkAarRecorder = new DatalinkAarRecorder();
@@ -2372,6 +2377,7 @@ function rebuildFleetIntegration() {
   fleetIntegration = new FleetSceneIntegration({
     scene,
     scenario,
+    cecRuntime,
     definitions: SHIP_DEFINITIONS,
     flagshipModel: defender,
     registerModel: registerShipAssetLod,

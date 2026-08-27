@@ -367,7 +367,8 @@ export class AirCombatSystem {
   private readonly link16 = new Link16Network();
   private readonly link11 = new Link11Network();
   /** Optional measurement-level CEC layer; it never creates or launches weapons. */
-  private readonly cec = new CecRuntime({ enabled: false, maxParticipants: 3 });
+  private readonly cec: CecRuntime;
+  private readonly sharedCec: boolean;
   private cecEnabled = false;
   private cecConfigurationKey: string | null = null;
   setSpaceWeather(snapshot: SpaceWeatherSnapshot | null) {
@@ -411,7 +412,9 @@ export class AirCombatSystem {
   private readonly targetSources =
     new DefenseTargetRegistry<AirRuntimeTarget>();
   private externalTargets: readonly TargetableEntity[] = [];
-  constructor(private scene: THREE.Scene) {
+  constructor(private scene: THREE.Scene, cecRuntime?: CecRuntime) {
+    this.cec = cecRuntime ?? new CecRuntime({ enabled: false, maxParticipants: 3 });
+    this.sharedCec = !!cecRuntime;
     this.targetSources.register(
       createDefenseTargetSource("aircraft", () =>
         this.aircraft
@@ -702,7 +705,7 @@ export class AirCombatSystem {
     const cecEnabled = datalinkEra === "cec-enabled" && datalinkEnabled;
     const cecKey = `${cecEnabled}:${context.targets?.length ?? 0}`;
     if (this.cecConfigurationKey !== cecKey) {
-      this.cec.reset();
+      if (!this.sharedCec) this.cec.reset();
       this.cec.network.config.enabled = cecEnabled;
       this.cecEnabled = cecEnabled;
       this.cecConfigurationKey = cecKey;

@@ -52,6 +52,7 @@ export interface FleetSceneIntegrationOptions {
   resolveCiwsHit?: (target: DefenseTarget, damage: number) => boolean;
   ciwsTargetProfile?: (target: DefenseTarget) => ShipCiwsTargetProfile;
   createCiwsTracer?: (target: THREE.Vector3, origin: THREE.Vector3) => void;
+  cecRuntime?: CecRuntime;
 }
 
 export class FleetSceneIntegration {
@@ -79,7 +80,7 @@ export class FleetSceneIntegration {
 
   constructor(private readonly options: FleetSceneIntegrationOptions) {
     this.electronicWarfareVisuals = new FleetElectronicWarfareVisuals(options.scene);
-    this.cec = new CecRuntime({
+    this.cec = options.cecRuntime ?? new CecRuntime({
       enabled: options.scenario.datalinkEra === "cec-enabled",
       maxParticipants: 3,
       maxRange: 2500,
