@@ -75,6 +75,8 @@ export function chooseAirWeapon(input: {
   const priorityLongRangeTarget = input.track?.targetRole === "bomber" ||
     input.track?.targetRole === "aew";
   const sparrowAvailable = (input.aircraft.ammo.get("AIM-7F") ?? 0) > 0;
+  // Both Phoenix variants share the conservative long-range reserve pool;
+  // the CEC-native variant remains restricted to the explicit CEC era.
   const phoenixRemaining = (input.aircraft.ammo.get("AIM-54A") ?? 0) + (input.aircraft.ammo.get("AIM-54X-CEC") ?? 0);
   return ([...input.aircraft.ammo] as [AirWeaponId, number][])
     .filter(([, count]) => count > 0)

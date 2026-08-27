@@ -1744,7 +1744,7 @@ export class AirCombatSystem {
       for (const target of passiveTargets) {
         const targetAircraft = target.kind === "aircraft" ? target as AirPlatformInstance : undefined;
         const emission = target.emissionState ?? { radarEmitting: targetAircraft?.radarActive ?? false, communicationEmitting: targetAircraft ? targetAircraft.emconMode !== "passive-only" : false, jammerEmitting: targetAircraft?.ecmActive ?? false, emissionStrength: targetAircraft ? (targetAircraft.radarActive ? 1 : 0) + (targetAircraft.ecmActive ? .7 : 0) : 0 };
-        const irst = a.emconMode !== "active" || !a.radarActive ? passiveSuite.irst && observePassive({ sensor: passiveSuite.irst, observer: a, target, time, noise: [roll(a.id.length + target.id.length + time | 0), roll(11 + target.id.length), roll(17 + a.id.length)] }) : passiveSuite.irst && observePassive({ sensor: passiveSuite.irst, observer: a, target, time, noise: [roll(a.id.length + target.id.length + time | 0), roll(11 + target.id.length), roll(17 + a.id.length)] });
+        const irst = passiveSuite.irst && observePassive({ sensor: passiveSuite.irst, observer: a, target, time, noise: [roll(a.id.length + target.id.length + time | 0), roll(11 + target.id.length), roll(17 + a.id.length)] });
         const esm = passiveSuite.esm && emission.emissionStrength > 0 ? observePassive({ sensor: passiveSuite.esm, observer: a, target, emission, time, noise: [roll(23 + target.id.length), roll(29 + a.id.length), roll(31)] }) : undefined;
         const fused = fusePassiveTracks(irst, esm);
         if (fused) {
