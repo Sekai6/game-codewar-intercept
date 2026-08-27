@@ -2712,6 +2712,7 @@ datalinkEraInput.addEventListener("change", () => {
   const era = DATALINK_ERAS[datalinkEraInput.value as DatalinkEra];
   link16Input.checked = (era.link11Available || era.link16Available) && era.selectable;
   updateDatalinkEraControls();
+  if (activeCompiledScenario) applyScenarioToSandbox(activeCompiledScenario);
 });
 updateDatalinkEraControls();
 link16Input.checked = true;
