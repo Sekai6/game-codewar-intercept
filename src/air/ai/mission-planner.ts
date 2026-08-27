@@ -108,8 +108,12 @@ export function planAirMission(input: {
     Math.max(0.1, input.cruiseSpeed);
   const reserveSeconds = input.nominalFuel * 0.12 + homeTransitSeconds * 1.2 +
     homeTransitSeconds * Math.max(0, input.fuelLeakPerSecond);
+  // A pre-planned strike may spend below the normal reserve, but never below
+  // the fuel required to reach the assigned home point with a safety margin.
+  const strikeMinimumReturnFuel = homeTransitSeconds * 1.3 +
+    homeTransitSeconds * Math.max(0, input.fuelLeakPerSecond);
   const fuelCritical = input.preplannedStrikeActive
-    ? input.fuelRemaining <= input.nominalFuel * 0.08
+    ? input.fuelRemaining <= Math.max(input.nominalFuel * 0.08, strikeMinimumReturnFuel)
     : input.fuelRemaining <= reserveSeconds;
   const flightCritical = input.engineHealth < 0.42 ||
     input.flightControlHealth < 0.48;
