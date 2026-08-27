@@ -7,7 +7,6 @@ function radarSource(source: string): TacticalRadarSource {
   if (source === "passive-fusion") return "passive-fusion" as TacticalRadarSource;
   return source as TacticalRadarSource;
 }
-
 export function tacticalRadarFrameForShip(
   force: NavalForceRuntime,
   ownerId: string,
