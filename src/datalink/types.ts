@@ -24,6 +24,16 @@ export interface Link16TrackReport {
   quality: number;
   uncertainty: number;
   priority: "routine" | "threat" | "emergency";
+  sensorMode?: "active-radar" | "irst" | "esm" | "passive-fusion";
+  passive?: boolean;
+  bearingOnly?: boolean;
+  rangeEstimate?: number;
+  rangeUncertainty?: number;
+  passiveBearingDeg?: number;
+  passiveBearingUncertaintyDeg?: number;
+  passiveSignalStrength?: number;
+  passiveEmitterType?: "radar" | "jammer" | "engine-heat" | "communication";
+  passiveEmitterId?: string;
 }
 
 export interface Link16ParticipantState {

@@ -20,6 +20,11 @@ export interface TacticalNetworkTrackView {
   age: number;
   classification: "unknown" | "aircraft" | "ship";
   senderId?: string;
+  sensorMode?: "active-radar" | "irst" | "esm" | "passive-fusion";
+  passive?: boolean;
+  bearingOnly?: boolean;
+  rangeEstimate?: number;
+  rangeUncertainty?: number;
 }
 
 export interface TacticalNetworkDecisionView {

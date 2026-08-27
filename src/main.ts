@@ -2547,6 +2547,40 @@ airStatusPanel.className = "air-status";
 airStatusPanel.innerHTML =
   "<b>JOINT AIR PICTURE</b><span>AIR OPERATIONS STANDBY</span>";
 document.body.appendChild(airStatusPanel);
+// Platform-level emission control panel. Changes flow through AirCombatSystem so
+// radar, passive sensors and AAR retain one authoritative state transition.
+const emconPanel = document.createElement("section");
+emconPanel.className = "emcon-panel";
+emconPanel.style.cssText = "position:fixed;right:24px;bottom:120px;z-index:12;background:#071923e8;border:1px solid #38666b;color:#d5edf0;padding:10px 12px;font:11px Arial;letter-spacing:1px;min-width:220px";
+emconPanel.innerHTML = '<header style="display:flex;justify-content:space-between;gap:12px"><b>EMISSION CONTROL</b><span data-emcon-state>--</span></header><select data-emcon-platform style="width:100%;margin-top:7px;background:#0a252d;color:#d5edf0;border:1px solid #315f63;padding:5px"></select><div data-emcon-modes style="display:flex;gap:4px;margin-top:7px"><button data-mode="active">ACTIVE</button><button data-mode="emcon">EMCON</button><button data-mode="passive-only">PASSIVE ONLY</button></div><small data-emcon-detail style="display:block;margin-top:6px;color:#8fb8bb">Radar and passive suite status</small>';
+document.body.appendChild(emconPanel);
+const emconPlatform = emconPanel.querySelector("[data-emcon-platform]") as HTMLSelectElement;
+const emconState = emconPanel.querySelector("[data-emcon-state]") as HTMLElement;
+const emconDetail = emconPanel.querySelector("[data-emcon-detail]") as HTMLElement;
+function refreshEmconPanel() {
+  const alive = airCombat.aircraft.filter((a) => a.alive && a.state !== "departed-safe");
+  const selected = emconPlatform.value;
+  const ships = fleetIntegration ? [...fleetIntegration.force.ships.values()].filter((s) => s.alive) : [];
+  const options = [...alive.map((a) => Object.assign(document.createElement("option"), { value: `air:${a.id}`, textContent: `AIR / ${a.id} / ${a.definition.name}` })), ...ships.map((s) => Object.assign(document.createElement("option"), { value: `ship:${s.id}`, textContent: `SHIP / ${s.id} / ${s.definition.name}` }))];
+  emconPlatform.replaceChildren(...options);
+  if (options.some((o) => o.value === selected)) emconPlatform.value = selected;
+  const [kind, id] = emconPlatform.value.split(":");
+  const current = alive.find((a) => kind === "air" && a.id === id);
+  const ship = ships.find((s) => kind === "ship" && s.id === id);
+  if (!current && !ship) { emconState.textContent = "NO PLATFORM"; return; }
+  emconState.textContent = (current?.emconMode ?? ship?.emconMode ?? "active").toUpperCase();
+  emconDetail.textContent = current
+    ? `RADAR ${current.radarActive ? "EMITTING" : "SILENT"} · IRST ${current.definition.passiveSensors?.irst ? "READY" : "N/A"} · ESM ${current.definition.passiveSensors?.esm ? "READY" : "N/A"} · CUES ${current.passiveTracks.size}`
+    : `RADAR ${(ship?.emconMode === "active") ? "EMITTING" : "SILENT"} · ESM ${ship?.definition.passiveSensors?.esm ? "READY" : "N/A"} · CUES ${ship?.passiveTracks.size ?? 0}`;
+}
+emconPlatform.addEventListener("change", refreshEmconPanel);
+emconPanel.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
+  const [kind, id] = emconPlatform.value.split(":");
+  if (kind === "air" && id) airCombat.setEmconMode(id, button.dataset.mode as any);
+  if (kind === "ship" && id) fleetIntegration?.setShipEmconMode(id, button.dataset.mode as any, elapsed);
+  refreshEmconPanel();
+}));
+refreshEmconPanel();
 updateSubsystemPanel();
 const resultPanel = document.createElement("div");
 resultPanel.className = "result-panel aar-panel";
@@ -9383,6 +9417,11 @@ function tick(now: number) {
     .filter((event) => event.kind === "maneuver" && event.text.includes("THRUST"))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)
     .join("|");
+  canvas.dataset.passiveSensorStates = airCombat.aircraft
+    .map((aircraft) => `${aircraft.id}:${aircraft.emconMode}:IRST=${aircraft.definition.passiveSensors?.irst ? "ON" : "OFF"}:ESM=${aircraft.definition.passiveSensors?.esm ? "ON" : "OFF"}:TRACKS=${aircraft.passiveTracks.size}`)
+    .join("|");
+  canvas.dataset.passiveTrackCount = String(airCombat.aircraft.reduce((count, aircraft) => count + aircraft.passiveTracks.size, 0));
+  refreshEmconPanel();
   canvas.dataset.advancedAirManeuverLog = airCombat.events
     .filter((event) => event.kind === "maneuver" && event.text.includes(" BVR "))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`)

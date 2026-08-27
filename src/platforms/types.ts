@@ -4,6 +4,9 @@ import type {
   EngagementRecord,
   EngagementSourceId,
 } from "../defense/engagement";
+import type { EmissionState } from "../sensors/passive-types.js";
+import type { EmconMode, PassiveSensorSuite } from "../sensors/passive-types";
+import type { PassiveObservation } from "../sensors/passive-runtime";
 
 export type EnemyPlatformId = string;
 export type PlatformManeuverMode =
@@ -97,6 +100,8 @@ export interface EnemyPlatformDefinition<Id extends string = string> {
   nation: string;
   era: string;
   role: string;
+  passiveSensors?: PassiveSensorSuite;
+  defaultEmconMode?: EmconMode;
   defaultScenarioRange: number;
   radarCrossSection: number;
   significantHeightMeters: number;
@@ -159,6 +164,7 @@ export interface EnemyPlatformDefinition<Id extends string = string> {
 }
 
 export interface EnemyPlatformInstance {
+  emissionState: EmissionState;
   definition: EnemyPlatformDefinition;
   model: THREE.Group;
   slots: EnemyPlatformModelSlots;
@@ -196,6 +202,9 @@ export interface EnemyPlatformInstance {
     source: "none" | "radar" | "esm";
   };
   destroyed: boolean;
+  emconMode: EmconMode;
+  passiveTracks: Map<string, PassiveObservation>;
+  nextPassiveScan: Map<string, number>;
 }
 
 export interface PlatformCasualty {

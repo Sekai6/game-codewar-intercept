@@ -46,6 +46,12 @@ export function createShipCombatant(input: CreateShipCombatantInput): ShipCombat
     velocity,
     radarCrossSection: input.definition.platform.radarRcs,
     infraredSignature: 0.8,
+    emissionState: {
+      radarEmitting: true,
+      communicationEmitting: true,
+      jammerEmitting: Boolean(input.definition.electronicWarfare),
+      emissionStrength: 0.75,
+    },
     alive: true,
     heading: input.heading,
     speedKnots,
@@ -83,6 +89,9 @@ export function createShipCombatant(input: CreateShipCombatantInput): ShipCombat
     engagements: new Map(),
     launcherChannels: input.definition.ammo.channels,
     illuminatorChannels: input.definition.ammo.illuminators,
+    emconMode: input.definition.defaultEmconMode ?? "active",
+    passiveTracks: new Map(),
+    nextPassiveScan: 0,
     applyDamage: (damage) => {
       instance.hullIntegrity = Math.max(0, instance.hullIntegrity - damage);
       if (instance.hullIntegrity <= 0) {

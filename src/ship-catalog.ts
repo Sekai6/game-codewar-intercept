@@ -3,6 +3,11 @@ import { DEFAULT_SENSORS } from "./sim";
 import { buildTiconderoga, TICONDEROGA_METADATA } from "./models/ticonderoga";
 import { buildLongBeach } from "./models/long-beach";
 import type { ShipDefinition } from "./ship-types";
+import type { PassiveSensorSuite } from "./sensors/passive-types";
+
+const SURFACE_ESM_SUITE: PassiveSensorSuite = {
+  esm: { id: "surface-esm", kind: "esm", range: 900, fieldOfViewDeg: 360, updateInterval: 2.5, bearingPrecisionDeg: 3.5, rangeEstimateError: 0.28, minimumSignal: 0.08, detects: ["aircraft", "ship", "missile"] },
+};
 
 export const LONG_BEACH_METADATA: Omit<ShipDefinition, "build"> = {
   id: "long-beach",
@@ -66,6 +71,8 @@ export const LONG_BEACH_METADATA: Omit<ShipDefinition, "build"> = {
     reloadSeconds: 1.8,
   },
   sensors: DEFAULT_SENSORS,
+  passiveSensors: SURFACE_ESM_SUITE,
+  defaultEmconMode: "active",
   subsystemLabels: {
     primaryRadar: "AN/SPS-48E",
     secondaryRadar: "AN/SPS-49",
@@ -145,7 +152,7 @@ export const LONG_BEACH_METADATA: Omit<ShipDefinition, "build"> = {
 export function createShipCatalog() {
   const ships: ShipDefinition[] = [
     { ...LONG_BEACH_METADATA, build: buildLongBeach },
-    { ...TICONDEROGA_METADATA, build: buildTiconderoga },
+    { ...TICONDEROGA_METADATA, passiveSensors: SURFACE_ESM_SUITE, defaultEmconMode: "active", build: buildTiconderoga },
   ];
   return {
     ships,

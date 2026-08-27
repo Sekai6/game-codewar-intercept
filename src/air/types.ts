@@ -17,6 +17,7 @@ import type { AirTacticalState } from "./ai/tactical-state";
 import type { PilotPerceptionState } from "./ai/perception";
 import type { MissionPlannerState } from "./ai/mission-planner";
 import type { PilotModel, PilotSkill, PilotState } from "./ai/pilot-model";
+import type { EmconMode, PassiveSensorSuite, PassiveTrackData } from "../sensors/passive-types.js";
 
 export type AirMissionOrder =
   "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
@@ -145,6 +146,7 @@ export interface AirPlatformDefinition {
     thrust: AirThrustDefinition;
   };
   sensor: AirSensorDefinition;
+  passiveSensors?: PassiveSensorSuite;
   datalink?: {
     link16?: true;
     link11?: true;
@@ -198,12 +200,13 @@ export interface AirTrack {
   lastUpdate: number;
   classification: "unknown" | "aircraft" | "ship";
   targetRole?: AirPlatformDefinition["tacticalRole"];
-  source?: "local-radar" | "link11" | "link16";
+  source?: "local-radar" | "link11" | "link16" | "irst" | "esm" | "passive-fusion";
   engagementQuality?: "cue" | "weapon";
   originSensorId?: string;
   observationId?: string;
   senderId?: string;
   receivedAt?: number;
+  passive?: PassiveTrackData;
 }
 
 export interface AirPlatformInstance extends TargetableEntity {
@@ -237,9 +240,12 @@ export interface AirPlatformInstance extends TargetableEntity {
   subsystemHealth: Map<AirSubsystem, number>;
   nextOoda: number;
   nextScan: number;
+  nextPassiveScan: number;
   nextCountermeasure: number;
   radarActive: boolean;
   ecmActive: boolean;
+  emconMode: EmconMode;
+  passiveTracks: Map<string, AirTrack>;
   noContactSince: number | null;
   chaff: number;
   flares: number;
@@ -368,7 +374,8 @@ export type AirCombatEvent = {
     | "damage"
     | "kill"
     | "guidance"
-    | "maneuver";
+    | "maneuver"
+    | "emcon";
   text: string;
   side?: CombatSide;
   platformId?: string;

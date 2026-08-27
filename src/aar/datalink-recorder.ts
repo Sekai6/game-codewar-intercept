@@ -10,11 +10,13 @@ export class DatalinkAarRecorder {
   private activityIds = new Set<string>();
   private previousConfiguration = "";
   private previousNcs: string | null | undefined;
+  private trackIds = new Set<string>();
 
   reset() {
     this.activityIds.clear();
     this.previousConfiguration = "";
     this.previousNcs = undefined;
+    this.trackIds.clear();
   }
 
   sample(observation: TacticalNetworkObservation, time: number): DatalinkAarSample {
@@ -50,6 +52,17 @@ export class DatalinkAarRecorder {
         category: "network",
         text: `${activity.network.toUpperCase()} ${activity.kind.toUpperCase()} / ${route}${detail ? ` / ${detail}` : ""}`,
       });
+    }
+    for (const track of observation.tracks) {
+      if (this.trackIds.has(track.id)) continue;
+      this.trackIds.add(track.id);
+      if (track.passive || track.sensorMode === "irst" || track.sensorMode === "esm" || track.sensorMode === "passive-fusion") {
+        events.push({
+          time,
+          category: "network",
+          text: `${track.network.toUpperCase()} PASSIVE CUE / TRACK ${track.id} / SOURCE ${(track.sensorMode ?? "PASSIVE").toUpperCase()} / ${track.bearingOnly ? "BEARING-ONLY" : "RANGE ESTIMATE"} / TQ ${Math.round(track.quality * 100)}% / UNC ${track.uncertainty.toFixed(1)}`,
+        });
+      }
     }
     for (const decision of observation.decisions ?? []) {
       if (this.activityIds.has(decision.id)) continue;

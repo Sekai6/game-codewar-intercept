@@ -2,6 +2,7 @@ import type * as THREE from "three";
 import type { SensorDefinition } from "./sim";
 import type { FixedSensorFaceConfig } from "./sensor-faces";
 import type { ModelWeaponHardpoint } from "./models/model-primitives";
+import type { EmconMode, PassiveSensorSuite } from "./sensors/passive-types.js";
 
 export type { ModelWeaponHardpoint } from "./models/model-primitives";
 
@@ -69,6 +70,8 @@ export interface ShipDefinition {
   };
   launcher: LauncherConfig;
   sensors: SensorDefinition[];
+  passiveSensors?: PassiveSensorSuite;
+  defaultEmconMode?: EmconMode;
   fixedSensorFaces?: FixedSensorFaceConfig;
   subsystemLabels: Record<SubsystemId, string>;
   subsystemPositions: Record<SubsystemId, THREE.Vector3>;

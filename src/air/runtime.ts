@@ -70,6 +70,7 @@ import {
   trackSupportsWeaponAuthorization,
 } from "./ooda";
 import { advanceAirTracks, createAirMeasurement } from "./track-store";
+import { observePassive, fusePassiveTracks } from "../sensors/passive-runtime.js";
 import {
   airToAirGuidancePoint,
   airToAirMidcourseAimPoint,
@@ -297,6 +298,7 @@ function instantiate(
     nextPerceptionUpdate: 0,
     tracks: new Map(),
     networkTracks: new Map(),
+    passiveTracks: new Map(),
     missileWarnings: new Map(),
     ammo: new Map(
       Object.entries(configuredLoadout) as [AirWeaponId, number][],
@@ -311,9 +313,11 @@ function instantiate(
     ]),
     nextOoda: 0,
     nextScan: 0,
+    nextPassiveScan: 0,
     nextCountermeasure: 0,
     radarActive: spawn.initialRadarState !== "silent",
     ecmActive: spawn.initialEcmEnabled ?? true,
+    emconMode: spawn.initialRadarState === "silent" ? "passive-only" : "active",
     noContactSince: null,
     chaff: spawn.definition.countermeasures.chaff,
     flares: spawn.definition.countermeasures.flares,
@@ -555,6 +559,20 @@ export class AirCombatSystem {
   private emit(time: number, kind: AirCombatEvent["kind"], text: string, metadata: Omit<AirCombatEvent, "time" | "kind" | "text"> = {}) {
     this.events.push({ time, kind, text, ...metadata });
   }
+  /** Change a platform's emission-control posture through the same runtime used by AI. */
+  setEmconMode(platformId: string, mode: import("../sensors/passive-types.js").EmconMode, time = this.currentTime) {
+    const aircraft = this.aircraft.find((candidate) => candidate.id === platformId);
+    if (!aircraft || !aircraft.alive) return false;
+    if (aircraft.emconMode === mode) return true;
+    aircraft.emconMode = mode;
+    aircraft.radarActive = mode === "active";
+    if (mode !== "active") aircraft.ecmActive = aircraft.ecmActive && mode !== "passive-only";
+    this.emit(time, "emcon", `${aircraft.definition.name} EMCON ${mode.toUpperCase()}`, { platformId: aircraft.id, entityId: aircraft.id });
+    return true;
+  }
+  getEmconMode(platformId: string) {
+    return this.aircraft.find((candidate) => candidate.id === platformId)?.emconMode;
+  }
   setFormationLostComms(formationId: string, behavior: string | null, enteredAt = this.currentTime) {
     if (behavior) this.lostCommsFormations.set(formationId, { behavior, enteredAt });
     else this.lostCommsFormations.delete(formationId);
@@ -790,6 +808,7 @@ export class AirCombatSystem {
                 ? report.classification
                 : "unknown") as AirTrack["classification"],
             targetRole: report.targetRole,
+            passive: report.passive ? { source: report.sensorMode === "irst" || report.sensorMode === "esm" ? report.sensorMode : "passive-fusion", bearingDeg: report.passiveBearingDeg ?? 0, bearingUncertaintyDeg: report.passiveBearingUncertaintyDeg ?? 12, rangeEstimate: report.rangeEstimate, rangeUncertainty: report.rangeUncertainty, signalStrength: report.passiveSignalStrength ?? report.quality, emitterType: report.passiveEmitterType, emitterId: report.passiveEmitterId, passiveOnly: true } : undefined,
             source: "link16" as const,
             engagementQuality: "cue" as const,
             originSensorId: report.originSensorId,
@@ -812,6 +831,7 @@ export class AirCombatSystem {
             uncertainty:report.uncertainty+20+age*2.8,lastUpdate:report.observedAt,
             classification:(report.classification==="aircraft"||report.classification==="ship"?report.classification:"unknown") as AirTrack["classification"],
             targetRole:report.targetRole,
+            passive: report.passive ? { source: report.sensorMode === "irst" || report.sensorMode === "esm" ? report.sensorMode : "passive-fusion", bearingDeg: report.passiveBearingDeg ?? 0, bearingUncertaintyDeg: report.passiveBearingUncertaintyDeg ?? 16, rangeEstimate: report.rangeEstimate, rangeUncertainty: report.rangeUncertainty, signalStrength: report.passiveSignalStrength ?? report.quality, emitterType: report.passiveEmitterType, emitterId: report.passiveEmitterId, passiveOnly: true } : undefined,
             source:"link11",engagementQuality:"cue",originSensorId:report.originSensorId,
             observationId:report.observationId,senderId:report.senderId,receivedAt:delivery.receivedAt};
         });
@@ -1416,7 +1436,12 @@ export class AirCombatSystem {
       seen.add(track.targetId);
       tracks.push({id:track.targetId,network:track.source,position:track.position.clone(),
         uncertainty:track.uncertainty,quality:track.quality,age:Math.max(0,time-track.lastUpdate),
-        classification:track.classification,senderId:track.senderId});
+        classification:track.classification,senderId:track.senderId,
+        sensorMode: track.passive?.source,
+        passive: !!track.passive,
+        bearingOnly: !!track.passive && !track.passive.rangeEstimate,
+        rangeEstimate: track.passive?.rangeEstimate,
+        rangeUncertainty: track.passive?.rangeUncertainty});
     };
     for(const cues of this.externalLink11Cues.values())for(const track of cues)appendTrack(track);
     for(const cues of this.externalLink16Cues.values())for(const track of cues)appendTrack(track);
@@ -1646,7 +1671,47 @@ export class AirCombatSystem {
       a.tracks.size === 0 &&
       a.position.distanceTo(maritimeCue.launchRegionCenter) > 160
     ) return;
-    if (time < a.nextScan || !a.alive || !a.radarActive) return;
+    if (!a.alive) return;
+    a.emissionState = {
+      radarEmitting: a.radarActive && a.emconMode === "active",
+      communicationEmitting: a.emconMode !== "passive-only",
+      jammerEmitting: a.ecmActive,
+      emissionStrength: (a.radarActive && a.emconMode === "active" ? 0.8 : 0.08) + (a.ecmActive ? 0.45 : 0),
+    };
+    const passiveSuite = a.definition.passiveSensors;
+    if (passiveSuite && time >= a.nextPassiveScan) {
+      a.nextPassiveScan = time + Math.min(passiveSuite.irst?.updateInterval ?? 99, passiveSuite.esm?.updateInterval ?? 99);
+      const passiveTargets = this.entities(context).filter((target) => opposingSides(a, target) && target.id !== a.id && target.alive);
+      for (const target of passiveTargets) {
+        const targetAircraft = target.kind === "aircraft" ? target as AirPlatformInstance : undefined;
+        const emission = target.emissionState ?? { radarEmitting: targetAircraft?.radarActive ?? false, communicationEmitting: targetAircraft ? targetAircraft.emconMode !== "passive-only" : false, jammerEmitting: targetAircraft?.ecmActive ?? false, emissionStrength: targetAircraft ? (targetAircraft.radarActive ? 1 : 0) + (targetAircraft.ecmActive ? .7 : 0) : 0 };
+        const irst = a.emconMode !== "active" || !a.radarActive ? passiveSuite.irst && observePassive({ sensor: passiveSuite.irst, observer: a, target, time, noise: [roll(a.id.length + target.id.length + time | 0), roll(11 + target.id.length), roll(17 + a.id.length)] }) : passiveSuite.irst && observePassive({ sensor: passiveSuite.irst, observer: a, target, time, noise: [roll(a.id.length + target.id.length + time | 0), roll(11 + target.id.length), roll(17 + a.id.length)] });
+        const esm = passiveSuite.esm && emission.emissionStrength > 0 ? observePassive({ sensor: passiveSuite.esm, observer: a, target, emission, time, noise: [roll(23 + target.id.length), roll(29 + a.id.length), roll(31)] }) : undefined;
+        const fused = fusePassiveTracks(irst, esm);
+        if (fused) {
+          a.passiveTracks.set(target.id, { ...fused, passive: fused });
+          this.emit(time, "detect", `${a.definition.name} ${fused.source.toUpperCase()} PASSIVE TRACK / ${target.kind.toUpperCase()} / BEARING ${fused.bearingDeg.toFixed(1)} DEG / TQ ${Math.round(fused.quality * 100)}%`);
+          const terminal = a.definition.datalink;
+          const passiveReport: Omit<Link16TrackReport, "messageId" | "senderId" | "side" | "transmittedAt"> = {
+            trackId: tacticalTrackNumber(target.id), originSensorId: `${a.id}:${fused.source.toUpperCase()}`,
+            observationId: `${a.id}:${target.id}:passive:${time.toFixed(3)}`, relayChain: [], observedAt: time,
+            position: fused.position, velocity: fused.velocity, classification: fused.classification,
+            targetRole: target.kind === "aircraft" ? (target as AirPlatformInstance).definition.tacticalRole : undefined,
+            quality: fused.quality, uncertainty: fused.uncertainty, priority: "routine",
+            sensorMode: fused.source, passive: true, bearingOnly: !fused.rangeEstimate,
+            rangeEstimate: fused.rangeEstimate, rangeUncertainty: fused.rangeUncertainty,
+            passiveBearingDeg: fused.bearingDeg,
+            passiveBearingUncertaintyDeg: fused.bearingUncertaintyDeg,
+            passiveSignalStrength: fused.signalStrength,
+            passiveEmitterType: fused.emitterType,
+            passiveEmitterId: fused.emitterId,
+          };
+          if (terminal?.link16 && aircraftLink16Eligible({ era: context.datalinkEra ?? "link16-modernized", enabled: context.link16Enabled ?? true, minimumEra: terminal.minimumEra! })) this.link16.publishTrack(a.id, passiveReport, time);
+          if (terminal?.link11 && this.activeLink11ParticipantIds.has(a.id)) this.link11.publishTrack(a.id, passiveReport, time);
+        }
+      }
+    }
+    if (time < a.nextScan || !a.radarActive || a.emconMode !== "active") return;
     a.nextScan = time + a.definition.sensor.updateInterval * (interceptCommand ? .75 : 1);
     const radarHealth = (a.subsystemHealth.get("radar") ?? 0) / 100;
     for (const target of this.entities(context)) {
@@ -2124,6 +2189,9 @@ export class AirCombatSystem {
       ),
     );
     for (const [id, local] of a.tracks) fused.set(id, local);
+    for (const [id, passive] of a.passiveTracks) {
+      if (time - passive.lastUpdate <= 8) fused.set(`passive:${id}`, passive);
+    }
     let selected: AirTrack | undefined;
     if (this.activeAdvancedAirAi) {
       const bindings = this.perceptionBindings.get(a.id);

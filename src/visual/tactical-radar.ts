@@ -1,5 +1,5 @@
 export type TacticalRadarClassification = "unknown" | "aircraft" | "ship" | "missile";
-export type TacticalRadarSource = "organic" | "link11" | "link16" | "esm";
+export type TacticalRadarSource = "organic" | "link11" | "link16" | "esm" | "irst" | "passive-fusion";
 export type TacticalRadarOrientation = "north-up" | "heading-up";
 
 export interface TacticalRadarTrack {

@@ -4,6 +4,11 @@ import { MIG29A_MODEL_STATIONS, TU16K_MODEL_STATIONS } from "./model-assets/sovi
 import { A6E_STRIKE_STATIONS } from "./model-assets/us/a6e-stations.js";
 import { F14A_WEAPON_STATIONS } from "./model-assets/us/f14a-stations.js";
 import type { AirPlatformDefinition, AirPlatformId, AirWeaponDefinition, AirWeaponId } from "./types";
+import type { PassiveSensorSuite } from "../sensors/passive-types.js";
+
+const f14Passive: PassiveSensorSuite = { irst:{id:"AN/AAX-1",kind:"irst",range:520,fieldOfViewDeg:60,updateInterval:1.2,bearingPrecisionDeg:2.5,rangeEstimateError:.3,minimumSignal:.04,detects:["aircraft","missile"]}, esm:{id:"AN/ALR-45",kind:"esm",range:1800,fieldOfViewDeg:360,updateInterval:.7,bearingPrecisionDeg:4,rangeEstimateError:.55,minimumSignal:.02,detects:["aircraft","ship","missile"]} };
+const migPassive: PassiveSensorSuite = { irst:{id:"OEPS-29",kind:"irst",range:380,fieldOfViewDeg:45,updateInterval:1.1,bearingPrecisionDeg:3,rangeEstimateError:.35,minimumSignal:.05,detects:["aircraft","missile"]}, esm:{id:"SPO-15",kind:"esm",range:1250,fieldOfViewDeg:360,updateInterval:1,bearingPrecisionDeg:5,rangeEstimateError:.6,minimumSignal:.025,detects:["aircraft","ship","missile"]} };
+const a6Passive: PassiveSensorSuite = { esm:{id:"AN/ALR-67",kind:"esm",range:1050,fieldOfViewDeg:360,updateInterval:1.2,bearingPrecisionDeg:6,rangeEstimateError:.65,minimumSignal:.03,detects:["aircraft","ship","missile"]} };
 
 export const AIR_WEAPONS: Readonly<Record<AirWeaponId, AirWeaponDefinition>> = {
   "AIM-54A": { id:"AIM-54A", name:"AIM-54A Phoenix", targets:["aircraft"], guidance:"active-radar", minRange:12, maxRange:1380, speed:19, boostSeconds:6, maxTurnRateDeg:17, seekerRange:170, seekerFovDeg:55, datalinkInterval:0.8, damage:72, proximityRadius:5, countermeasureResistance:0.72, massKg:460, dragIndex:.035, shipDefenseTemplate:"Kh-22", airToAirFlight:{sustainSeconds:24,coastDragPerSecond:.009,minimumSpeedFactor:.38,maximumFlightSeconds:110,loftAltitude:210,loftTransitionRange:360} },
@@ -100,5 +105,5 @@ const AIR_PLATFORM_TACTICAL_ROLES = {
   "MIG-29A": "fighter", "E-2C": "aew", "TU-126": "aew",
 } satisfies Record<AirPlatformId, NonNullable<AirPlatformDefinition["tacticalRole"]>>;
 export const AIR_PLATFORM_BY_ID = Object.fromEntries(AIR_PLATFORM_DEFINITIONS.map(d=>[
-  d.id, { ...d, tacticalRole: AIR_PLATFORM_TACTICAL_ROLES[d.id] },
-])) as Record<AirPlatformId,AirPlatformDefinition>;
+  d.id, { ...d, passiveSensors: d.id === "F-14A" ? f14Passive : d.id === "A-6E" ? a6Passive : d.id === "MIG-29A" ? migPassive : undefined, tacticalRole: AIR_PLATFORM_TACTICAL_ROLES[d.id] },
+])) as unknown as Record<AirPlatformId,AirPlatformDefinition>;
