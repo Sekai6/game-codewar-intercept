@@ -4165,6 +4165,11 @@ radarCanvas.addEventListener("pointerdown", (e) => {
         new URLSearchParams(location.search).get("bfmValidation") === "1",
       ),
     );
+    if (datalinkEraInput.value === "cec-enabled") {
+      cecRuntime.network.config.enabled = true;
+      for (const aircraft of airCombat.aircraft.filter((candidate) => candidate.definition.id === "E-2C" && candidate.side === "blue"))
+        cecRuntime.register({ id: aircraft.id, side: "blue", position: aircraft.position, cecCapable: true, alive: aircraft.alive, receiveEnabled: aircraft.alive, transmitEnabled: aircraft.alive, timeSyncQuality: aircraft.definition.datalink?.timeSyncQuality ?? .7 });
+    }
     airCombat.countermeasuresEnabled =
       new URLSearchParams(location.search).get("airCountermeasures") !== "off";
     log(`AIR OPERATIONS / ${(activeScenarioDocument?.metadata.title ?? AIR_SCENARIO_PRESETS[presetId].description).toUpperCase()}`);
