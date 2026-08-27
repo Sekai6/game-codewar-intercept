@@ -18,6 +18,8 @@ export function observePassive(input: { sensor: PassiveSensorDefinition; observe
     : (input.emission?.emissionStrength ?? 0) / Math.max(1, (range / 100) ** 1.15);
   if (signal < sensor.minimumSignal) return undefined;
   const b = bearing(observer.position, target.position);
+  const observerHeading = Math.atan2(observer.velocity.x, -observer.velocity.z) * deg;
+  if (sensor.fieldOfViewDeg < 359.9 && angularDifference(b, observerHeading) > sensor.fieldOfViewDeg / 2) return undefined;
   const measuredBearing = b + (input.noise[0] - .5) * sensor.bearingPrecisionDeg * 2;
   const estimatedRange = range * (1 + (input.noise[1] - .5) * sensor.rangeEstimateError * 2);
   const position = observer.position.clone().add(new THREE.Vector3(Math.sin(measuredBearing / deg) * estimatedRange, target.position.y - observer.position.y, -Math.cos(measuredBearing / deg) * estimatedRange));

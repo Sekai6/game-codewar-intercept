@@ -56,7 +56,7 @@ export class ShipSensorRuntime {
     }
     const primary = ship.definition.sensors.find((sensor) => sensor.threeDimensional);
     const secondary = ship.definition.sensors.find((sensor) => !sensor.threeDimensional);
-    picture.update(
+    if (ship.emconMode === "active") picture.update(
       now,
       dt,
       observations
@@ -79,7 +79,7 @@ export class ShipSensorRuntime {
     );
     const classifications = new Map(observations.map(({ entity }) => [entity.id, entity.kind]));
     const next = new Map<string, ShipTrackEstimate>();
-    for (const track of picture.tracks.values()) {
+    for (const track of ship.emconMode === "active" ? picture.tracks.values() : []) {
       const targetId = String(track.sourceId);
       const kind = classifications.get(targetId);
       next.set(targetId, {
