@@ -2551,7 +2551,7 @@ document.body.appendChild(airStatusPanel);
 // radar, passive sensors and AAR retain one authoritative state transition.
 const emconPanel = document.createElement("section");
 emconPanel.className = "emcon-panel";
-emconPanel.style.cssText = "position:fixed;right:24px;bottom:120px;z-index:12;background:#071923e8;border:1px solid #38666b;color:#d5edf0;padding:10px 12px;font:11px Arial;letter-spacing:1px;min-width:220px";
+emconPanel.style.cssText = "position:fixed;right:24px;top:92px;z-index:12;background:#071923e8;border:1px solid #38666b;color:#d5edf0;padding:10px 12px;font:11px Arial;letter-spacing:1px;min-width:220px";
 emconPanel.innerHTML = '<header style="display:flex;justify-content:space-between;gap:12px"><b>EMISSION CONTROL</b><span data-emcon-state>--</span></header><select data-emcon-platform style="width:100%;margin-top:7px;background:#0a252d;color:#d5edf0;border:1px solid #315f63;padding:5px"></select><div data-emcon-modes style="display:flex;gap:4px;margin-top:7px"><button data-mode="active">ACTIVE</button><button data-mode="emcon">EMCON</button><button data-mode="passive-only">PASSIVE ONLY</button></div><small data-emcon-detail style="display:block;margin-top:6px;color:#8fb8bb">Radar and passive suite status</small>';
 document.body.appendChild(emconPanel);
 const emconPlatform = emconPanel.querySelector("[data-emcon-platform]") as HTMLSelectElement;
