@@ -37,5 +37,5 @@ export function fusePassiveTracks(irst: PassiveObservation | undefined, esm: Pas
   if (!esm) return { ...irst, source: "passive-fusion", quality: irst.quality * .92, uncertainty: irst.uncertainty * .9 };
   const weight = irst.quality / Math.max(.01, irst.quality + esm.quality);
   const position = irst.position.clone().multiplyScalar(weight).addScaledVector(esm.position, 1 - weight);
-  return { ...irst, source: "passive-fusion", position, quality: Math.min(.95, (irst.quality + esm.quality) * .62), uncertainty: Math.min(irst.uncertainty, esm.uncertainty) * .72, emitterType: "radar" };
+  return { ...irst, source: "passive-fusion", position, quality: Math.min(.95, (irst.quality + esm.quality) * .62), uncertainty: Math.min(irst.uncertainty, esm.uncertainty) * .72, emitterType: "radar", emitterId: esm.emitterId };
 }

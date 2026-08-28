@@ -16,7 +16,9 @@ export function armReleaseAuthorization(input: {
   const passive = input.track.passive;
   const emitterId = passive?.emitterId;
   if (!emitterId) return { allowed: false, reason: "NO_EMITTER_TRACK" };
-  const emitter = input.emitters.emitters.get(emitterId);
+  const emitter = input.emitters.emitters.get(emitterId) ??
+    [...input.emitters.emitters.values()].find((candidate) =>
+      candidate.platformId === input.track.targetId || candidate.id.startsWith(`${input.track.targetId}:`));
   if (!emitter) return { allowed: false, reason: "EMITTER_UNKNOWN" };
   if (!emitter.active && !passive?.emitterType)
     return { allowed: false, reason: "EMITTER_NOT_CONFIRMED" };
@@ -24,5 +26,5 @@ export function armReleaseAuthorization(input: {
     return { allowed: false, reason: "EMITTER_TRACK_LOW_QUALITY" };
   if (input.time - input.track.lastUpdate > 12)
     return { allowed: false, reason: "EMITTER_TRACK_EXPIRED" };
-  return { allowed: true, emitterId };
+  return { allowed: true, emitterId: emitter.id };
 }
