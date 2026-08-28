@@ -3586,8 +3586,11 @@ export class AirCombatSystem {
       const emitter = this.armEmitters.emitters.get(`${target.id}:primary-emitter`) ?? emitterFromEntity(target, time, "X");
       const profile = ARM_WEAPONS[missile.definition.id as "AGM-45A"|"AGM-88A"];
       if (!profile) { this.terminateMissile(missile,"miss",time); return; }
-      const armState = updateArmSeeker({ state:{ mode:missile.armSeekerMode??"emitter-search", targetEmitterId:missile.targetEmitterId, memoryExpiresAt:missile.armMemoryExpiresAt, lastKnownPosition:missile.commandPoint.clone() }, profile, missilePosition:missile.position, emitters:emitter?[emitter]:[], time, dt, sample:roll(this.serial+Math.floor(time*10)) });
+      const previousArmMode = missile.armSeekerMode ?? "emitter-search";
+      const armState = updateArmSeeker({ state:{ mode:previousArmMode as any, targetEmitterId:missile.targetEmitterId, memoryExpiresAt:missile.armMemoryExpiresAt, lastKnownPosition:missile.commandPoint.clone() }, profile, missilePosition:missile.position, emitters:emitter?[emitter]:[], time, dt, sample:roll(this.serial+Math.floor(time*10)) });
       missile.armSeekerMode=armState.mode; missile.targetEmitterId=armState.targetEmitterId; missile.armMemoryExpiresAt=armState.memoryExpiresAt;
+      if (armState.mode !== previousArmMode)
+        this.emit(time, "guidance", `${missile.definition.name} ARM SEEKER ${previousArmMode.toUpperCase()} -> ${armState.mode.toUpperCase()}`, { entityId: missile.id, launchId: missile.id, targetTrackId: missile.targetId, targetEmitterId: missile.targetEmitterId, armSeekerMode: armState.mode });
       if (armState.lastKnownPosition) missile.commandPoint.copy(armState.lastKnownPosition);
       missile.age += dt; this.integrateAirToAirMissile(missile, missile.commandPoint.clone(), dt);
       if (emitter && target.kind !== "decoy" && missile.position.distanceTo(emitter.position)<=missile.definition.proximityRadius) { target.applyDamage(missile.definition.damage,missile.position); this.emit(time,"kill",`${missile.definition.name} ARM EMITTER HIT / ${emitter.id}`); this.terminateMissile(missile,"hit",time); }

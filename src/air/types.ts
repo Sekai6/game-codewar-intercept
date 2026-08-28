@@ -390,6 +390,8 @@ export type AirCombatEvent = {
   weaponId?: string;
   launcherId?: string;
   targetTrackId?: string;
+  targetEmitterId?: string;
+  armSeekerMode?: string;
 };
 
 export interface AirSpawn {
