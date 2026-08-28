@@ -2124,7 +2124,7 @@ export class AirCombatSystem {
         this.emit(
           time,
           "launch",
-          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM`,
+          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM${weapon.guidance === "anti-radiation" ? ` / EMITTER ${missile.targetEmitterId ?? "UNKNOWN"}` : ""}`,
           {
             side:aircraft.side,
             platformId:aircraft.formationId,
