@@ -375,6 +375,7 @@ export class AirCombatSystem {
   /** Optional measurement-level CEC layer; it never creates or launches weapons. */
   private readonly cec: CecRuntime;
   readonly armEmitters = new ArmEmitterRuntime();
+  private readonly armEmitterActivity = new Map<string, boolean>();
   private readonly sharedCec: boolean;
   private cecEnabled = false;
   private cecConfigurationKey: string | null = null;
@@ -668,6 +669,10 @@ export class AirCombatSystem {
           ? ((target as AirPlatformInstance).subsystemHealth.get("radar") ?? 100) / 100
           : 1;
         emitter.health = target.alive ? Math.max(0, Math.min(1, radarHealth)) : 0;
+        const previous = this.armEmitterActivity.get(emitterId);
+        if (previous !== undefined && previous !== active)
+          this.emit(time, "guidance", `${emitter.definitionId} ${active ? "EMISSION RESTORED" : "EMISSION CEASED"} / ${emitterId}`, { entityId: target.id, targetEmitterId: emitterId, armSeekerMode: active ? "emitter-acquired" : "memory-track" });
+        this.armEmitterActivity.set(emitterId, active);
       }
     }
     this.armEmitters.update(time, positions);
