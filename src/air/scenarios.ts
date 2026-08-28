@@ -31,7 +31,7 @@ function pair(input: {
   }));
 }
 
-export type AirScenarioPresetId = "joint" | "intercept" | "strike" | "fighter" | "aew";
+export type AirScenarioPresetId = "joint" | "intercept" | "strike" | "sead" | "soviet-sead" | "fighter" | "aew";
 
 function single(input: {
   platformId:AirPlatformId; side:"blue"|"red"; formationId:string;
@@ -95,6 +95,16 @@ function strikeScenarioSpawns(): AirSpawn[] {
     heading: new THREE.Vector3(0.15, 0, -1),
   });
 }
+function seadScenarioSpawns(): AirSpawn[] {
+  const spawns = pair({ platformId:"A-6E", side:"blue", formationId:"SEAD-1", position:new THREE.Vector3(-80,28,-420), heading:new THREE.Vector3(.12,0,-1) });
+  for (const spawn of spawns) { spawn.mission = "sead"; spawn.initialLoadout = { "AGM-45A": 1, "AGM-88A": 1 }; }
+  return spawns;
+}
+function sovietSeadScenarioSpawns(): AirSpawn[] {
+  const spawns = pair({ platformId:"MIG-29A-SEAD", side:"red", formationId:"SOVIET-SEAD-1", position:new THREE.Vector3(180,72,-1650), heading:new THREE.Vector3(-.08,0,1), wingmanMission:"sead" });
+  for (const spawn of spawns) { spawn.mission = "sead"; spawn.initialLoadout = { "Kh-31P-C": 1, "R-73": 1 }; }
+  return spawns;
+}
 
 function fighterScenarioSpawns(): AirSpawn[] {
   return [
@@ -132,6 +142,8 @@ export const AIR_SCENARIO_PRESETS: Readonly<Record<AirScenarioPresetId, {
   joint: { label: "JOINT", description: "F-14A CAP + escort / Tu-16K raid / A-6E strike", createSpawns: jointAirScenarioSpawns },
   intercept: { label: "INTERCEPT", description: "F-14A intercept / Tu-16K raid", createSpawns: interceptScenarioSpawns },
   strike: { label: "STRIKE", description: "A-6E anti-ship strike", createSpawns: strikeScenarioSpawns },
+  sead: { label: "SEAD", description: "A-6E anti-radiation suppression of enemy air defenses", createSpawns: seadScenarioSpawns },
+  "soviet-sead": { label: "SOVIET SEAD", description: "Late Soviet MiG-29A SEAD concept / Kh-31P-C", createSpawns: sovietSeadScenarioSpawns },
   fighter: { label: "FIGHTER", description: "F-14A CAP / MiG-29A intercept", createSpawns: fighterScenarioSpawns },
   aew: { label:"AEW", description:"E-2C fleet AEW / Tu-126 GCI support / fighter screens", createSpawns:aewScenarioSpawns },
 };

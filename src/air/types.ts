@@ -20,7 +20,7 @@ import type { PilotModel, PilotSkill, PilotState } from "./ai/pilot-model";
 import type { EmconMode, PassiveSensorSuite, PassiveTrackData } from "../sensors/passive-types.js";
 
 export type AirMissionOrder =
-  "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
+  "cap" | "intercept" | "escort" | "anti-ship" | "sead" | "aew" | "egress" | "return";
 export type AirThrustMode = "idle" | "cruise" | "military" | "afterburner";
 export interface AirThrustDefinition {
   militarySpeedFactor: number;
@@ -46,13 +46,13 @@ export interface AirAerodynamicDefinition {
   engineSpoolDownSeconds: number;
 }
 export type AirGuidance =
-  "active-radar" | "semi-active-radar" | "infrared" | "anti-ship-radar";
+  "active-radar" | "semi-active-radar" | "infrared" | "anti-ship-radar" | "anti-radiation";
 export type AirPlatformId =
-  | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A"
+  | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A" | "MIG-29A-SEAD"
   | "E-2C" | "TU-126";
 export type AirWeaponId =
   | "AIM-54A" | "AIM-54X-CEC" | "AIM-7F" | "AIM-9L"
-  | "R-27R" | "R-73"
+  | "R-27R" | "R-73" | "AGM-45A" | "AGM-88A" | "Kh-31P-C"
   | "KSR-5" | "AGM-84A";
 export type AirSubsystem =
   | "structure"
@@ -221,6 +221,8 @@ export interface AirPlatformInstance extends TargetableEntity {
   leaderId: string | null;
   protectedId: string | null;
   mission: AirMissionOrder;
+  /** Formal Soviet SEAD mission phase; absent for non-SEAD platforms. */
+  sovietSeadState?: "ingress" | "gci-cued-search" | "local-esm-confirm" | "attack-assignment" | "launch-authorized" | "launch" | "egress" | "reattack" | "abort";
   fuel: number;
   thrustMode: AirThrustMode;
   afterburnerRemaining: number;
@@ -318,6 +320,9 @@ export interface AirMissileInstance extends TargetableEntity {
   inertialContinuation: boolean;
   autonomousSearchAuthorized: boolean;
   midcourseSource: "organic-radar" | "network-cue" | "launch-solution";
+  armSeekerMode?: import("../arm/types.js").ArmSeekerMode;
+  targetEmitterId?: string;
+  armMemoryExpiresAt?: number;
 }
 
 export interface AirDecoyInstance extends CombatEntity {
@@ -387,6 +392,8 @@ export type AirCombatEvent = {
   weaponId?: string;
   launcherId?: string;
   targetTrackId?: string;
+  targetEmitterId?: string;
+  armSeekerMode?: string;
 };
 
 export interface AirSpawn {

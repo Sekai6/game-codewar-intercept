@@ -4,6 +4,12 @@ import { attachAirWeaponModel } from "./weapon-mounting.js";
 import { applyDeclaredWingSweep } from "./variable-geometry.js";
 import type { CombatEntity, TargetableEntity } from "../combat-entity";
 import { AIR_WEAPONS } from "./catalog";
+import { ARM_WEAPONS } from "../arm/catalog.js";
+import { updateArmSeeker } from "../arm/seeker-runtime.js";
+import { emitterFromEntity } from "../arm/emitter-bridge.js";
+import { armReleaseAuthorization } from "../arm/mission-integration.js";
+import { ArmEmitterRuntime } from "../arm/emitter-runtime.js";
+import { ARM_EMITTERS } from "../arm/catalog.js";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
 import {
   infraredSeekerCaptureProbability,
@@ -96,6 +102,8 @@ import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
+import { SovietSeadRuntime } from "../soviet-c2/sead-runtime.js";
+import { sovietPlatformAvailable, sovietWeaponAvailable } from "../soviet-c2/era.js";
 import { StrikeWaveRuntime } from "./strike-wave-runtime.js";
 import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
 import type { SovietC2Observation } from "../soviet-c2/observability.js";
@@ -368,6 +376,8 @@ export class AirCombatSystem {
   private readonly link11 = new Link11Network();
   /** Optional measurement-level CEC layer; it never creates or launches weapons. */
   private readonly cec: CecRuntime;
+  readonly armEmitters = new ArmEmitterRuntime();
+  private readonly armEmitterActivity = new Map<string, boolean>();
   private readonly sharedCec: boolean;
   private cecEnabled = false;
   private cecConfigurationKey: string | null = null;
@@ -393,6 +403,7 @@ export class AirCombatSystem {
   private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
   private readonly seenFleetOrders = new Set<string>();
   private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
+  private readonly sovietSead = new SovietSeadRuntime();
   private readonly strikeWaveRuntime = new StrikeWaveRuntime();
   private readonly recordedStrikeWaveStates = new Map<string, string>();
   private readonly seenSalvoPlans = new Set<string>();
@@ -475,6 +486,7 @@ export class AirCombatSystem {
     this.sovietFleetCommand.reset();
     this.seenFleetOrders.clear();
     this.sovietSalvoCoordinator.reset();
+    this.sovietSead.reset();
     this.recordedStrikeWaveStates.clear();
     this.seenSalvoPlans.clear();
     this.externalLink16Published.clear();
@@ -644,6 +656,30 @@ export class AirCombatSystem {
       context.blueShip,
       ...(context.redShip ? [context.redShip] : []),
     ];
+    const positions = new Map<string, THREE.Vector3>();
+    for (const target of this.externalTargets) {
+      positions.set(target.id, target.position);
+      const radiation = target.emissionState;
+      const emitterSpecs = target.kind === "ship"
+        ? [["primary-emitter", ARM_EMITTERS["AN-SPY-1-search"]], ["fire-control-emitter", ARM_EMITTERS["AN-SPG-49-fire-control"]]] as const
+        : [["primary-emitter", ARM_EMITTERS["AN-SPG-49-fire-control"]]] as const;
+      for (const [suffix, definition] of emitterSpecs) {
+        const emitterId = `${target.id}:${suffix}`;
+        if (!this.armEmitters.emitters.has(emitterId)) this.armEmitters.register({ id: emitterId, platformId: target.id, definition, position: target.position, time });
+        const emitter = this.armEmitters.emitters.get(emitterId)!;
+        const active = Boolean(radiation?.radarEmitting || radiation?.jammerEmitting);
+        this.armEmitters.setActive(emitterId, active, time, radiation?.jammerEmitting ? "jam" : suffix === "fire-control-emitter" ? "guidance" : "search");
+        const radarHealth = target.kind === "aircraft"
+          ? ((target as AirPlatformInstance).subsystemHealth.get("radar") ?? 100) / 100
+          : 1;
+        emitter.health = target.alive ? Math.max(0, Math.min(1, radarHealth)) : 0;
+        const previous = this.armEmitterActivity.get(emitterId);
+        if (previous !== undefined && previous !== active)
+          this.emit(time, "guidance", `${emitter.definitionId} ${active ? "EMISSION RESTORED" : "EMISSION CEASED"} / ${emitterId}`, { entityId: target.id, targetEmitterId: emitterId, armSeekerMode: active ? "emitter-acquired" : "memory-track" });
+        this.armEmitterActivity.set(emitterId, active);
+      }
+    }
+    this.armEmitters.update(time, positions);
     for (const wave of this.strikeWaveRuntime.snapshots()) {
       const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
       const runtimeTargetIds = wave.targetCandidates.map((id) => context.targetAliases?.[id] ?? id);
@@ -913,6 +949,7 @@ export class AirCombatSystem {
           alive: aircraft.alive,
         })),
     );
+    this.sovietSead.update(this.sovietCommandEra, time, this.aircraft, this.armEmitters);
     this.aewCommandNetwork.update(
       time,
       this.aircraft.flatMap(aircraft=>{
@@ -1260,6 +1297,12 @@ export class AirCombatSystem {
     return this.sovietGci.commandFor(participantId, time);
   }
 
+  sovietSeadEmitterCueFor(participantId: string, time = this.currentTime) {
+    return typeof (this.sovietGci as any).seadEmitterCueFor === "function"
+      ? this.sovietGci.seadEmitterCueFor(participantId, time)
+      : undefined;
+  }
+
   sovietMaritimeTargetingDiagnostics(time = this.currentTime) {
     return this.sovietMaritimeTargeting.diagnostics(time);
   }
@@ -1286,6 +1329,14 @@ export class AirCombatSystem {
 
   sovietSalvoPlanFor(participantId: string, time = this.currentTime) {
     return this.sovietSalvoCoordinator.planFor(participantId, time);
+  }
+
+  sovietSeadAssignments(time = this.currentTime) {
+    return this.sovietSead.snapshot(time);
+  }
+
+  sovietSeadAssignmentFor(participantId: string, time = this.currentTime) {
+    return this.sovietSead.assignmentFor(participantId, time);
   }
 
   sovietC2Observation(time = this.currentTime): SovietC2Observation {
@@ -1945,6 +1996,22 @@ export class AirCombatSystem {
         : undefined;
     if (!weapon || !hardpoint || (a.subsystemHealth.get("weapons") ?? 0) <= 5)
       return false;
+    if (a.definition.id === "MIG-29A-SEAD" &&
+        (!sovietPlatformAvailable(this.sovietCommandEra ?? "ntu-1980s", a.definition.id) ||
+         !sovietWeaponAvailable(this.sovietCommandEra ?? "ntu-1980s", weapon.id))) {
+      this.emit(time, "guidance", `${a.definition.name} SEAD RELEASE REJECTED / ERA ${this.sovietCommandEra ?? "unknown"}`,
+        { platformId: a.id, entityId: a.id, targetTrackId: target.id, weaponId: weapon.id });
+      return false;
+    }
+    if (weapon.guidance === "anti-radiation") {
+      const armAuth = armReleaseAuthorization({ aircraft: a, track, emitters: this.armEmitters, time });
+      if (!armAuth.allowed) {
+        this.emit(time, "guidance", `${a.definition.name} ARM RELEASE REJECTED / ${armAuth.reason}`, {
+          side: a.side, platformId: a.formationId, entityId: a.id, targetTrackId: target.id,
+        });
+        return false;
+      }
+    }
     if (this.activeAdvancedAirAi) {
       const zone = calculateDynamicLaunchZone({
         weapon,
@@ -2064,6 +2131,11 @@ export class AirCombatSystem {
             inertialContinuation: false,
             autonomousSearchAuthorized: weapon.guidance === "active-radar" || weapon.guidance === "anti-ship-radar",
             midcourseSource: "launch-solution",
+            armSeekerMode: weapon.guidance === "anti-radiation" ? "emitter-search" : undefined,
+            targetEmitterId: weapon.guidance === "anti-radiation"
+              ? `${hardpoint.targetId}:primary-emitter`
+              : undefined,
+            armMemoryExpiresAt: undefined,
           };
         this.missiles.push(missile);
         aircraft.ammo.set(
@@ -2074,7 +2146,7 @@ export class AirCombatSystem {
         hardpoint.mountedModel = null;
         hardpoint.targetId = null;
         hardpoint.state = "empty";
-        if (aircraft.mission === "anti-ship") {
+        if (aircraft.mission === "anti-ship" || aircraft.mission === "sead") {
           aircraft.mission = "egress";
           aircraft.state = "egress";
         }
@@ -2083,7 +2155,7 @@ export class AirCombatSystem {
         this.emit(
           time,
           "launch",
-          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM`,
+          `${aircraft.definition.name} LAUNCH ${weapon.name} / AIRFRAME ${aircraft.id} / ${hardpoint.id.toUpperCase()} / TRACK TQ ${Math.round(hardpoint.trackQuality * 100)}% / RANGE ${(launchZone.range / 10).toFixed(1)} KM / RTR ${(launchZone.rTr / 10).toFixed(1)} KM / RMAX ${(launchZone.rMax / 10).toFixed(1)} KM${weapon.guidance === "anti-radiation" ? ` / EMITTER ${missile.targetEmitterId ?? "UNKNOWN"}` : ""}`,
           {
             side:aircraft.side,
             platformId:aircraft.formationId,
@@ -2693,6 +2765,43 @@ export class AirCombatSystem {
         }));
         a.state = "formation";
         a.targetId = null;
+      }
+    } else if (a.mission === "sead" && time >= a.nextOoda) {
+      a.nextOoda = time + 1;
+      if (a.definition.id === "MIG-29A-SEAD" && !a.sovietSeadState) a.sovietSeadState = "ingress";
+      const passiveTrack = [...a.passiveTracks.values()]
+        .filter((track) => time - track.lastUpdate <= 12 && track.quality >= 0.28)
+        .sort((left, right) => right.quality - left.quality)[0];
+      const track = passiveTrack as AirTrack | undefined;
+      const assignment = this.sovietSead.assignmentFor(a.id, time);
+      const assignedTrack = assignment
+        ? [...a.passiveTracks.values()].find(candidate => candidate.passive?.emitterId === assignment.emitterId)
+        : undefined;
+      const selectedTrack = (assignedTrack ?? track) as AirTrack | undefined;
+      const target = selectedTrack ? this.targetById(selectedTrack.targetId, context) : undefined;
+      if (selectedTrack && target) {
+        if (a.definition.id === "MIG-29A-SEAD") a.sovietSeadState = assignment ? "attack-assignment" : "local-esm-confirm";
+        a.state = "engaging";
+        a.targetId = target.id;
+        a.desiredDirection.copy(selectedTrack.position).sub(a.position).normalize();
+        const weapon = this.chooseWeapon(a, selectedTrack, false, context.advancedAirAiEnabled ?? false);
+        if (assignment) this.emit(time, "guidance", `${a.definition.name} SEAD ${assignment.role.toUpperCase()} / ${assignment.emitterId} / CUE ${Math.round(assignment.cueQuality * 100)}%`);
+        if (weapon?.guidance === "anti-radiation" && (selectedTrack.engagementQuality ?? "cue") !== "weapon") {
+          this.emit(time, "guidance", `${a.definition.name} SEAD PASSIVE CUE / ${selectedTrack.passive?.emitterId ?? "UNKNOWN"} / LOCAL ESM CONFIRMATION REQUIRED`);
+        }
+        // SEAD must obey the same scenario hold/launch-zone command gate as
+        // every other strike mission; passive emitter confirmation alone is
+        // never sufficient to release a weapon.
+        if (weapon?.guidance === "anti-radiation" && this.strikeCommandAllowsRelease(a, time))
+          this.launch(a, target, selectedTrack, time);
+        if (a.definition.id === "MIG-29A-SEAD" && weapon?.guidance === "anti-radiation") a.sovietSeadState = "launch";
+      } else {
+        if (a.definition.id === "MIG-29A-SEAD") a.sovietSeadState = assignment ? "gci-cued-search" : "ingress";
+        a.state = "formation";
+        if (a.scenarioRoute.length) {
+          const waypoint = a.scenarioRoute[Math.min(a.scenarioRouteIndex, a.scenarioRoute.length - 1)];
+          a.desiredDirection.copy(waypoint).sub(a.position).normalize();
+        }
       }
     } else if (
       a.mission !== "egress" &&
@@ -3515,6 +3624,21 @@ export class AirCombatSystem {
       if (target.kind === "decoy") this.terminateMissile(missile, "miss", time);
       else
         this.updateAntiShipMissile(missile, target, shooter, time, dt, context);
+      return;
+    }
+    if (missile.definition.guidance === "anti-radiation") {
+      const emitter = this.armEmitters.emitters.get(`${target.id}:primary-emitter`) ?? emitterFromEntity(target, time, "X");
+      const profile = ARM_WEAPONS[missile.definition.id as "AGM-45A"|"AGM-88A"];
+      if (!profile) { this.terminateMissile(missile,"miss",time); return; }
+      const previousArmMode = missile.armSeekerMode ?? "emitter-search";
+      const armState = updateArmSeeker({ state:{ mode:previousArmMode as any, targetEmitterId:missile.targetEmitterId, memoryExpiresAt:missile.armMemoryExpiresAt, lastKnownPosition:missile.commandPoint.clone() }, profile, missilePosition:missile.position, emitters:emitter?[emitter]:[], time, dt, sample:roll(this.serial+Math.floor(time*10)) });
+      missile.armSeekerMode=armState.mode; missile.targetEmitterId=armState.targetEmitterId; missile.armMemoryExpiresAt=armState.memoryExpiresAt;
+      if (armState.mode !== previousArmMode)
+        this.emit(time, "guidance", `${missile.definition.name} ARM SEEKER ${previousArmMode.toUpperCase()} -> ${armState.mode.toUpperCase()}`, { entityId: missile.id, launchId: missile.id, targetTrackId: missile.targetId, targetEmitterId: missile.targetEmitterId, armSeekerMode: armState.mode });
+      if (armState.lastKnownPosition) missile.commandPoint.copy(armState.lastKnownPosition);
+      missile.age += dt; this.integrateAirToAirMissile(missile, missile.commandPoint.clone(), dt);
+      if (emitter && target.kind !== "decoy" && missile.position.distanceTo(emitter.position)<=missile.definition.proximityRadius) { target.applyDamage(missile.definition.damage,missile.position); this.emit(time,"kill",`${missile.definition.name} ARM EMITTER HIT / ${emitter.id}`); this.terminateMissile(missile,"hit",time); }
+      else if (armState.mode === "lost" || missile.age > 120) this.terminateMissile(missile,"miss",time);
       return;
     }
     const range = missile.position.distanceTo(target.position);

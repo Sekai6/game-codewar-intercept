@@ -3,7 +3,7 @@ import { AIR_PLATFORM_BY_ID } from "../air/catalog.js";
 import type { AirPlatformId, AirSpawn } from "../air/types.js";
 import type { DatalinkEra } from "../datalink/era.js";
 import { DATALINK_ERAS } from "../datalink/era.js";
-import { SOVIET_COMMAND_ERAS } from "../soviet-c2/era.js";
+import { SOVIET_COMMAND_ERAS, sovietPlatformAvailable, sovietWeaponAvailable } from "../soviet-c2/era.js";
 import { SPACE_WEATHER_PRESETS } from "../space-weather/catalog.js";
 import type { SpaceWeatherPhase, SpaceWeatherPreset } from "../space-weather/types.js";
 import { retimeSpaceWeatherKeyframes } from "../space-weather/timeline-runtime.js";
@@ -341,6 +341,16 @@ export function compileScenario(input: unknown, options: ScenarioCompilerOptions
   for (const force of document.forces)
     if (force.lostCommsDoctrineId && !(force.lostCommsDoctrineId in LOST_COMMS_DOCTRINES))
       throw new Error(`Unknown lost-comms doctrine ${force.lostCommsDoctrineId} for ${force.id}`);
+  for (const force of document.forces) {
+    if (force.kind !== "air-formation" || force.side !== "red") continue;
+    if (force.platformId === "MIG-29A-SEAD") {
+      const era = document.simulation.sovietCommandEra as import("../soviet-c2/era.js").SovietCommandEra;
+      if (!sovietPlatformAvailable(era, "MIG-29A-SEAD")) throw new Error(`MIG-29A-SEAD for ${force.id} requires late-soviet era`);
+      if (force.mission !== "sead") throw new Error(`MIG-29A-SEAD for ${force.id} requires sead mission`);
+      for (const weaponId of Object.keys(force.loadout ?? {}))
+        if (weaponId === "Kh-31P-C" && !sovietWeaponAvailable(era, "Kh-31P-C")) throw new Error(`Kh-31P-C for ${force.id} requires late-soviet era`);
+    }
+  }
   const knownShips = catalogIds(options.shipDefinitions);
   if (knownShips) for (const force of document.forces) {
     if (force.kind === "ship" && !knownShips.has(force.platformId))

@@ -17,6 +17,9 @@ interface WeaponVisualProfile {
 }
 
 const PROFILES: Record<AirWeaponId, WeaponVisualProfile> = {
+  "AGM-45A": { length: 1.8, radius: .11, noseLength: .34, foreFinSpan: .3, aftFinSpan: .4, wingChord: .28, bodyColor: 0xbfc2bb, bandColor: 0x8a3030, planform: "cruciform", mountedScale:.9 },
+  "AGM-88A": { length: 2.5, radius: .16, noseLength: .48, foreFinSpan: .48, aftFinSpan: .62, wingChord: .42, bodyColor: 0xd0d1cb, bandColor: 0x8a3030, planform: "cruciform", mountedScale:.8 },
+  "Kh-31P-C": { length: 2.8, radius: .17, noseLength: .5, foreFinSpan: .5, aftFinSpan: .64, wingChord: .45, bodyColor: 0xd1d3cc, bandColor: 0x4d6c88, planform: "cruciform", mountedScale:.82 },
   "AIM-54A": { length: 2.65, radius: .19, noseLength: .56, foreFinSpan: .54, aftFinSpan: .72, wingChord: .48, bodyColor: 0xe6e1d3, bandColor: 0xd4a735, planform: "long-chord", mountedScale:.757 },
   "AIM-54X-CEC": { length: 2.7, radius: .19, noseLength: .56, foreFinSpan: .54, aftFinSpan: .72, wingChord: .48, bodyColor: 0xcfd8e6, bandColor: 0x4c83c3, planform: "long-chord", mountedScale:.757 },
   "AIM-7F": { length: 2.12, radius: .135, noseLength: .48, foreFinSpan: .42, aftFinSpan: .56, wingChord: .38, bodyColor: 0xe9e6da, bandColor: 0x8b5a2b, planform: "cruciform", mountedScale:.863 },

@@ -312,6 +312,10 @@ export type AarSnapshot = {
     bestTrackQuality: number;
     lostCommsDoctrine: string;
     tacticalState: string;
+    sovietSeadState?: string;
+    sovietSeadRole?: string;
+    sovietSeadEmitter?: string;
+    sovietSeadCueQuality?: number;
   })[];
   airWeapons: (AarKinematics & {
     id: string;
@@ -328,6 +332,9 @@ export type AarSnapshot = {
     inertialContinuation: boolean;
     autonomousSearchAuthorized: boolean;
     midcourseSource: string;
+    armSeekerMode?: string;
+    targetEmitterId?: string;
+    armMemoryExpiresAt?: number;
   })[];
   airDecoys: (AarKinematics & {
     id: string;

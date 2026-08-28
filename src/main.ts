@@ -4154,8 +4154,9 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   }
   airCombat.enabled = airScenarioInput.checked;
   if (airCombat.enabled) {
-    const context = airScenarioContext();
     const presetId = airPresetInput.value as AirScenarioPresetId;
+    if (presetId === "soviet-sead") sovietCommandEraInput.value = "late-soviet";
+    const context = airScenarioContext();
     airCombat.reset(
       context.blueShip,
       context.redShip,
@@ -4542,6 +4543,10 @@ function captureAarSnapshot(force = false) {
       bestTrackQuality: [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].reduce((best,track)=>Math.max(best,track.quality),0),
       lostCommsDoctrine: airCombat.lostCommsDiagnostics().find((entry)=>entry.formationId===aircraft.formationId)?.behavior ?? "networked",
       tacticalState: `${aircraft.tacticalState.mode}/${aircraft.tacticalState.threatPhase}/${aircraft.tacticalState.energyPriority}`,
+      sovietSeadState: aircraft.sovietSeadState,
+      sovietSeadRole: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.role,
+      sovietSeadEmitter: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.emitterId,
+      sovietSeadCueQuality: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.cueQuality,
     })),
     airWeapons: airCombat.missiles.map((missile) => ({
       id: missile.id,
@@ -4559,6 +4564,9 @@ function captureAarSnapshot(force = false) {
       inertialContinuation: missile.inertialContinuation,
       autonomousSearchAuthorized: missile.autonomousSearchAuthorized,
       midcourseSource: missile.midcourseSource,
+      armSeekerMode: missile.armSeekerMode,
+      targetEmitterId: missile.targetEmitterId,
+      armMemoryExpiresAt: missile.armMemoryExpiresAt,
     })),
     airDecoys: airCombat.decoys.map((decoy) => ({
       id: decoy.id,

@@ -1,6 +1,6 @@
 import { DATALINK_ERAS } from "../datalink/era.js";
 import { LOST_COMMS_DOCTRINES } from "../lost-comms/doctrine-catalog.js";
-import { SOVIET_COMMAND_ERAS } from "../soviet-c2/era.js";
+import { SOVIET_COMMAND_ERAS, sovietPlatformAvailable, sovietWeaponAvailable } from "../soviet-c2/era.js";
 import { SPACE_WEATHER_PRESETS } from "../space-weather/catalog.js";
 import type { ScenarioDocument, ScenarioValidationIssue, ScenarioValidationResult, ScenarioVec3 } from "./types.js";
 import {
@@ -18,7 +18,7 @@ const SIDES = new Set(["blue", "red", "neutral"]);
 const FORCE_KINDS = new Set(["ship", "air-formation"]);
 const FORMATION_ROLES = new Set(["command", "picket", "screen", "escort", "hvu"]);
 const COMMAND_ROLES = new Set(["otc", "aawc", "asuwc"]);
-const MISSIONS = new Set(["cap", "intercept", "escort", "anti-ship", "aew", "egress", "return"]);
+const MISSIONS = new Set(["cap", "intercept", "escort", "anti-ship", "sead", "aew", "egress", "return"]);
 const ROUTE_KINDS = new Set(["transit", "orbit", "attack", "rendezvous"]);
 const ZONE_KINDS = new Set(["rendezvous", "launch-corridor", "weather-front", "magnetic-disturbance", "comms-window", "exclusion", "threat-estimate", "deployment-zone"]);
 const TIMELINE_TYPES = new Set(["space-weather-phase", "comms-window", "objective", "guidance"]);
@@ -199,6 +199,15 @@ export function validateScenarioDocument(input: unknown, catalogs: ScenarioValid
   });
   forces.forEach((force, index) => {
     if (record(force) && force.strikeWaveId !== undefined && (!text(force.strikeWaveId) || !strikeWaveIds.has(force.strikeWaveId))) fail(`forces[${index}].strikeWaveId`, `Unknown strike wave ${String(force.strikeWaveId)}`);
+    if (record(force) && force.kind === "air-formation" && force.side === "red" && force.platformId === "MIG-29A-SEAD") {
+      const era = String(record(document.simulation) ? document.simulation.sovietCommandEra ?? "" : "");
+      if (!sovietPlatformAvailable(era as import("../soviet-c2/era.js").SovietCommandEra, "MIG-29A-SEAD"))
+        fail(`forces[${index}].platformId`, `MIG-29A-SEAD requires late-soviet era`);
+      if (record(force.loadout)) for (const weaponId of Object.keys(force.loadout))
+        if (weaponId === "Kh-31P-C" && !sovietWeaponAvailable(era as import("../soviet-c2/era.js").SovietCommandEra, "Kh-31P-C"))
+          fail(`forces[${index}].loadout.${weaponId}`, `Kh-31P-C requires late-soviet era`);
+      if (force.mission !== "sead") fail(`forces[${index}].mission`, `MIG-29A-SEAD requires sead mission`);
+    }
   });
 
   const commandMessages = document.commandMessages === undefined ? [] :
