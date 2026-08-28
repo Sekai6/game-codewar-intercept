@@ -4,6 +4,8 @@ import { attachAirWeaponModel } from "./weapon-mounting.js";
 import { applyDeclaredWingSweep } from "./variable-geometry.js";
 import type { CombatEntity, TargetableEntity } from "../combat-entity";
 import { AIR_WEAPONS } from "./catalog";
+import { ARM_WEAPONS } from "../arm/catalog.js";
+import { updateArmSeeker } from "../arm/seeker-runtime.js";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
 import {
   infraredSeekerCaptureProbability,
@@ -3518,6 +3520,21 @@ export class AirCombatSystem {
       if (target.kind === "decoy") this.terminateMissile(missile, "miss", time);
       else
         this.updateAntiShipMissile(missile, target, shooter, time, dt, context);
+      return;
+    }
+    if (missile.definition.guidance === "anti-radiation") {
+      const emission = target.emissionState;
+      const emitter = emission && (emission.radarEmitting || emission.jammerEmitting)
+        ? { id:`${target.id}:radar`, platformId:target.id, definitionId:"runtime-emitter", position:target.position.clone(), active:true, mode: emission.jammerEmitting ? "jam" as const : "guidance" as const, emissionStrength:emission.emissionStrength, lastActivatedAt:time, lastDeactivatedAt:0, health:1, decoy:false, band:"X" }
+        : undefined;
+      const profile = ARM_WEAPONS[missile.definition.id as "AGM-45A"|"AGM-88A"];
+      if (!profile) { this.terminateMissile(missile,"miss",time); return; }
+      const armState = updateArmSeeker({ state:{ mode:missile.armSeekerMode??"emitter-search", targetEmitterId:missile.targetEmitterId, memoryExpiresAt:missile.armMemoryExpiresAt, lastKnownPosition:missile.commandPoint.clone() }, profile, missilePosition:missile.position, emitters:emitter?[emitter]:[], time, dt, sample:roll(this.serial+Math.floor(time*10)) });
+      missile.armSeekerMode=armState.mode; missile.targetEmitterId=armState.targetEmitterId; missile.armMemoryExpiresAt=armState.memoryExpiresAt;
+      if (armState.lastKnownPosition) missile.commandPoint.copy(armState.lastKnownPosition);
+      missile.age += dt; this.integrateAirToAirMissile(missile, missile.commandPoint.clone(), dt);
+      if (emitter && target.kind !== "decoy" && missile.position.distanceTo(emitter.position)<=missile.definition.proximityRadius) { target.applyDamage(missile.definition.damage,missile.position); this.emit(time,"kill",`${missile.definition.name} ARM EMITTER HIT / ${emitter.id}`); this.terminateMissile(missile,"hit",time); }
+      else if (armState.mode === "lost" || missile.age > 120) this.terminateMissile(missile,"miss",time);
       return;
     }
     const range = missile.position.distanceTo(target.position);
