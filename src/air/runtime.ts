@@ -2092,7 +2092,9 @@ export class AirCombatSystem {
             autonomousSearchAuthorized: weapon.guidance === "active-radar" || weapon.guidance === "anti-ship-radar",
             midcourseSource: "launch-solution",
             armSeekerMode: weapon.guidance === "anti-radiation" ? "emitter-search" : undefined,
-            targetEmitterId: undefined,
+            targetEmitterId: weapon.guidance === "anti-radiation"
+              ? `${hardpoint.targetId}:primary-emitter`
+              : undefined,
             armMemoryExpiresAt: undefined,
           };
         this.missiles.push(missile);
