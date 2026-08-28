@@ -36,6 +36,21 @@ export interface GciInterceptCommand {
   expiresAt: number;
 }
 
+/** Soviet-only, non-authoritative emitter threat cue. It contains an area and
+ * estimated band, never a hidden emitter id or exact target truth. */
+export interface SovietSeadEmitterThreatCue {
+  id: string;
+  recipientId: string;
+  createdAt: number;
+  deliveredAt: number;
+  expiresAt: number;
+  areaCenter: THREE.Vector3;
+  uncertainty: number;
+  estimatedBand: string;
+  quality: number;
+  status: "cue";
+}
+
 export interface GciDiagnostics {
   enabled: boolean;
   controller: string;
@@ -225,6 +240,23 @@ export class SovietGciNetwork {
   commandFor(participantId: string, time: number) {
     const command = this.commands.get(participantId);
     return command && time <= command.expiresAt ? command : undefined;
+  }
+
+  seadEmitterCueFor(participantId: string, time: number): SovietSeadEmitterThreatCue | undefined {
+    const command = this.commandFor(participantId, time);
+    if (!command || this.era !== "late-soviet") return undefined;
+    return {
+      id: `SEAD-CUE-${command.id}`,
+      recipientId: participantId,
+      createdAt: command.observedAt,
+      deliveredAt: command.deliveredAt,
+      expiresAt: command.expiresAt,
+      areaCenter: command.interceptPoint.clone(),
+      uncertainty: Math.max(command.uncertainty, 18),
+      estimatedBand: "X-BAND-ESTIMATE",
+      quality: Math.min(command.quality, .78),
+      status: "cue",
+    };
   }
 
   diagnostics(time: number): GciDiagnostics {

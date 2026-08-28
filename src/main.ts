@@ -4543,6 +4543,10 @@ function captureAarSnapshot(force = false) {
       bestTrackQuality: [...aircraft.tracks.values(), ...aircraft.networkTracks.values()].reduce((best,track)=>Math.max(best,track.quality),0),
       lostCommsDoctrine: airCombat.lostCommsDiagnostics().find((entry)=>entry.formationId===aircraft.formationId)?.behavior ?? "networked",
       tacticalState: `${aircraft.tacticalState.mode}/${aircraft.tacticalState.threatPhase}/${aircraft.tacticalState.energyPriority}`,
+      sovietSeadState: aircraft.sovietSeadState,
+      sovietSeadRole: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.role,
+      sovietSeadEmitter: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.emitterId,
+      sovietSeadCueQuality: airCombat.sovietSeadAssignmentFor(aircraft.id, elapsed)?.cueQuality,
     })),
     airWeapons: airCombat.missiles.map((missile) => ({
       id: missile.id,

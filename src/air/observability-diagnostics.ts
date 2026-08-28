@@ -30,6 +30,10 @@ export function writeSovietAirDiagnostics(
     const command = airCombat.gciCommandFor(aircraft.id, elapsed);
     return `${aircraft.id}:${command ? `${command.controllerTrackId}:${command.commandMode}:${command.quality.toFixed(2)}:${command.commandedSpeed.toFixed(1)}:${command.radarActivationRange.toFixed(0)}:${aircraft.position.distanceTo(command.interceptPoint).toFixed(1)}` : "none"}`;
   }).join("|");
+  dataset.sovietSeadGciCues = fighters.filter(a => a.definition.id === "MIG-29A-SEAD").map(a => {
+    const cue = airCombat.sovietSeadEmitterCueFor(a.id, elapsed);
+    return `${a.id}:${cue ? `${cue.id}:${cue.estimatedBand}:${cue.quality.toFixed(2)}:${cue.uncertainty.toFixed(1)}:${(elapsed - cue.deliveredAt).toFixed(1)}` : "none"}`;
+  }).join("|");
   const standby = new Set(airCombat.sovietRadarStandbyParticipants());
   dataset.gciRadarStates = fighters.map((aircraft) => `${aircraft.id}:${standby.has(aircraft.id) ? "standby" : "search"}`).join("|");
   dataset.gciAirLocalTracks = fighters.map((aircraft) => `${aircraft.id}:${aircraft.tracks.size}`).join("|");

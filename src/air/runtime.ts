@@ -1297,6 +1297,12 @@ export class AirCombatSystem {
     return this.sovietGci.commandFor(participantId, time);
   }
 
+  sovietSeadEmitterCueFor(participantId: string, time = this.currentTime) {
+    return typeof (this.sovietGci as any).seadEmitterCueFor === "function"
+      ? this.sovietGci.seadEmitterCueFor(participantId, time)
+      : undefined;
+  }
+
   sovietMaritimeTargetingDiagnostics(time = this.currentTime) {
     return this.sovietMaritimeTargeting.diagnostics(time);
   }
