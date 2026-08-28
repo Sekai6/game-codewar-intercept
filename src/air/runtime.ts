@@ -2789,7 +2789,10 @@ export class AirCombatSystem {
         if (weapon?.guidance === "anti-radiation" && (selectedTrack.engagementQuality ?? "cue") !== "weapon") {
           this.emit(time, "guidance", `${a.definition.name} SEAD PASSIVE CUE / ${selectedTrack.passive?.emitterId ?? "UNKNOWN"} / LOCAL ESM CONFIRMATION REQUIRED`);
         }
-        if (weapon?.guidance === "anti-radiation")
+        // SEAD must obey the same scenario hold/launch-zone command gate as
+        // every other strike mission; passive emitter confirmation alone is
+        // never sufficient to release a weapon.
+        if (weapon?.guidance === "anti-radiation" && this.strikeCommandAllowsRelease(a, time))
           this.launch(a, target, selectedTrack, time);
         if (a.definition.id === "MIG-29A-SEAD" && weapon?.guidance === "anti-radiation") a.sovietSeadState = "launch";
       } else {
