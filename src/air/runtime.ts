@@ -2762,6 +2762,7 @@ export class AirCombatSystem {
       }
     } else if (a.mission === "sead" && time >= a.nextOoda) {
       a.nextOoda = time + 1;
+      if (a.definition.id === "MIG-29A-SEAD" && !a.sovietSeadState) a.sovietSeadState = "ingress";
       const passiveTrack = [...a.passiveTracks.values()]
         .filter((track) => time - track.lastUpdate <= 12 && track.quality >= 0.28)
         .sort((left, right) => right.quality - left.quality)[0];
@@ -2773,6 +2774,7 @@ export class AirCombatSystem {
       const selectedTrack = (assignedTrack ?? track) as AirTrack | undefined;
       const target = selectedTrack ? this.targetById(selectedTrack.targetId, context) : undefined;
       if (selectedTrack && target) {
+        if (a.definition.id === "MIG-29A-SEAD") a.sovietSeadState = assignment ? "attack-assignment" : "local-esm-confirm";
         a.state = "engaging";
         a.targetId = target.id;
         a.desiredDirection.copy(selectedTrack.position).sub(a.position).normalize();
@@ -2783,7 +2785,9 @@ export class AirCombatSystem {
         }
         if (weapon?.guidance === "anti-radiation")
           this.launch(a, target, selectedTrack, time);
+        if (a.definition.id === "MIG-29A-SEAD" && weapon?.guidance === "anti-radiation") a.sovietSeadState = "launch";
       } else {
+        if (a.definition.id === "MIG-29A-SEAD") a.sovietSeadState = assignment ? "gci-cued-search" : "ingress";
         a.state = "formation";
         if (a.scenarioRoute.length) {
           const waypoint = a.scenarioRoute[Math.min(a.scenarioRouteIndex, a.scenarioRoute.length - 1)];

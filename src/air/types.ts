@@ -221,6 +221,8 @@ export interface AirPlatformInstance extends TargetableEntity {
   leaderId: string | null;
   protectedId: string | null;
   mission: AirMissionOrder;
+  /** Formal Soviet SEAD mission phase; absent for non-SEAD platforms. */
+  sovietSeadState?: "ingress" | "gci-cued-search" | "local-esm-confirm" | "attack-assignment" | "launch-authorized" | "launch" | "egress" | "reattack" | "abort";
   fuel: number;
   thrustMode: AirThrustMode;
   afterburnerRemaining: number;

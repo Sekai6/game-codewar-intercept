@@ -14,7 +14,9 @@ v1.1.0 first placed the six aircraft on one 2 m/unit visual scale and introduced
 
 Stable means part of the standard entity and telemetry loop; Optional requires a scenario/settings switch; Experimental may change output or performance. Unimplemented CEC, carrier operations and towed decoys must remain explicitly marked.
 
-## Future target (not implemented)
+## Current capability notes
+
+Passive IRST/ESM sensing, EMCON, and CEC are implemented as explicit, era-gated runtime capabilities. CEC is restricted to the `cec-enabled` US network configuration; Soviet platforms do not receive Link 16 or CEC. The `MIG-29A-SEAD` / `Kh-31P-C` pair is a fictional late-Soviet concept and is rejected in earlier eras.
 
 **Passive sensing / emission-control chain**: fleet and asset platforms will gain IRST, passive electromagnetic detection, emitter tracks and EMCON states. Planned verification covers silent search, emission exposure, passive-track quality, active/passive sensor switching, and EMCON constraints on data links and engagement authorization. The current release does not provide this runtime capability.
 

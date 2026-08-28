@@ -20,9 +20,17 @@ export class SovietSeadRuntime {
       const shooters = group.slice().sort((l, r) => l.id.localeCompare(r.id));
       const primary = shooters.find(a => a.id === cue.a.id) ?? shooters[0];
       if (!primary) continue;
-      this.assignments.set(primary.id, { shooterId: primary.id, role: "primary", emitterId, cueQuality: cue.t.quality, createdAt: time, expiresAt: time + 12 });
+      const nextPrimary = { shooterId: primary.id, role: "primary" as const, emitterId, cueQuality: cue.t.quality, createdAt: time, expiresAt: time + 12 };
+      const previousPrimary = this.assignments.get(primary.id);
+      if (!previousPrimary || previousPrimary.role !== nextPrimary.role || previousPrimary.emitterId !== emitterId)
+        this.assignments.set(primary.id, nextPrimary);
       const backup = shooters.find(a => a.id !== primary.id);
-      if (backup && capability.coordinatedPairAttack) this.assignments.set(backup.id, { shooterId: backup.id, role: "backup", emitterId, cueQuality: cue.t.quality * .9, createdAt: time, expiresAt: time + 12 });
+      if (backup && capability.coordinatedPairAttack) {
+        const nextBackup = { shooterId: backup.id, role: "backup" as const, emitterId, cueQuality: cue.t.quality * .9, createdAt: time, expiresAt: time + 12 };
+        const previousBackup = this.assignments.get(backup.id);
+        if (!previousBackup || previousBackup.role !== nextBackup.role || previousBackup.emitterId !== emitterId)
+          this.assignments.set(backup.id, nextBackup);
+      }
     }
     for (const [id, assignment] of this.assignments) if (assignment.expiresAt < time || !group.some(a => a.id === id)) this.assignments.delete(id);
   }
