@@ -4,4 +4,4 @@ The ARM foundation adds independent emitter records, ESM emitter tracks and two 
 
 The state chain is `emitter-search → emitter-acquired → terminal-home → memory-track → reacquisition → lost/impact`. When a radar shuts down, ESM updates stop; seeker behavior follows the weapon profile. Decoys, emitter switching, band mismatch and stale tracks can all cause a miss.
 
-The catalog, seeker state machine and deterministic logic verification are complete. A-6E SEAD task orchestration, physical launch integration and HUD/AAR/Tacview expansion remain the next integration stage.
+The catalog, independent search/fire-control emitters, ESM/IRST passive tracks, A-6E SEAD task orchestration, physical hardpoint launch path, and deterministic AGM-45/AGM-88 memory/loss/reacquisition lifecycle are implemented. AAR/Tacview records seeker state, target emitter binding, and emitter activation changes. The ARM runtime, SEAD authorization, seeker lifecycle, and browser SEAD preset checks are part of the verification suite.
