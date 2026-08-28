@@ -7,6 +7,7 @@ import { AIR_WEAPONS } from "./catalog";
 import { ARM_WEAPONS } from "../arm/catalog.js";
 import { updateArmSeeker } from "../arm/seeker-runtime.js";
 import { emitterFromEntity } from "../arm/emitter-bridge.js";
+import { armReleaseAuthorization } from "../arm/mission-integration.js";
 import { ArmEmitterRuntime } from "../arm/emitter-runtime.js";
 import { ARM_EMITTERS } from "../arm/catalog.js";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
@@ -1962,6 +1963,15 @@ export class AirCombatSystem {
         : undefined;
     if (!weapon || !hardpoint || (a.subsystemHealth.get("weapons") ?? 0) <= 5)
       return false;
+    if (weapon.guidance === "anti-radiation") {
+      const armAuth = armReleaseAuthorization({ aircraft: a, track, emitters: this.armEmitters, time });
+      if (!armAuth.allowed) {
+        this.emit(time, "guidance", `${a.definition.name} ARM RELEASE REJECTED / ${armAuth.reason}`, {
+          side: a.side, platformId: a.formationId, entityId: a.id, targetTrackId: target.id,
+        });
+        return false;
+      }
+    }
     if (this.activeAdvancedAirAi) {
       const zone = calculateDynamicLaunchZone({
         weapon,

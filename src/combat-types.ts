@@ -328,6 +328,9 @@ export type AarSnapshot = {
     inertialContinuation: boolean;
     autonomousSearchAuthorized: boolean;
     midcourseSource: string;
+    armSeekerMode?: string;
+    targetEmitterId?: string;
+    armMemoryExpiresAt?: number;
   })[];
   airDecoys: (AarKinematics & {
     id: string;
