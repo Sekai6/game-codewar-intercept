@@ -2115,7 +2115,7 @@ export class AirCombatSystem {
         hardpoint.mountedModel = null;
         hardpoint.targetId = null;
         hardpoint.state = "empty";
-        if (aircraft.mission === "anti-ship") {
+        if (aircraft.mission === "anti-ship" || aircraft.mission === "sead") {
           aircraft.mission = "egress";
           aircraft.state = "egress";
         }
@@ -2734,6 +2734,30 @@ export class AirCombatSystem {
         }));
         a.state = "formation";
         a.targetId = null;
+      }
+    } else if (a.mission === "sead" && time >= a.nextOoda) {
+      a.nextOoda = time + 1;
+      const passiveTrack = [...a.passiveTracks.values()]
+        .filter((track) => time - track.lastUpdate <= 12 && track.quality >= 0.28)
+        .sort((left, right) => right.quality - left.quality)[0];
+      const track = passiveTrack as AirTrack | undefined;
+      const target = track ? this.targetById(track.targetId, context) : undefined;
+      if (track && target) {
+        a.state = "engaging";
+        a.targetId = target.id;
+        a.desiredDirection.copy(track.position).sub(a.position).normalize();
+        const weapon = this.chooseWeapon(a, track, false, context.advancedAirAiEnabled ?? false);
+        if (weapon?.guidance === "anti-radiation" && (track.engagementQuality ?? "cue") !== "weapon") {
+          this.emit(time, "guidance", `${a.definition.name} SEAD PASSIVE CUE / ${track.passive?.emitterId ?? "UNKNOWN"} / LOCAL ESM CONFIRMATION REQUIRED`);
+        }
+        if (weapon?.guidance === "anti-radiation")
+          this.launch(a, target, track, time);
+      } else {
+        a.state = "formation";
+        if (a.scenarioRoute.length) {
+          const waypoint = a.scenarioRoute[Math.min(a.scenarioRouteIndex, a.scenarioRoute.length - 1)];
+          a.desiredDirection.copy(waypoint).sub(a.position).normalize();
+        }
       }
     } else if (
       a.mission !== "egress" &&
