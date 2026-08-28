@@ -12,7 +12,7 @@ export interface EmitterInstance {
   id: string; platformId: string; definitionId: string; position: THREE.Vector3;
   active: boolean; mode: "search" | "track" | "guidance" | "jam";
   emissionStrength: number; lastActivatedAt: number; lastDeactivatedAt: number;
-  shutdownUntil?: number; health: number; decoy: boolean;
+  shutdownUntil?: number; health: number; decoy: boolean; band: string;
 }
 export interface EmitterTrack {
   id: string; emitterId?: string; observerId: string; bearingDeg: number;
