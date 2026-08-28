@@ -4154,8 +4154,9 @@ radarCanvas.addEventListener("pointerdown", (e) => {
   }
   airCombat.enabled = airScenarioInput.checked;
   if (airCombat.enabled) {
-    const context = airScenarioContext();
     const presetId = airPresetInput.value as AirScenarioPresetId;
+    if (presetId === "soviet-sead") sovietCommandEraInput.value = "late-soviet";
+    const context = airScenarioContext();
     airCombat.reset(
       context.blueShip,
       context.redShip,
