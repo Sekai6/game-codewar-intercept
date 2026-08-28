@@ -7,6 +7,8 @@ import { AIR_WEAPONS } from "./catalog";
 import { ARM_WEAPONS } from "../arm/catalog.js";
 import { updateArmSeeker } from "../arm/seeker-runtime.js";
 import { emitterFromEntity } from "../arm/emitter-bridge.js";
+import { ArmEmitterRuntime } from "../arm/emitter-runtime.js";
+import { ARM_EMITTERS } from "../arm/catalog.js";
 import { airRadarFactors, missileWarningProbability } from "./sensors";
 import {
   infraredSeekerCaptureProbability,
@@ -371,6 +373,7 @@ export class AirCombatSystem {
   private readonly link11 = new Link11Network();
   /** Optional measurement-level CEC layer; it never creates or launches weapons. */
   private readonly cec: CecRuntime;
+  readonly armEmitters = new ArmEmitterRuntime();
   private readonly sharedCec: boolean;
   private cecEnabled = false;
   private cecConfigurationKey: string | null = null;
@@ -647,6 +650,17 @@ export class AirCombatSystem {
       context.blueShip,
       ...(context.redShip ? [context.redShip] : []),
     ];
+    const positions = new Map<string, THREE.Vector3>();
+    for (const target of this.externalTargets) {
+      positions.set(target.id, target.position);
+      const emitterId = `${target.id}:primary-emitter`;
+      if (!this.armEmitters.emitters.has(emitterId)) this.armEmitters.register({ id:emitterId, platformId:target.id, definition:target.kind === "ship" ? ARM_EMITTERS["AN-SPY-1-search"] : ARM_EMITTERS["AN-SPG-49-fire-control"], position:target.position, time });
+      const emitter = this.armEmitters.emitters.get(emitterId)!;
+      const radiation = target.emissionState;
+      this.armEmitters.setActive(emitterId, Boolean(radiation?.radarEmitting || radiation?.jammerEmitting), time, radiation?.jammerEmitting ? "jam" : "guidance");
+      emitter.health = target.alive ? 1 : 0;
+    }
+    this.armEmitters.update(time, positions);
     for (const wave of this.strikeWaveRuntime.snapshots()) {
       const members = this.aircraft.filter((aircraft) => wave.shooterIds.includes(aircraft.id));
       const runtimeTargetIds = wave.targetCandidates.map((id) => context.targetAliases?.[id] ?? id);
@@ -3524,7 +3538,7 @@ export class AirCombatSystem {
       return;
     }
     if (missile.definition.guidance === "anti-radiation") {
-      const emitter = emitterFromEntity(target, time, "X");
+      const emitter = this.armEmitters.emitters.get(`${target.id}:primary-emitter`) ?? emitterFromEntity(target, time, "X");
       const profile = ARM_WEAPONS[missile.definition.id as "AGM-45A"|"AGM-88A"];
       if (!profile) { this.terminateMissile(missile,"miss",time); return; }
       const armState = updateArmSeeker({ state:{ mode:missile.armSeekerMode??"emitter-search", targetEmitterId:missile.targetEmitterId, memoryExpiresAt:missile.armMemoryExpiresAt, lastKnownPosition:missile.commandPoint.clone() }, profile, missilePosition:missile.position, emitters:emitter?[emitter]:[], time, dt, sample:roll(this.serial+Math.floor(time*10)) });
