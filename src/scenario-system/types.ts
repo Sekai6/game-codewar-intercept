@@ -59,7 +59,7 @@ export interface ScenarioAirFormationDefinition {
   headingDeg: number;
   speed?: number;
   altitude: number;
-  mission: "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
+  mission: "cap" | "intercept" | "escort" | "anti-ship" | "sead" | "aew" | "egress" | "return";
   routeId?: string;
   launchZoneId?: string;
   strikeWaveId?: string;
