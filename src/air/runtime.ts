@@ -1325,6 +1325,14 @@ export class AirCombatSystem {
     return this.sovietSalvoCoordinator.planFor(participantId, time);
   }
 
+  sovietSeadAssignments(time = this.currentTime) {
+    return this.sovietSead.snapshot(time);
+  }
+
+  sovietSeadAssignmentFor(participantId: string, time = this.currentTime) {
+    return this.sovietSead.assignmentFor(participantId, time);
+  }
+
   sovietC2Observation(time = this.currentTime): SovietC2Observation {
     const context = this.group.userData.context as AirScenarioContext | undefined;
     const fleet = this.sovietFleetCommand.diagnostics(time);

@@ -8,11 +8,15 @@ export function writeSovietAirDiagnostics(
   commandEra: string,
   commandEnabled: boolean,
 ) {
-  const fighters = airCombat.aircraft.filter((aircraft) => aircraft.definition.id === "MIG-29A");
-  const bombers = airCombat.aircraft.filter((aircraft) => aircraft.definition.id === "TU-16K");
+  const fighters = airCombat.aircraft.filter((aircraft) => aircraft.definition.id === "MIG-29A" || aircraft.definition.id === "MIG-29A-SEAD");
   const events = (pattern: RegExp) => airCombat.events
     .filter((event) => pattern.test(event.text))
     .map((event) => `${event.time.toFixed(2)}:${event.text}`).join("|");
+  const seadAssignments = airCombat.sovietSeadAssignments(elapsed);
+  dataset.sovietSeadAssignments = seadAssignments.map((assignment) => `${assignment.shooterId}:${assignment.role}:${assignment.emitterId}:${assignment.cueQuality.toFixed(2)}:${(assignment.expiresAt - elapsed).toFixed(1)}`).join("|");
+  dataset.sovietSeadCapability = commandEra === "late-soviet" ? "ACTIVE" : "OFF";
+  dataset.sovietSeadEventLog = events(/SEAD (?:PRIMARY|BACKUP|PASSIVE CUE)|SEAD RELEASE REJECTED|Kh-31P-C/);
+  const bombers = airCombat.aircraft.filter((aircraft) => aircraft.definition.id === "TU-16K");
   const gci = airCombat.sovietGciDiagnostics(elapsed);
   dataset.sovietCommandEra = commandEra;
   dataset.sovietCommandEnabled = String(commandEnabled);
