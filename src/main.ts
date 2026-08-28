@@ -4559,6 +4559,9 @@ function captureAarSnapshot(force = false) {
       inertialContinuation: missile.inertialContinuation,
       autonomousSearchAuthorized: missile.autonomousSearchAuthorized,
       midcourseSource: missile.midcourseSource,
+      armSeekerMode: missile.armSeekerMode,
+      targetEmitterId: missile.targetEmitterId,
+      armMemoryExpiresAt: missile.armMemoryExpiresAt,
     })),
     airDecoys: airCombat.decoys.map((decoy) => ({
       id: decoy.id,
