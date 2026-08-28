@@ -48,11 +48,11 @@ export interface AirAerodynamicDefinition {
 export type AirGuidance =
   "active-radar" | "semi-active-radar" | "infrared" | "anti-ship-radar" | "anti-radiation";
 export type AirPlatformId =
-  | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A"
+  | "F-14A" | "TU-16K" | "A-6E" | "MIG-29A" | "MIG-29A-SEAD"
   | "E-2C" | "TU-126";
 export type AirWeaponId =
   | "AIM-54A" | "AIM-54X-CEC" | "AIM-7F" | "AIM-9L"
-  | "R-27R" | "R-73" | "AGM-45A" | "AGM-88A"
+  | "R-27R" | "R-73" | "AGM-45A" | "AGM-88A" | "Kh-31P-C"
   | "KSR-5" | "AGM-84A";
 export type AirSubsystem =
   | "structure"

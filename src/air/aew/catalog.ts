@@ -1,7 +1,7 @@
 import { createE2cModel, createTu126Model } from "./models.js";
 import type { AirPlatformDefinition, AirWeaponId } from "../types.js";
 
-const emptyLoadout = ():Record<AirWeaponId,number> => ({"AIM-54A":0,"AIM-54X-CEC":0,"AIM-7F":0,"AIM-9L":0,"R-27R":0,"R-73":0,"AGM-45A":0,"AGM-88A":0,"KSR-5":0,"AGM-84A":0});
+const emptyLoadout = ():Record<AirWeaponId,number> => ({"AIM-54A":0,"AIM-54X-CEC":0,"AIM-7F":0,"AIM-9L":0,"R-27R":0,"R-73":0,"AGM-45A":0,"AGM-88A":0,"Kh-31P-C":0,"KSR-5":0,"AGM-84A":0});
 const turbopropThrust={militarySpeedFactor:1.18,militaryAccelerationFactor:1,militaryFuelMultiplier:1.42,militaryInfraredMultiplier:1.12,afterburnerAvailable:false,afterburnerSpeedFactor:1.18,afterburnerAccelerationFactor:1,afterburnerFuelMultiplier:1.42,afterburnerInfraredMultiplier:1.12,afterburnerSeconds:0};
 const e2cAerodynamics={referenceMassKg:23000,wingAreaM2:65,zeroLiftDragCoefficient:.034,inducedDragFactor:.072,liftCurveSlopePerDeg:.082,criticalAngleOfAttackDeg:15,controlResponseSeconds:1.25,engineSpoolUpSeconds:6.5,engineSpoolDownSeconds:5.2};
 const tu126Aerodynamics={referenceMassKg:150000,wingAreaM2:311,zeroLiftDragCoefficient:.036,inducedDragFactor:.075,liftCurveSlopePerDeg:.072,criticalAngleOfAttackDeg:12,controlResponseSeconds:1.8,engineSpoolUpSeconds:8.2,engineSpoolDownSeconds:6.8};

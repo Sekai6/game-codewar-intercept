@@ -102,6 +102,7 @@ import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
+import { sovietPlatformAvailable, sovietWeaponAvailable } from "../soviet-c2/era.js";
 import { StrikeWaveRuntime } from "./strike-wave-runtime.js";
 import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
 import type { SovietC2Observation } from "../soviet-c2/observability.js";
@@ -1977,6 +1978,13 @@ export class AirCombatSystem {
         : undefined;
     if (!weapon || !hardpoint || (a.subsystemHealth.get("weapons") ?? 0) <= 5)
       return false;
+    if (a.definition.id === "MIG-29A-SEAD" &&
+        (!sovietPlatformAvailable(this.sovietCommandEra ?? "ntu-1980s", a.definition.id) ||
+         !sovietWeaponAvailable(this.sovietCommandEra ?? "ntu-1980s", weapon.id))) {
+      this.emit(time, "guidance", `${a.definition.name} SEAD RELEASE REJECTED / ERA ${this.sovietCommandEra ?? "unknown"}`,
+        { platformId: a.id, entityId: a.id, targetTrackId: target.id, weaponId: weapon.id });
+      return false;
+    }
     if (weapon.guidance === "anti-radiation") {
       const armAuth = armReleaseAuthorization({ aircraft: a, track, emitters: this.armEmitters, time });
       if (!armAuth.allowed) {
