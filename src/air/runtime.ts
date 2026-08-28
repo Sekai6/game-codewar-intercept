@@ -664,7 +664,10 @@ export class AirCombatSystem {
         const emitter = this.armEmitters.emitters.get(emitterId)!;
         const active = Boolean(radiation?.radarEmitting || radiation?.jammerEmitting);
         this.armEmitters.setActive(emitterId, active, time, radiation?.jammerEmitting ? "jam" : suffix === "fire-control-emitter" ? "guidance" : "search");
-        emitter.health = target.alive ? 1 : 0;
+        const radarHealth = target.kind === "aircraft"
+          ? ((target as AirPlatformInstance).subsystemHealth.get("radar") ?? 100) / 100
+          : 1;
+        emitter.health = target.alive ? Math.max(0, Math.min(1, radarHealth)) : 0;
       }
     }
     this.armEmitters.update(time, positions);
