@@ -102,6 +102,7 @@ import { SovietGciNetwork } from "../soviet-c2/gci-network.js";
 import { SovietMaritimeTargetingNetwork } from "../soviet-c2/maritime-targeting.js";
 import { SovietFleetCommandNetwork } from "../soviet-c2/fleet-command.js";
 import { SovietSalvoCoordinator } from "../soviet-c2/salvo-coordination.js";
+import { SovietSeadRuntime } from "../soviet-c2/sead-runtime.js";
 import { sovietPlatformAvailable, sovietWeaponAvailable } from "../soviet-c2/era.js";
 import { StrikeWaveRuntime } from "./strike-wave-runtime.js";
 import { SOVIET_GCI_CONTROLLER_POSITION } from "../soviet-c2/gci-network.js";
@@ -402,6 +403,7 @@ export class AirCombatSystem {
   private readonly sovietFleetCommand = new SovietFleetCommandNetwork();
   private readonly seenFleetOrders = new Set<string>();
   private readonly sovietSalvoCoordinator = new SovietSalvoCoordinator();
+  private readonly sovietSead = new SovietSeadRuntime();
   private readonly strikeWaveRuntime = new StrikeWaveRuntime();
   private readonly recordedStrikeWaveStates = new Map<string, string>();
   private readonly seenSalvoPlans = new Set<string>();
@@ -484,6 +486,7 @@ export class AirCombatSystem {
     this.sovietFleetCommand.reset();
     this.seenFleetOrders.clear();
     this.sovietSalvoCoordinator.reset();
+    this.sovietSead.reset();
     this.recordedStrikeWaveStates.clear();
     this.seenSalvoPlans.clear();
     this.externalLink16Published.clear();
@@ -946,6 +949,7 @@ export class AirCombatSystem {
           alive: aircraft.alive,
         })),
     );
+    this.sovietSead.update(this.sovietCommandEra, time, this.aircraft, this.armEmitters);
     this.aewCommandNetwork.update(
       time,
       this.aircraft.flatMap(aircraft=>{
@@ -2754,17 +2758,23 @@ export class AirCombatSystem {
         .filter((track) => time - track.lastUpdate <= 12 && track.quality >= 0.28)
         .sort((left, right) => right.quality - left.quality)[0];
       const track = passiveTrack as AirTrack | undefined;
-      const target = track ? this.targetById(track.targetId, context) : undefined;
-      if (track && target) {
+      const assignment = this.sovietSead.assignmentFor(a.id, time);
+      const assignedTrack = assignment
+        ? [...a.passiveTracks.values()].find(candidate => candidate.passive?.emitterId === assignment.emitterId)
+        : undefined;
+      const selectedTrack = (assignedTrack ?? track) as AirTrack | undefined;
+      const target = selectedTrack ? this.targetById(selectedTrack.targetId, context) : undefined;
+      if (selectedTrack && target) {
         a.state = "engaging";
         a.targetId = target.id;
-        a.desiredDirection.copy(track.position).sub(a.position).normalize();
-        const weapon = this.chooseWeapon(a, track, false, context.advancedAirAiEnabled ?? false);
-        if (weapon?.guidance === "anti-radiation" && (track.engagementQuality ?? "cue") !== "weapon") {
-          this.emit(time, "guidance", `${a.definition.name} SEAD PASSIVE CUE / ${track.passive?.emitterId ?? "UNKNOWN"} / LOCAL ESM CONFIRMATION REQUIRED`);
+        a.desiredDirection.copy(selectedTrack.position).sub(a.position).normalize();
+        const weapon = this.chooseWeapon(a, selectedTrack, false, context.advancedAirAiEnabled ?? false);
+        if (assignment) this.emit(time, "guidance", `${a.definition.name} SEAD ${assignment.role.toUpperCase()} / ${assignment.emitterId} / CUE ${Math.round(assignment.cueQuality * 100)}%`);
+        if (weapon?.guidance === "anti-radiation" && (selectedTrack.engagementQuality ?? "cue") !== "weapon") {
+          this.emit(time, "guidance", `${a.definition.name} SEAD PASSIVE CUE / ${selectedTrack.passive?.emitterId ?? "UNKNOWN"} / LOCAL ESM CONFIRMATION REQUIRED`);
         }
         if (weapon?.guidance === "anti-radiation")
-          this.launch(a, target, track, time);
+          this.launch(a, target, selectedTrack, time);
       } else {
         a.state = "formation";
         if (a.scenarioRoute.length) {
