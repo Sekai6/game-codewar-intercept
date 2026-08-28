@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import * as THREE from "three";
+import { ARM_WEAPONS } from "../src/arm/catalog.ts";
+import { updateArmSeeker } from "../src/arm/seeker-runtime.ts";
+const emitter={id:"spg",platformId:"cg57",definitionId:"AN-SPG-49-fire-control",position:new THREE.Vector3(80,0,0),active:true,mode:"guidance",emissionStrength:1,lastActivatedAt:0,lastDeactivatedAt:0,health:1,decoy:false,band:"X"};
+const state={mode:"emitter-search"};
+updateArmSeeker({state,profile:ARM_WEAPONS["AGM-45A"],missilePosition:new THREE.Vector3(),emitters:[emitter],time:1,dt:.2,sample:0});
+assert.equal(state.mode,"emitter-acquired");
+emitter.active=false; updateArmSeeker({state,profile:ARM_WEAPONS["AGM-45A"],missilePosition:new THREE.Vector3(),emitters:[emitter],time:2,dt:.2});
+assert.equal(state.mode,"memory-track");
+const harm={mode:"emitter-search"}; updateArmSeeker({state:harm,profile:ARM_WEAPONS["AGM-88A"],missilePosition:new THREE.Vector3(),emitters:[{...emitter,active:true}],time:1,dt:.2,sample:0});
+assert.equal(harm.mode,"emitter-acquired");
+console.log("ARM runtime verification passed");

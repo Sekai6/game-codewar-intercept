@@ -33,6 +33,8 @@ export const SCENARIO_WEAPON_IDS = [
   ...SCENARIO_SHIP_LOADOUT_IDS,
   "AIM-54A",
   "AIM-54X-CEC",
+  "AGM-45A",
+  "AGM-88A",
   "AIM-7F",
   "AIM-9L",
   "R-27R",
@@ -44,6 +46,8 @@ export const SCENARIO_WEAPON_IDS = [
 export const SCENARIO_AIR_WEAPON_IDS = [
   "AIM-54A",
   "AIM-54X-CEC",
+  "AGM-45A",
+  "AGM-88A",
   "AIM-7F",
   "AIM-9L",
   "R-27R",

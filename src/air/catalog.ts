@@ -11,6 +11,8 @@ const migPassive: PassiveSensorSuite = { irst:{id:"OEPS-29",kind:"irst",range:38
 const a6Passive: PassiveSensorSuite = { esm:{id:"AN/ALR-67",kind:"esm",range:1050,fieldOfViewDeg:360,updateInterval:1.2,bearingPrecisionDeg:6,rangeEstimateError:.65,minimumSignal:.03,detects:["aircraft","ship","missile"]} };
 
 export const AIR_WEAPONS: Readonly<Record<AirWeaponId, AirWeaponDefinition>> = {
+  "AGM-45A": { id:"AGM-45A", name:"AGM-45A Shrike", targets:["ship"], guidance:"anti-radiation", minRange:18, maxRange:260, speed:8.5, boostSeconds:2.5, maxTurnRateDeg:10, seekerRange:120, seekerFovDeg:70, datalinkInterval:1, damage:18, proximityRadius:5, countermeasureResistance:.5, massKg:177, dragIndex:.02, shipDefenseTemplate:"RGM-84 Harpoon" },
+  "AGM-88A": { id:"AGM-88A", name:"AGM-88A HARM", targets:["ship"], guidance:"anti-radiation", minRange:20, maxRange:520, speed:9.2, boostSeconds:2.8, maxTurnRateDeg:13, seekerRange:180, seekerFovDeg:90, datalinkInterval:.6, damage:28, proximityRadius:6, countermeasureResistance:.68, massKg:360, dragIndex:.024, shipDefenseTemplate:"RGM-84 Harpoon" },
   "AIM-54A": { id:"AIM-54A", name:"AIM-54A Phoenix", targets:["aircraft"], guidance:"active-radar", midcourseSupport:"launch-platform-only", cecMidcourseUpdates:false, minRange:12, maxRange:1380, speed:19, boostSeconds:6, maxTurnRateDeg:17, seekerRange:170, seekerFovDeg:55, datalinkInterval:0.8, damage:72, proximityRadius:5, countermeasureResistance:0.72, massKg:460, dragIndex:.035, shipDefenseTemplate:"Kh-22", airToAirFlight:{sustainSeconds:24,coastDragPerSecond:.009,minimumSpeedFactor:.38,maximumFlightSeconds:110,loftAltitude:210,loftTransitionRange:360} },
   "AIM-54X-CEC": { id:"AIM-54X-CEC", name:"AIM-54X CEC Phoenix (hypothetical)", targets:["aircraft"], guidance:"active-radar", midcourseSupport:"cec-network-native", cecMidcourseUpdates:true, minRange:12, maxRange:1450, speed:19, boostSeconds:6, maxTurnRateDeg:17, seekerRange:170, seekerFovDeg:55, datalinkInterval:0.8, damage:72, proximityRadius:5, countermeasureResistance:0.72, massKg:460, dragIndex:.035, shipDefenseTemplate:"Kh-22", airToAirFlight:{sustainSeconds:24,coastDragPerSecond:.009,minimumSpeedFactor:.38,maximumFlightSeconds:110,loftAltitude:210,loftTransitionRange:360} },
   "AIM-7F": { id:"AIM-7F", name:"AIM-7F Sparrow", targets:["aircraft"], guidance:"semi-active-radar", minRange:5, maxRange:460, speed:15, boostSeconds:4, maxTurnRateDeg:24, seekerRange:36, seekerFovDeg:42, datalinkInterval:0.4, damage:64, proximityRadius:4, countermeasureResistance:0.58, massKg:230, dragIndex:.018, shipDefenseTemplate:"Kh-22", airToAirFlight:{sustainSeconds:10,coastDragPerSecond:.018,minimumSpeedFactor:.42,maximumFlightSeconds:55,loftAltitude:125,loftTransitionRange:170} },
@@ -21,7 +23,7 @@ export const AIR_WEAPONS: Readonly<Record<AirWeaponId, AirWeaponDefinition>> = {
   "AGM-84A": { id:"AGM-84A", name:"AGM-84A Harpoon", targets:["ship"], guidance:"anti-ship-radar", minRange:25, maxRange:430, speed:6.2, boostSeconds:3, maxTurnRateDeg:12, seekerRange:115, seekerFovDeg:50, datalinkInterval:1, damage:22, proximityRadius:6, countermeasureResistance:0.64, massKg:690, dragIndex:.035, shipDefenseTemplate:"RGM-84 Harpoon", antiShipFlight:{boostAltitude:4.5,cruiseAltitude:.9,terminalAltitude:.12,boostSpeedFactor:.72,cruiseSpeedFactor:.94,terminalTurnFactor:1.8} },
 };
 
-const emptyLoadout = (): Record<AirWeaponId, number> => ({"AIM-54A":0,"AIM-54X-CEC":0,"AIM-7F":0,"AIM-9L":0,"R-27R":0,"R-73":0,"KSR-5":0,"AGM-84A":0});
+const emptyLoadout = (): Record<AirWeaponId, number> => ({"AIM-54A":0,"AIM-54X-CEC":0,"AIM-7F":0,"AIM-9L":0,"R-27R":0,"R-73":0,"AGM-45A":0,"AGM-88A":0,"KSR-5":0,"AGM-84A":0});
 const f14Thrust = {militarySpeedFactor:1.38,militaryAccelerationFactor:1,militaryFuelMultiplier:1.65,militaryInfraredMultiplier:1.3,afterburnerAvailable:true,afterburnerSpeedFactor:2.25,afterburnerAccelerationFactor:1.72,afterburnerFuelMultiplier:4.6,afterburnerInfraredMultiplier:2.7,afterburnerSeconds:150};
 const mig29Thrust = {militarySpeedFactor:1.34,militaryAccelerationFactor:1.08,militaryFuelMultiplier:1.72,militaryInfraredMultiplier:1.38,afterburnerAvailable:true,afterburnerSpeedFactor:2.11,afterburnerAccelerationFactor:1.9,afterburnerFuelMultiplier:5.1,afterburnerInfraredMultiplier:3,afterburnerSeconds:105};
 const bomberThrust = {militarySpeedFactor:1.27,militaryAccelerationFactor:1,militaryFuelMultiplier:1.55,militaryInfraredMultiplier:1.22,afterburnerAvailable:false,afterburnerSpeedFactor:1.27,afterburnerAccelerationFactor:1,afterburnerFuelMultiplier:1.55,afterburnerInfraredMultiplier:1.22,afterburnerSeconds:0};
@@ -67,7 +69,7 @@ const badgerHardpoints = TU16K_MODEL_STATIONS.map((station) => ({
 const intruderHardpoints = A6E_STRIKE_STATIONS.map((station) => ({
   id: station.id,
   position: station.position,
-  compatibleWeapons: ["AGM-84A"] as const,
+  compatibleWeapons: ["AGM-84A", "AGM-45A", "AGM-88A"] as const,
   releaseDelay: 0.35,
   ignitionDelay: 0.3,
 }));
