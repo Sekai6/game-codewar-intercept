@@ -654,12 +654,18 @@ export class AirCombatSystem {
     const positions = new Map<string, THREE.Vector3>();
     for (const target of this.externalTargets) {
       positions.set(target.id, target.position);
-      const emitterId = `${target.id}:primary-emitter`;
-      if (!this.armEmitters.emitters.has(emitterId)) this.armEmitters.register({ id:emitterId, platformId:target.id, definition:target.kind === "ship" ? ARM_EMITTERS["AN-SPY-1-search"] : ARM_EMITTERS["AN-SPG-49-fire-control"], position:target.position, time });
-      const emitter = this.armEmitters.emitters.get(emitterId)!;
       const radiation = target.emissionState;
-      this.armEmitters.setActive(emitterId, Boolean(radiation?.radarEmitting || radiation?.jammerEmitting), time, radiation?.jammerEmitting ? "jam" : "guidance");
-      emitter.health = target.alive ? 1 : 0;
+      const emitterSpecs = target.kind === "ship"
+        ? [["primary-emitter", ARM_EMITTERS["AN-SPY-1-search"]], ["fire-control-emitter", ARM_EMITTERS["AN-SPG-49-fire-control"]]] as const
+        : [["primary-emitter", ARM_EMITTERS["AN-SPG-49-fire-control"]]] as const;
+      for (const [suffix, definition] of emitterSpecs) {
+        const emitterId = `${target.id}:${suffix}`;
+        if (!this.armEmitters.emitters.has(emitterId)) this.armEmitters.register({ id: emitterId, platformId: target.id, definition, position: target.position, time });
+        const emitter = this.armEmitters.emitters.get(emitterId)!;
+        const active = Boolean(radiation?.radarEmitting || radiation?.jammerEmitting);
+        this.armEmitters.setActive(emitterId, active, time, radiation?.jammerEmitting ? "jam" : suffix === "fire-control-emitter" ? "guidance" : "search");
+        emitter.health = target.alive ? 1 : 0;
+      }
     }
     this.armEmitters.update(time, positions);
     for (const wave of this.strikeWaveRuntime.snapshots()) {
