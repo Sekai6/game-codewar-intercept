@@ -20,7 +20,7 @@ import type { PilotModel, PilotSkill, PilotState } from "./ai/pilot-model";
 import type { EmconMode, PassiveSensorSuite, PassiveTrackData } from "../sensors/passive-types.js";
 
 export type AirMissionOrder =
-  "cap" | "intercept" | "escort" | "anti-ship" | "aew" | "egress" | "return";
+  "cap" | "intercept" | "escort" | "anti-ship" | "sead" | "aew" | "egress" | "return";
 export type AirThrustMode = "idle" | "cruise" | "military" | "afterburner";
 export interface AirThrustDefinition {
   militarySpeedFactor: number;
@@ -318,6 +318,9 @@ export interface AirMissileInstance extends TargetableEntity {
   inertialContinuation: boolean;
   autonomousSearchAuthorized: boolean;
   midcourseSource: "organic-radar" | "network-cue" | "launch-solution";
+  armSeekerMode?: import("../arm/types.js").ArmSeekerMode;
+  targetEmitterId?: string;
+  armMemoryExpiresAt?: number;
 }
 
 export interface AirDecoyInstance extends CombatEntity {

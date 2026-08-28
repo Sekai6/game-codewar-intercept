@@ -2064,6 +2064,9 @@ export class AirCombatSystem {
             inertialContinuation: false,
             autonomousSearchAuthorized: weapon.guidance === "active-radar" || weapon.guidance === "anti-ship-radar",
             midcourseSource: "launch-solution",
+            armSeekerMode: weapon.guidance === "anti-radiation" ? "emitter-search" : undefined,
+            targetEmitterId: undefined,
+            armMemoryExpiresAt: undefined,
           };
         this.missiles.push(missile);
         aircraft.ammo.set(
